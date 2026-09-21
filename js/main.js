@@ -1489,7 +1489,7 @@ function drawWing(side) {
 	ctx.scale(wingScale, wingScale);
 
 	// Dynamic wing opacity (more visible when spread)
-	var wingAlpha = 0.3 + anim.wingSpread * 0.35;
+	var wingAlpha = 0.75 + anim.wingSpread * 0.2;
 
 	// Teardrop wing shape (extends backward toward abdomen)
 	ctx.beginPath();
@@ -1504,10 +1504,10 @@ function drawWing(side) {
 		-ww * 0.1, wl * 0.3,
 		0, 0
 	);
-	ctx.fillStyle = COLORS.wing;
+	ctx.fillStyle = 'rgba(220, 240, 255, 0.85)';
 	ctx.globalAlpha = wingAlpha;
 	ctx.fill();
-	ctx.strokeStyle = COLORS.wingStroke;
+	ctx.strokeStyle = 'rgba(150, 190, 230, 0.9)';
 	ctx.lineWidth = 0.6;
 	ctx.globalAlpha = Math.min(1, wingAlpha + 0.25);
 	ctx.stroke();
@@ -1516,7 +1516,7 @@ function drawWing(side) {
 	// Wing veins (more detailed)
 	ctx.strokeStyle = COLORS.wingVein;
 	ctx.lineWidth = 0.4;
-	ctx.globalAlpha = 0.6;
+	ctx.globalAlpha = 0.85;
 	ctx.beginPath();
 	ctx.moveTo(0, 0);
 	ctx.quadraticCurveTo(ww * 0.3, wl * 0.4, ww * 0.5, wl * 0.85);
@@ -1524,6 +1524,13 @@ function drawWing(side) {
 	ctx.quadraticCurveTo(ww * 0.5, wl * 0.3, ww * 1.0, wl * 0.55);
 	ctx.moveTo(0, 0.5);
 	ctx.lineTo(ww * 0.7, wl * 0.25);
+	// Cross veins for texture
+	ctx.moveTo(ww * 0.1, wl * 0.2);
+	ctx.lineTo(ww * 0.6, wl * 0.15);
+	ctx.moveTo(ww * 0.15, wl * 0.4);
+	ctx.lineTo(ww * 0.7, wl * 0.35);
+	ctx.moveTo(ww * 0.1, wl * 0.6);
+	ctx.lineTo(ww * 0.5, wl * 0.55);
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
 
@@ -1573,18 +1580,42 @@ function drawAbdomen() {
 		ctx.beginPath();
 		ctx.ellipse(ax, stripeY, rx * 1.05, ry * 0.07, 0, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.abdomenStripe;
-		ctx.globalAlpha = 0.6;
+		ctx.globalAlpha = 0.85;
 		ctx.fill();
 	}
 	ctx.globalAlpha = 1.0;
 
-	ctx.restore();
-
 	// Outline
 	ctx.strokeStyle = COLORS.abdomenStripe;
-	ctx.lineWidth = 0.7;
+	ctx.lineWidth = 0.8;
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
+	ctx.stroke();
+
+	// Subtle chitin texture overlay
+	ctx.save();
+	ctx.beginPath();
+	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
+	ctx.clip();
+	ctx.globalAlpha = 0.06;
+	for (var py = 0; py < ry * 2; py += 2.5) {
+		for (var px = 0; px < rx * 2; px += 2) {
+			var nx = px - rx;
+			var ny = py - ry;
+			if ((nx*nx)/(rx*rx) + (ny*ny)/(ry*ry) < 1) {
+				ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
+				ctx.fillRect(ax + nx, ay + ny, 1.5, 1.5);
+			}
+		}
+	}
+	ctx.globalAlpha = 1.0;
+	ctx.restore();
+
+	// Rim light (bottom-right)
+	ctx.strokeStyle = 'rgba(255, 200, 150, 0.4)';
+	ctx.lineWidth = 1.5;
+	ctx.beginPath();
+	ctx.ellipse(ax, ay, rx - 0.5, ry - 0.5, Math.PI * 0.6, Math.PI * 0.7, Math.PI * 1.3);
 	ctx.stroke();
 }
 
@@ -1690,7 +1721,7 @@ function drawEyes() {
 		ctx.beginPath();
 		ctx.ellipse(ex - side * 1.2, ey - 1.8, erx * 0.4, ery * 0.35, side * 0.3, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.eyeHighlight;
-		ctx.globalAlpha = 0.6;
+		ctx.globalAlpha = 0.85;
 		ctx.fill();
 		ctx.globalAlpha = 1.0;
 	}
