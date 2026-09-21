@@ -142,10 +142,10 @@ var canvasTouchActive = false;
 var touchTimestamps = [];
 var lightStates = [1, 0.5, 0];
 var lightStateIndex = 0;
-var lightLabels = ['Bright', 'Dim', 'Dark'];
+var lightLabels = ['Brillante', 'Tenue', 'Oscuro'];
 var tempStates = [0.5, 0.75, 0.25];
 var tempStateIndex = 0;
-var tempLabels = ['Neutral', 'Warm', 'Cool'];
+var tempLabels = ['Neutral', 'Cálido', 'Frío'];
 
 // Region-based neuron color map (built after BRAIN.setup)
 var neuronColorMap = {};
@@ -176,8 +176,8 @@ var neuronDescriptions = {
 	MECH_BRISTLE: 'Bristle neurons (touch)',
 	MECH_JO: "Johnston's organ (wind/gravity)",
 	MECH_CHORD: 'Chordotonal (proprioception)',
-	THERMO_WARM: 'Warm thermosensors',
-	THERMO_COOL: 'Cool thermosensors',
+	THERMO_WARM: 'Termosensores de calor',
+	THERMO_COOL: 'Termosensores de frío',
 	NOCI: 'Nociceptors (pain)',
 	MB_KC: 'Kenyon cells (odor memory)',
 	MB_APL: 'APL inhibitory neuron',
@@ -187,7 +187,7 @@ var neuronDescriptions = {
 	MB_DAN_PUN: 'Dopamine punishment neurons',
 	LH_APP: 'Lateral horn (approach)',
 	LH_AV: 'Lateral horn (avoidance)',
-	CX_EPG: 'Compass neurons (heading)',
+	CX_EPG: 'Neuronas brújula (dirección)',
 	CX_PFN: 'Path integration neurons',
 	CX_FC: 'Fan-shaped body (locomotion)',
 	CX_HDELTA: 'Heading change neurons',
@@ -214,10 +214,10 @@ var neuronDescriptions = {
 	MN_LEG_R2: 'Motor: middle right leg',
 	MN_LEG_L3: 'Motor: rear left leg',
 	MN_LEG_R3: 'Motor: rear right leg',
-	MN_WING_L: 'Motor: left wing',
-	MN_WING_R: 'Motor: right wing',
+	MN_WING_L: 'Motor: ala izquierda',
+	MN_WING_R: 'Motor: ala derecha',
 	MN_PROBOSCIS: 'Motor: proboscis',
-	MN_HEAD: 'Motor: head',
+	MN_HEAD: 'Motor: cabeza',
 	MN_ABDOMEN: 'Motor: abdomen',
 };
 
@@ -592,23 +592,23 @@ connectomeToggleBtn.addEventListener('click', function () {
 	if (BRAIN.workerReady && typeof NeuroRenderer !== 'undefined') {
 		if (NeuroRenderer.isActive()) {
 			NeuroRenderer.destroy();
-			connectomeToggleBtn.textContent = '139K View';
+			connectomeToggleBtn.textContent = 'Vista 139K';
 		} else {
 			if (NeuroRenderer.init()) {
-				connectomeToggleBtn.textContent = 'Groups';
+				connectomeToggleBtn.textContent = 'Grupos';
 			}
 		}
 	} else {
 		if (typeof NeuroRenderer !== 'undefined' && NeuroRenderer.isActive()) {
 			NeuroRenderer.destroy();
 			nodeHolder.classList.remove('hidden');
-			connectomeToggleBtn.textContent = 'Hide';
+			connectomeToggleBtn.textContent = 'Ocultar';
 		} else if (nodeHolder.classList.contains('hidden')) {
 			nodeHolder.classList.remove('hidden');
-			connectomeToggleBtn.textContent = 'Hide';
+			connectomeToggleBtn.textContent = 'Ocultar';
 		} else {
 			nodeHolder.classList.add('hidden');
-			connectomeToggleBtn.textContent = 'Show';
+			connectomeToggleBtn.textContent = 'Mostrar';
 		}
 	}
 });
@@ -656,7 +656,21 @@ function updateBrain() {
 
 	// Update behavior state label
 	var behaviorStateEl = document.getElementById('behaviorState');
-	if (behaviorStateEl) behaviorStateEl.textContent = behavior.current;
+	if (behaviorStateEl) {
+		var stateLabels = {
+			idle: 'inactivo',
+			feed: 'comiendo',
+			groom: 'aseándose',
+			walk: 'caminando',
+			explore: 'explorando',
+			rest: 'descansando',
+			startle: 'asustada',
+			fly: 'volando',
+			phototaxis: 'fototaxis',
+			brace: 'en guardia'
+		};
+		behaviorStateEl.textContent = stateLabels[behavior.current] || behavior.current;
+	}
 }
 
 BRAIN.randExcite();
@@ -666,7 +680,7 @@ var _neuroRendererInitTimer = setInterval(function () {
 	if (BRAIN.workerReady && typeof NeuroRenderer !== 'undefined') {
 		clearInterval(_neuroRendererInitTimer);
 		if (NeuroRenderer.init()) {
-			connectomeToggleBtn.textContent = 'Groups';
+			connectomeToggleBtn.textContent = 'Grupos';
 		}
 	}
 }, 200);
@@ -1388,25 +1402,25 @@ var BODY = {
 	],
 };
 
-// --- Colors ---
+// --- Colors (Realistic Chitin & Biological Tones) ---
 var COLORS = {
-	thorax: '#8B6914',
-	thoraxStroke: '#6B4F10',
-	abdomen: '#B8860B',
-	abdomenStripe: '#9A7209',
-	abdomenLight: '#C9972E',
-	head: '#8B6914',
-	headStroke: '#6B4F10',
-	eyeFill: '#8B0000',
-	eyeHighlight: '#CC2222',
-	antenna: '#5C4A1E',
-	antennaBulb: '#7A6428',
-	wing: 'rgba(200, 210, 230, 0.3)',
-	wingStroke: 'rgba(180, 190, 210, 0.5)',
-	wingVein: 'rgba(160, 170, 190, 0.4)',
-	leg: '#3D2B0F',
-	legJoint: '#4A3412',
-	proboscis: '#5C4A1E',
+	thorax: '#2c2416',
+	thoraxStroke: '#141009',
+	abdomen: '#4a3b22',
+	abdomenStripe: '#292012',
+	abdomenLight: '#695532',
+	head: '#2c2416',
+	headStroke: '#141009',
+	eyeFill: '#6b0909',
+	eyeHighlight: '#ff2a2a',
+	antenna: '#1f190e',
+	antennaBulb: '#362c19',
+	wing: 'rgba(230, 242, 255, 0.4)',
+	wingStroke: 'rgba(180, 205, 235, 0.65)',
+	wingVein: 'rgba(140, 175, 215, 0.55)',
+	leg: '#141009',
+	legJoint: '#261e12',
+	proboscis: '#1f190e',
 };
 
 /**
@@ -1490,23 +1504,28 @@ function drawWing(side) {
 		-ww * 0.1, wl * 0.3,
 		0, 0
 	);
-	ctx.fillStyle = 'rgba(200, 210, 230, ' + wingAlpha.toFixed(2) + ')';
+	ctx.fillStyle = COLORS.wing;
+	ctx.globalAlpha = wingAlpha;
 	ctx.fill();
-	ctx.strokeStyle = 'rgba(180, 190, 210, ' + Math.min(1, wingAlpha + 0.2).toFixed(2) + ')';
-	ctx.lineWidth = 0.5;
+	ctx.strokeStyle = COLORS.wingStroke;
+	ctx.lineWidth = 0.6;
+	ctx.globalAlpha = Math.min(1, wingAlpha + 0.25);
 	ctx.stroke();
+	ctx.globalAlpha = 1.0;
 
-	// Wing veins
+	// Wing veins (more detailed)
+	ctx.strokeStyle = COLORS.wingVein;
+	ctx.lineWidth = 0.4;
+	ctx.globalAlpha = 0.6;
 	ctx.beginPath();
 	ctx.moveTo(0, 0);
-	ctx.lineTo(ww * 0.5, wl * 0.8);
-	ctx.moveTo(0, 2);
-	ctx.lineTo(ww * 1.0, wl * 0.5);
+	ctx.quadraticCurveTo(ww * 0.3, wl * 0.4, ww * 0.5, wl * 0.85);
 	ctx.moveTo(0, 1);
-	ctx.lineTo(ww * 0.8, wl * 0.3);
-	ctx.strokeStyle = 'rgba(160, 170, 190, ' + Math.min(1, wingAlpha + 0.1).toFixed(2) + ')';
-	ctx.lineWidth = 0.3;
+	ctx.quadraticCurveTo(ww * 0.5, wl * 0.3, ww * 1.0, wl * 0.55);
+	ctx.moveTo(0, 0.5);
+	ctx.lineTo(ww * 0.7, wl * 0.25);
 	ctx.stroke();
+	ctx.globalAlpha = 1.0;
 
 	ctx.restore();
 }
@@ -1533,47 +1552,69 @@ function drawAbdomen() {
 	ctx.fillStyle = COLORS.abdomen;
 	ctx.fill();
 
+	// Subtle highlight along center
+	ctx.beginPath();
+	ctx.ellipse(ax, ay - 2, rx * 0.35, ry * 0.85, 0, 0, Math.PI * 2);
+	var hlGrad = ctx.createLinearGradient(ax - rx * 0.3, ay, ax + rx * 0.3, ay);
+	hlGrad.addColorStop(0, 'rgba(255,255,255,0.05)');
+	hlGrad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+	hlGrad.addColorStop(1, 'rgba(255,255,255,0.05)');
+	ctx.fillStyle = hlGrad;
+	ctx.fill();
+
 	// Stripes (darker bands across the abdomen)
 	ctx.save();
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.clip();
 
-	for (var s = 0; s < 4; s++) {
-		var stripeY = ay - ry * 0.3 + s * (ry * 0.45);
+	for (var s = 0; s < 5; s++) {
+		var stripeY = ay - ry * 0.4 + s * (ry * 0.42);
 		ctx.beginPath();
-		ctx.ellipse(ax, stripeY, rx * 1.1, ry * 0.08, 0, 0, Math.PI * 2);
+		ctx.ellipse(ax, stripeY, rx * 1.05, ry * 0.07, 0, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.abdomenStripe;
+		ctx.globalAlpha = 0.6;
 		ctx.fill();
 	}
-
-	// Subtle highlight along center
-	ctx.beginPath();
-	ctx.ellipse(ax, ay - 2, rx * 0.3, ry * 0.85, 0, 0, Math.PI * 2);
-	ctx.fillStyle = COLORS.abdomenLight;
-	ctx.globalAlpha = 0.15;
-	ctx.fill();
 	ctx.globalAlpha = 1.0;
 
 	ctx.restore();
+
+	// Outline
+	ctx.strokeStyle = COLORS.abdomenStripe;
+	ctx.lineWidth = 0.7;
+	ctx.beginPath();
+	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
+	ctx.stroke();
 }
 
 /**
  * Draws the thorax (darker, slightly smaller ellipse).
  */
 function drawThorax() {
+	var tx = 0;
+	var ty = BODY.thoraxOffsetY;
+	var rx = BODY.thoraxRadiusX;
+	var ry = BODY.thoraxRadiusY;
+
+	// Radial gradient for chitin sheen
+	var tGrad = ctx.createRadialGradient(tx - rx * 0.3, ty - ry * 0.3, rx * 0.2, tx, ty, ry);
+	tGrad.addColorStop(0, '#4a3d22');
+	tGrad.addColorStop(0.6, COLORS.thorax);
+	tGrad.addColorStop(1, COLORS.thoraxStroke);
+
 	ctx.beginPath();
-	ctx.ellipse(0, BODY.thoraxOffsetY, BODY.thoraxRadiusX, BODY.thoraxRadiusY, 0, 0, Math.PI * 2);
-	ctx.fillStyle = COLORS.thorax;
+	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
+	ctx.fillStyle = tGrad;
 	ctx.fill();
 	ctx.strokeStyle = COLORS.thoraxStroke;
-	ctx.lineWidth = 0.8;
+	ctx.lineWidth = 0.9;
 	ctx.stroke();
 
 	// Subtle midline groove
 	ctx.beginPath();
-	ctx.moveTo(0, BODY.thoraxOffsetY - BODY.thoraxRadiusY * 0.7);
-	ctx.lineTo(0, BODY.thoraxOffsetY + BODY.thoraxRadiusY * 0.7);
+	ctx.moveTo(0, ty - ry * 0.75);
+	ctx.lineTo(0, ty + ry * 0.75);
 	ctx.strokeStyle = COLORS.thoraxStroke;
 	ctx.lineWidth = 0.5;
 	ctx.globalAlpha = 0.3;
@@ -1585,12 +1626,23 @@ function drawThorax() {
  * Draws the head.
  */
 function drawHead() {
+	var hx = 0;
+	var hy = BODY.headOffsetY;
+	var hrx = BODY.headRadius * 1.1;
+	var hry = BODY.headRadius;
+
+	// Head with gradient
+	var hGrad = ctx.createRadialGradient(hx - hrx * 0.2, hy - hry * 0.2, hrx * 0.15, hx, hy, hry);
+	hGrad.addColorStop(0, '#3d3218');
+	hGrad.addColorStop(0.5, COLORS.head);
+	hGrad.addColorStop(1, COLORS.headStroke);
+
 	ctx.beginPath();
-	ctx.ellipse(0, BODY.headOffsetY, BODY.headRadius * 1.1, BODY.headRadius, 0, 0, Math.PI * 2);
-	ctx.fillStyle = COLORS.head;
+	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
+	ctx.fillStyle = hGrad;
 	ctx.fill();
 	ctx.strokeStyle = COLORS.headStroke;
-	ctx.lineWidth = 0.6;
+	ctx.lineWidth = 0.7;
 	ctx.stroke();
 }
 
@@ -1601,18 +1653,44 @@ function drawEyes() {
 	for (var side = -1; side <= 1; side += 2) {
 		var ex = BODY.eyeOffsetX * side;
 		var ey = BODY.eyeOffsetY;
+		var erx = BODY.eyeRadiusX;
+		var ery = BODY.eyeRadiusY;
 
-		// Main eye
+		// Eye base with gradient (dark red compound eye)
+		var eGrad = ctx.createRadialGradient(ex - erx * 0.3, ey - ery * 0.3, erx * 0.1, ex, ey, ery);
+		eGrad.addColorStop(0, '#990000');
+		eGrad.addColorStop(0.6, COLORS.eyeFill);
+		eGrad.addColorStop(1, '#3d0000');
+
 		ctx.beginPath();
-		ctx.ellipse(ex, ey, BODY.eyeRadiusX, BODY.eyeRadiusY, side * 0.3, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.eyeFill;
+		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
+		ctx.fillStyle = eGrad;
 		ctx.fill();
 
-		// Highlight
+		// Compound eye facet pattern
+		ctx.save();
 		ctx.beginPath();
-		ctx.ellipse(ex - side * 1, ey - 1.5, BODY.eyeRadiusX * 0.4, BODY.eyeRadiusY * 0.35, side * 0.3, 0, Math.PI * 2);
+		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
+		ctx.clip();
+
+		ctx.globalAlpha = 0.25;
+		for (var fy = -ery + 1; fy < ery; fy += 1.5) {
+			for (var fx = -erx + 1; fx < erx; fx += 1.2) {
+				var dist = Math.sqrt((fx * fx) / (erx * erx) + (fy * fy) / (ery * ery));
+				if (dist < 0.9) {
+					ctx.fillStyle = Math.random() > 0.5 ? '#220000' : '#440000';
+					ctx.fillRect(ex + fx, ey + fy, 1, 1);
+				}
+			}
+		}
+		ctx.globalAlpha = 1.0;
+		ctx.restore();
+
+		// Highlight (specular)
+		ctx.beginPath();
+		ctx.ellipse(ex - side * 1.2, ey - 1.8, erx * 0.4, ery * 0.35, side * 0.3, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.eyeHighlight;
-		ctx.globalAlpha = 0.5;
+		ctx.globalAlpha = 0.6;
 		ctx.fill();
 		ctx.globalAlpha = 1.0;
 	}
@@ -1825,26 +1903,26 @@ function drawLegs(state, dtScale) {
 		var seg3EndX = seg2EndX + Math.cos(tarsusAngle) * BODY.legSeg3;
 		var seg3EndY = seg2EndY + Math.sin(tarsusAngle) * BODY.legSeg3;
 
-		// Draw leg segments
+		// Draw leg segments (thinner, more realistic insect legs)
 		ctx.beginPath();
 		ctx.moveTo(ax, ay);
 		ctx.lineTo(seg1EndX, seg1EndY);
 		ctx.lineTo(seg2EndX, seg2EndY);
 		ctx.lineTo(seg3EndX, seg3EndY);
 		ctx.strokeStyle = COLORS.leg;
-		ctx.lineWidth = 1.4;
+		ctx.lineWidth = 0.9;
 		ctx.lineJoin = 'round';
 		ctx.lineCap = 'round';
 		ctx.stroke();
 
 		// Joint dots
 		ctx.beginPath();
-		ctx.arc(seg1EndX, seg1EndY, 1.2, 0, Math.PI * 2);
+		ctx.arc(seg1EndX, seg1EndY, 0.7, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
 
 		ctx.beginPath();
-		ctx.arc(seg2EndX, seg2EndY, 1.0, 0, Math.PI * 2);
+		ctx.arc(seg2EndX, seg2EndY, 0.5, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
 	}

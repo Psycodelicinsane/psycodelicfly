@@ -133,7 +133,7 @@ BRAIN.neuronRegions = {
 
 BRAIN.stimulate = {
 	touch: false,
-	touchLocation: null,   // 'head', 'thorax', 'abdomen', 'leg'
+	touchLocation: null,   // 'cabeza', 'torax', 'abdomen', 'pata'
 	foodNearby: false,
 	foodContact: false,
 	dangerOdor: false,
@@ -307,7 +307,7 @@ BRAIN.update = function () {
 	if (BRAIN.stimulate.touch) {
 		BRAIN.dendriteAccumulate('MECH_BRISTLE');
 		// Location-specific: stronger grooming for head/thorax touch
-		if (BRAIN.stimulate.touchLocation === 'head' || BRAIN.stimulate.touchLocation === 'thorax') {
+		if (BRAIN.stimulate.touchLocation === 'cabeza' || BRAIN.stimulate.touchLocation === 'torax') {
 			BRAIN.dendriteAccumulate('MECH_BRISTLE'); // double dose
 		}
 	}

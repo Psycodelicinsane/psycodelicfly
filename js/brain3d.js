@@ -22,8 +22,8 @@ var HIGHLIGHT_FADE_MS = 300;
 
 var REGION_DEFS = [
     {
-        name: 'Optic Lobes',
-        description: 'Visual processing — motion detection, color, pattern recognition, and optic flow',
+        name: 'Lóbulos Ópticos',
+        description: 'Procesamiento visual — detección de movimiento, color y flujo óptico',
         type: 'sensory',
         neurons: ['VIS_R1R6', 'VIS_R7R8', 'VIS_ME', 'VIS_LO', 'VIS_LC', 'VIS_LPTC'],
         meshDefs: [
@@ -32,8 +32,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Antennal Lobes',
-        description: 'Olfactory processing — food and danger odor detection',
+        name: 'Lóbulos Antennales',
+        description: 'Procesamiento olfativo — detección de olores de comida y peligro',
         type: 'sensory',
         neurons: ['OLF_ORN_FOOD', 'OLF_ORN_DANGER', 'OLF_LN', 'OLF_PN'],
         meshDefs: [
@@ -42,8 +42,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Mushroom Bodies',
-        description: 'Learning and memory — associative odor memories, reward and punishment',
+        name: 'Cuerpos Hongos',
+        description: 'Aprendizaje y memoria — memorias olfativas asociativas, recompensa y castigo',
         type: 'central',
         neurons: ['MB_KC', 'MB_APL', 'MB_MBON_APP', 'MB_MBON_AV', 'MB_DAN_REW', 'MB_DAN_PUN'],
         meshDefs: [
@@ -54,8 +54,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Central Complex',
-        description: 'Navigation — heading direction, path integration, locomotion coordination',
+        name: 'Complejo Central',
+        description: 'Navegación — dirección, integración de trayectoria y coordinación motriz',
         type: 'central',
         neurons: ['CX_EPG', 'CX_PFN', 'CX_FC', 'CX_HDELTA', 'CLOCK_DN'],
         meshDefs: [
@@ -63,8 +63,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Lateral Horn',
-        description: 'Innate odor responses — hardwired approach and avoidance behaviors',
+        name: 'Cuerno Lateral',
+        description: 'Respuestas innatas a olores — comportamientos cableados de aproximación y evitación',
         type: 'central',
         neurons: ['LH_APP', 'LH_AV'],
         meshDefs: [
@@ -73,8 +73,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Subesophageal Zone',
-        description: 'Feeding and grooming command center — taste processing, motor commands',
+        name: 'Zona Subesofágica',
+        description: 'Centro de mando de alimentación y aseo — procesamiento del gusto y comandos motores',
         type: 'central',
         neurons: ['SEZ_FEED', 'SEZ_GROOM', 'SEZ_WATER', 'GUS_GRN_SWEET', 'GUS_GRN_BITTER', 'GUS_GRN_WATER', 'GNG_DESC'],
         meshDefs: [
@@ -83,7 +83,7 @@ var REGION_DEFS = [
     },
     {
         name: 'VNC / Motor',
-        description: 'Motor output — locomotion, flight, and body movement commands',
+        description: 'Salida motora — locomoción, vuelo y comandos de movimiento corporal',
         type: 'motor',
         neurons: ['DN_WALK', 'DN_FLIGHT', 'DN_TURN', 'DN_BACKUP', 'DN_STARTLE', 'VNC_CPG'],
         collectMNPrefix: true,
@@ -92,8 +92,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Thermosensory',
-        description: 'Temperature sensing — warm and cool detection',
+        name: 'Termosensorial',
+        description: 'Detección de temperatura — calor y frío',
         type: 'sensory',
         neurons: ['THERMO_WARM', 'THERMO_COOL'],
         meshDefs: [
@@ -101,8 +101,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Mechanosensory',
-        description: 'Touch and proprioception — bristle, wind, and body position sensing',
+        name: 'Mecanosensorial',
+        description: 'Tacto y propiocepción — detección de cerdas, viento y posición corporal',
         type: 'sensory',
         neurons: ['MECH_BRISTLE', 'MECH_JO', 'MECH_CHORD', 'ANTENNAL_MECH', 'NOCI'],
         meshDefs: [
@@ -110,8 +110,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Drives',
-        description: 'Internal motivational states — hunger, fear, fatigue, curiosity, grooming urge',
+        name: 'Impulsos',
+        description: 'Estados motivacionales internos — hambre, miedo, fatiga, curiosidad, impulso de aseo',
         type: 'drives',
         neurons: ['DRIVE_HUNGER', 'DRIVE_FEAR', 'DRIVE_FATIGUE', 'DRIVE_CURIOSITY', 'DRIVE_GROOM'],
         meshDefs: [
@@ -403,7 +403,7 @@ window.Brain3D = {
             var html = '<div class="b3d-tip-name">' + region.name + '</div>';
             html += '<div class="b3d-tip-desc">' + region.description + '</div>';
             if (regionPopTotal > 0) {
-                html += '<div class="b3d-tip-pop" style="font-size:0.7rem;color:#8892a4;margin:2px 0 4px;">' + region.neurons.length + ' groups representing ~' + regionPopTotal.toLocaleString() + ' neurons</div>';
+                html += '<div class="b3d-tip-pop" style="font-size:0.7rem;color:#8892a4;margin:2px 0 4px;">' + region.neurons.length + ' grupos que representan ~' + regionPopTotal.toLocaleString() + ' neurons</div>';
             }
             html += '<div class="b3d-tip-type">' + region.type.charAt(0).toUpperCase() + region.type.slice(1) + '</div>';
             html += '<div class="b3d-tip-neurons">';

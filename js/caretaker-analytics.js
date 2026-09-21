@@ -68,7 +68,7 @@
         color = 'var(--error)';
       }
     }
-    return '<div class="analytics-metric analytics-score"><div class="analytics-score-value" style="color:' + color + '">' + displayScore + '</div><div class="analytics-metric-label">Caretaker Score</div></div>';
+    return '<div class="analytics-metric analytics-score"><div class="analytics-score-value" style="color:' + color + '">' + displayScore + '</div><div class="analytics-metric-label">Puntuación del Cuidador</div></div>';
   }
 
   function renderHungerSparkline(observations, feedMarkers) {

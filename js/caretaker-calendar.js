@@ -88,8 +88,8 @@
         '<div class="cal-day">' + day + '</div>' +
         (score ? '<div class="cal-score">' + Math.round(score.composite_score) + '</div>' +
           '<div class="cal-details">' +
-            '<span title="Incidents">' + score.fear_incidents + 'i</span>' +
-            '<span title="Feeds">' + score.total_feeds + 'f</span>' +
+            '<span title="Incidentes">' + score.fear_incidents + 'i</span>' +
+            '<span title="Alimentars">' + score.total_feeds + 'f</span>' +
             '<span title="Avg Hunger">' + (score.avg_hunger !== null ? score.avg_hunger.toFixed(1) : '-') + 'h</span>' +
           '</div>' : '') +
         '</div>';
@@ -111,14 +111,14 @@
       selectedDate = null;
       var allCells = calendarContent.querySelectorAll('.cal-cell');
       for (var i = 0; i < allCells.length; i++) allCells[i].classList.remove('cal-selected');
-      restoreFullFeed();
+      restoreFullAlimentar();
       return;
     }
     selectedDate = dateStr;
     var allCells2 = calendarContent.querySelectorAll('.cal-cell');
     for (var j = 0; j < allCells2.length; j++) allCells2[j].classList.remove('cal-selected');
     cell.classList.add('cal-selected');
-    filterFeedToDate(dateStr);
+    filterAlimentarToDate(dateStr);
   }
 
   function buildEntryEl(entry) {
@@ -159,7 +159,7 @@
         case 'clear_food': desc = 'Cleared all food'; break;
         case 'set_light': desc = 'Set light to ' + (p.level || 'unknown'); break;
         case 'set_temp': desc = 'Set temp to ' + (p.level || 'unknown'); break;
-        case 'touch': desc = 'Touched fly'; break;
+        case 'touch': desc = 'Tocared fly'; break;
         case 'blow_wind': desc = 'Blew wind'; break;
         default: desc = action;
       }
@@ -178,7 +178,7 @@
     return el;
   }
 
-  function filterFeedToDate(dateStr) {
+  function filterAlimentarToDate(dateStr) {
     fetch(API_URL + '/calendar/day-activity?date=' + dateStr)
       .then(function(res) { return res.json(); })
       .then(function(data) {
@@ -191,7 +191,7 @@
         }
         var header = document.createElement('div');
         header.className = 'cal-feed-date-header';
-        header.textContent = 'Activity for ' + dateStr;
+        header.textContent = 'Actividad para ' + dateStr;
         feedList.appendChild(header);
         for (var i = 0; i < data.length; i++) {
           feedList.appendChild(buildEntryEl(data[i]));
@@ -202,7 +202,7 @@
       });
   }
 
-  function restoreFullFeed() {
+  function restoreFullAlimentar() {
     var feedList = document.getElementById('activity-feed-list');
     if (!feedList) return;
     fetch(API_URL + '/activity/recent')

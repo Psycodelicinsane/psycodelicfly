@@ -4,7 +4,7 @@
   var userScrolled = false;
   var chatHistory = null;
   var chatInput = null;
-  var chatSendBtn = null;
+  var chatEnviarBtn = null;
   var chatLoading = false;
   var CHAT_API_URL = 'http://' + (location.hostname || 'localhost') + ':7600';
 
@@ -45,10 +45,10 @@
 
     chatHistory = document.getElementById('chat-history');
     chatInput = document.getElementById('chat-input');
-    chatSendBtn = document.getElementById('chat-send-btn');
+    chatEnviarBtn = document.getElementById('chat-send-btn');
 
-    if (chatSendBtn) {
-      chatSendBtn.addEventListener('click', sendChatMessage);
+    if (chatEnviarBtn) {
+      chatEnviarBtn.addEventListener('click', sendChatMessage);
     }
     if (chatInput) {
       chatInput.addEventListener('keydown', function(e) {
@@ -198,7 +198,7 @@
     chatInput.value = '';
     appendChatMessage('user', msg, new Date().toISOString(), false);
     chatLoading = true;
-    chatSendBtn.disabled = true;
+    chatEnviarBtn.disabled = true;
     var loadingEl = document.createElement('div');
     loadingEl.className = 'chat-loading';
     loadingEl.textContent = 'Thinking';
@@ -215,14 +215,14 @@
           appendChatMessage('assistant', data.message, data.timestamp, false);
         }
         chatLoading = false;
-        chatSendBtn.disabled = false;
+        chatEnviarBtn.disabled = false;
         chatInput.focus();
       })
       .catch(function(err) {
         if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
         appendChatMessage('assistant', 'Connection error: ' + err.message, new Date().toISOString(), true);
         chatLoading = false;
-        chatSendBtn.disabled = false;
+        chatEnviarBtn.disabled = false;
       });
   }
 
