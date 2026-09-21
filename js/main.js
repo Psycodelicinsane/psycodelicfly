@@ -96,6 +96,53 @@ var ripples = [];
 var windArrowEnd = null;
 var currentMousePos = { x: 0, y: 0 };
 
+
+// --- Texture Loading (Photorealistic) ---
+var textures = {
+    wing: null,
+    body: null,
+    eye: null,
+    leg: null,
+    loaded: false
+};
+
+function loadTextures() {
+    var loadedCount = 0;
+    var total = 4;
+    
+    function onLoad() {
+        loadedCount++;
+        if (loadedCount === total) textures.loaded = true;
+    }
+    
+    // Wing texture
+    var wingImg = new Image();
+    wingImg.onload = onLoad;
+    wingImg.src = './img/wing_texture.png';
+    textures.wing = wingImg;
+    
+    // Body texture (thorax/abdomen)
+    var bodyImg = new Image();
+    bodyImg.onload = onLoad;
+    bodyImg.src = './img/body_texture.png';
+    textures.body = bodyImg;
+    
+    // Eye texture
+    var eyeImg = new Image();
+    eyeImg.onload = onLoad;
+    eyeImg.src = './img/eye_texture.png';
+    textures.eye = eyeImg;
+    
+    // Leg texture
+    var legImg = new Image();
+    legImg.onload = onLoad;
+    legImg.src = './img/leg_texture.png';
+    textures.leg = legImg;
+}
+
+// Call texture loading
+loadTextures();
+
 // ============================================================
 // BEHAVIOR STATE MACHINE
 // ============================================================
@@ -1434,17 +1481,17 @@ function drawFlyBody(dtScale) {
 	// --- Legs (behind body) ---
 	drawLegs(state, dtScale);
 
-	// --- Abdomen ---
+	// --- Abdomen (back) ---
 	drawAbdomen();
 
-	// --- Wings (over abdomen, behind thorax) ---
+	// --- Thorax (middle, in front of abdomen) ---
+	drawThorax();
+
+	// --- Wings (on top of everything, extending from thorax) ---
 	drawWing(-1); // left
 	drawWing(1);  // right
 
-	// --- Thorax ---
-	drawThorax();
-
-	// --- Head ---
+	// --- Head (front) ---
 	drawHead();
 
 	// --- Eyes ---
@@ -1505,9 +1552,17 @@ function drawWing(side) {
 		-ww * 0.1, wl * 0.3,
 		0, 0
 	);
-	ctx.fillStyle = COLORS.wing;
-	ctx.globalAlpha = wingAlpha;
-	ctx.fill();
+	// Use texture when loaded, otherwise fallback
+	if (textures.wing && textures.wing.complete && textures.wing.naturalWidth > 0) {
+		ctx.globalAlpha = wingAlpha;
+		ctx.drawImage(textures.wing, -ww * 0.1, 0, ww * 1.3, wl * 1.1);
+		ctx.globalAlpha = 1.0;
+	} else {
+		ctx.fillStyle = COLORS.wing;
+		ctx.globalAlpha = wingAlpha;
+		ctx.fill();
+		ctx.globalAlpha = 1.0;
+	}
 	ctx.strokeStyle = COLORS.wingStroke;
 	ctx.lineWidth = 0.6;
 	ctx.globalAlpha = Math.min(1, wingAlpha + 0.25);
@@ -1551,8 +1606,13 @@ function drawAbdomen() {
 	// Main abdomen shape
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
-	ctx.fillStyle = COLORS.abdomen;
-	ctx.fill();
+	// Use texture when loaded, otherwise fallback to solid color
+	if (textures.body && textures.body.complete && textures.body.naturalWidth > 0) {
+		ctx.drawImage(textures.body, ax - rx, ay - ry, rx * 2, ry * 2);
+	} else {
+		ctx.fillStyle = COLORS.abdomen;
+		ctx.fill();
+	}
 
 	// Subtle highlight along center
 	ctx.beginPath();
@@ -1608,8 +1668,13 @@ function drawThorax() {
 
 	ctx.beginPath();
 	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
-	ctx.fillStyle = tGrad;
-	ctx.fill();
+	// Use texture when loaded, otherwise fallback to gradient
+	if (textures.body && textures.body.complete && textures.body.naturalWidth > 0) {
+		ctx.drawImage(textures.body, tx - rx, ty - ry, rx * 2, ry * 2);
+	} else {
+		ctx.fillStyle = tGrad;
+		ctx.fill();
+	}
 	ctx.strokeStyle = COLORS.thoraxStroke;
 	ctx.lineWidth = 0.9;
 	ctx.stroke();
@@ -1669,8 +1734,18 @@ function drawEyes() {
 
 		ctx.beginPath();
 		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
-		ctx.fillStyle = eGrad;
-		ctx.fill();
+		// Use texture when loaded, otherwise fallback to gradient
+		if (textures.eye && textures.eye.complete && textures.eye.naturalWidth > 0) {
+			ctx.save();
+			ctx.beginPath();
+			ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
+			ctx.clip();
+			ctx.drawImage(textures.eye, ex - erx, ey - ery, erx * 2, ery * 2);
+			ctx.restore();
+		} else {
+			ctx.fillStyle = eGrad;
+			ctx.fill();
+		}
 
 		// Compound eye facet pattern
 		ctx.save();
