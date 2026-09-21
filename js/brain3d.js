@@ -279,7 +279,7 @@ window.Brain3D = {
             // Add header with close button
             var header = document.createElement('div');
             header.className = 'brain3d-header';
-            header.innerHTML = '<span class="brain3d-title">🧠 Cerebro 3D — PsycodelicFly</span><button class="brain3d-close-btn" id="brain3d-close-btn">✕</button>';
+            header.innerHTML = '<span class="brain3d-title">&#129504; Cerebro 3D &mdash; PsycodelicMosca</span><button class="brain3d-close-btn" id="brain3d-close-btn">&#10005;</button>';
             Brain3D._container.insertBefore(header, Brain3D._container.firstChild);
             document.getElementById('brain3d-close-btn').addEventListener('click', function () {
                 Brain3D.hide();

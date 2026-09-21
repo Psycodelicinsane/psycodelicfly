@@ -58,9 +58,9 @@
 		var loadedMB = (loaded / (1024 * 1024)).toFixed(1);
 		if (total > 0) {
 			var totalMB = (total / (1024 * 1024)).toFixed(1);
-			subtitle.textContent = 'Loading connectome... ' + loadedMB + ' / ' + totalMB + ' MB';
+			subtitle.textContent = 'Cargando conectoma... ' + loadedMB + ' / ' + totalMB + ' MB';
 		} else {
-			subtitle.textContent = 'Loading connectome... ' + loadedMB + ' MB';
+			subtitle.textContent = 'Cargando conectoma... ' + loadedMB + ' MB';
 		}
 		subtitle.classList.add('loading');
 	}
@@ -93,7 +93,7 @@
 		var binUrl = 'data/connectome.bin.gz';
 		var subtitle = document.getElementById('connectomeSubtitle');
 		if (subtitle) {
-			subtitle.textContent = 'Loading connectome...';
+			subtitle.textContent = 'Cargando conectoma...';
 			subtitle.classList.add('loading');
 		}
 

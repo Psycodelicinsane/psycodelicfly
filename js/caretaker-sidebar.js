@@ -186,7 +186,7 @@
     if (chatHistory === null) return;
     var el = document.createElement('div');
     el.className = 'chat-msg chat-msg-' + (isError ? 'error' : role);
-    el.innerHTML = '<div class="chat-msg-time">' + (role === 'user' ? 'You' : 'Claude') + ' -- ' + formatChatTime(timestamp) + '</div>' + '<div>' + escapeHtml(message) + '</div>';
+    el.innerHTML = '<div class="chat-msg-time">' + (role === 'user' ? 'Tú' : 'IA') + ' -- ' + formatChatTime(timestamp) + '</div>' + '<div>' + escapeHtml(message) + '</div>';
     chatHistory.appendChild(el);
     chatHistory.scrollTop = chatHistory.scrollHeight;
   }
@@ -220,7 +220,7 @@
       })
       .catch(function(err) {
         if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
-        appendChatMessage('assistant', 'Connection error: ' + err.message, new Date().toISOString(), true);
+        appendChatMessage('assistant', 'Error de conexión: ' + err.message, new Date().toISOString(), true);
         chatLoading = false;
         chatEnviarBtn.disabled = false;
       });

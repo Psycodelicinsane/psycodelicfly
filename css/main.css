@@ -554,7 +554,7 @@ canvas {
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     pointer-events: none;
-    z-index: 40;
+    z-index: 9998;
     white-space: nowrap;
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
@@ -614,7 +614,7 @@ canvas {
     min-height: 300px;
     max-width: 90vw;
     max-height: 90vh;
-    z-index: 50;
+    z-index: 9999;
     background: #0a0a1a;
     border: 2px solid rgba(100, 200, 255, 0.4);
     border-radius: 12px;
@@ -671,7 +671,7 @@ canvas {
 /* --- Brain 3D Tooltip --- */
 #brain3d-tooltip {
     position: fixed;
-    z-index: 45;
+    z-index: 10000;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -747,7 +747,7 @@ canvas {
     max-width: 90vw;
     background: var(--surface);
     border-left: 1px solid var(--border);
-    z-index: 25;
+    z-index: 9997;
     font-family: system-ui, -apple-system, sans-serif;
     display: flex;
     flex-direction: column;
