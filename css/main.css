@@ -605,18 +605,67 @@ canvas {
 /* --- Brain 3D Overlay --- */
 #brain3d-overlay {
     position: fixed;
-    top: calc(44px + env(safe-area-inset-top, 0px));
-    left: 0;
-    right: 0;
-    bottom: 180px;
-    z-index: 15;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60vw;
+    height: 60vh;
+    min-width: 400px;
+    min-height: 300px;
+    max-width: 90vw;
+    max-height: 90vh;
+    z-index: 50;
     background: #0a0a1a;
+    border: 2px solid rgba(100, 200, 255, 0.4);
+    border-radius: 12px;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), 0 0 15px rgba(100, 200, 255, 0.15);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    resize: both;
+}
+
+#brain3d-overlay .brain3d-header {
+    height: 32px;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    flex-shrink: 0;
+}
+
+#brain3d-overlay .brain3d-title {
+    color: rgba(255, 255, 255, 0.7);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+#brain3d-overlay .brain3d-close-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+#brain3d-overlay .brain3d-close-btn:hover {
+    background: rgba(255, 100, 100, 0.4);
+    color: white;
 }
 
 #brain3d-overlay canvas {
     display: block;
     width: 100% !important;
-    height: 100% !important;
+    flex: 1;
+    min-height: 0;
 }
 
 /* --- Brain 3D Tooltip --- */
@@ -1767,9 +1816,13 @@ canvas {
         min-width: 0;
     }
 
-    /* --- Brain 3D overlay goes edge-to-edge on mobile --- */
+    /* --- Brain 3D overlay as centered window on mobile --- */
     #brain3d-overlay {
-        bottom: 0 !important;
+        width: 90vw !important;
+        height: 70vh !important;
+        min-width: unset !important;
+        min-height: 250px !important;
+        bottom: auto !important;
     }
 
     /* --- Education panel full-width on mobile --- */

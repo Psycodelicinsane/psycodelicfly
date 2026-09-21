@@ -1991,21 +1991,25 @@ function update(dt) {
 	fly.x += Math.cos(facingDir) * speed * dtScale;
 	fly.y -= Math.sin(facingDir) * speed * dtScale;
 
+	// Barrier margin (distance from wall where fly gets pushed back)
+	var barrierMargin = 12;
+	var bounds = getLayoutBounds();
+
 	// Screen bounds (clamped to visible area: toolbar=44px top, panel=90px bottom)
-	if (fly.x < 0) {
+	if (fly.x < barrierMargin) {
 		fly.x = 0;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
-	} else if (fly.x > window.innerWidth) {
+	} else if (fly.x > window.innerWidth - barrierMargin) {
 		fly.x = window.innerWidth;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	}
-	if (fly.y < 44) {
+	if (fly.y < bounds.top + barrierMargin) {
 		fly.y = 44;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
-	} else if (fly.y > window.innerHeight) {
+	} else if (fly.y > bounds.bottom - barrierMargin) {
 		fly.y = window.innerHeight;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
@@ -2075,19 +2079,32 @@ function update(dt) {
 	updateAnimForBehavior(dtScale);
 }
 
+
+// --- Barrier (thin wall around the map) ---
+function drawBarrier() {
+    var bounds = getLayoutBounds();
+    ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 4]);
+    ctx.strokeRect(2, bounds.top, window.innerWidth - 4, bounds.bottom - bounds.top);
+    ctx.setLineDash([]);
+}
+
 // --- Draw ---
 function draw() {
 	// Update canvas background based on light level
 	var ll = BRAIN.stimulate.lightLevel;
 	if (ll >= 1) {
-		canvas.style.backgroundColor = '#222';
+		canvas.style.backgroundColor = '#1a2433';
 	} else if (ll >= 0.5) {
-		canvas.style.backgroundColor = '#161616';
+		canvas.style.backgroundColor = '#151d2a';
 	} else {
-		canvas.style.backgroundColor = '#080808';
+		canvas.style.backgroundColor = '#0c1420';
 	}
 
 	ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+	drawBarrier();
 
 	// Apply zoom/pan transform
 	ctx.save();
