@@ -1404,23 +1404,23 @@ var BODY = {
 
 // --- Colors (Realistic Chitin & Biological Tones) ---
 var COLORS = {
-	thorax: '#2c2416',
-	thoraxStroke: '#141009',
-	abdomen: '#4a3b22',
-	abdomenStripe: '#292012',
+	thorax: '#6b5030',
+	thoraxStroke: '#3d2e1a',
+	abdomen: '#8a6b3a',
+	abdomenStripe: '#5c4428',
 	abdomenLight: '#695532',
-	head: '#2c2416',
-	headStroke: '#141009',
+	head: '#6b5030',
+	headStroke: '#3d2e1a',
 	eyeFill: '#6b0909',
 	eyeHighlight: '#ff2a2a',
-	antenna: '#1f190e',
-	antennaBulb: '#362c19',
+	antenna: '#3d2e1a',
+	antennaBulb: '#6b5030',
 	wing: 'rgba(230, 242, 255, 0.4)',
 	wingStroke: 'rgba(180, 205, 235, 0.65)',
 	wingVein: 'rgba(140, 175, 215, 0.55)',
-	leg: '#141009',
-	legJoint: '#261e12',
-	proboscis: '#1f190e',
+	leg: '#3d2e1a',
+	legJoint: '#5c4428',
+	proboscis: '#3d2e1a',
 };
 
 /**
@@ -1481,6 +1481,7 @@ function drawWing(side) {
 	}
 
 	ctx.save();
+	ctx.globalAlpha = 1.0;
 	ctx.translate(wx + microOffset, wy);
 	ctx.rotate(side * (0.35 + spreadAngle) + microOffset * 0.02 + buzzOffset);
 
@@ -1489,7 +1490,7 @@ function drawWing(side) {
 	ctx.scale(wingScale, wingScale);
 
 	// Dynamic wing opacity (more visible when spread)
-	var wingAlpha = 0.7 + anim.wingSpread * 0.25;
+	var wingAlpha = 0.65 + anim.wingSpread * 0.25;
 
 	// Teardrop wing shape (extends backward toward abdomen)
 	ctx.beginPath();
@@ -1504,19 +1505,19 @@ function drawWing(side) {
 		-ww * 0.1, wl * 0.3,
 		0, 0
 	);
-	ctx.fillStyle = 'rgba(210, 235, 255, 0.8)';
+	ctx.fillStyle = COLORS.wing;
 	ctx.globalAlpha = wingAlpha;
 	ctx.fill();
-	ctx.strokeStyle = 'rgba(140, 185, 225, 0.85)';
-	ctx.lineWidth = 0.7;
-	ctx.globalAlpha = Math.min(1, wingAlpha + 0.15);
+	ctx.strokeStyle = COLORS.wingStroke;
+	ctx.lineWidth = 0.6;
+	ctx.globalAlpha = Math.min(1, wingAlpha + 0.25);
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
 
 	// Wing veins (more detailed)
-	ctx.strokeStyle = 'rgba(120, 160, 210, 0.8)';
-	ctx.lineWidth = 0.5;
-	ctx.globalAlpha = 0.85;
+	ctx.strokeStyle = COLORS.wingVein;
+	ctx.lineWidth = 0.4;
+	ctx.globalAlpha = 0.6;
 	ctx.beginPath();
 	ctx.moveTo(0, 0);
 	ctx.quadraticCurveTo(ww * 0.3, wl * 0.4, ww * 0.5, wl * 0.85);
@@ -1524,13 +1525,6 @@ function drawWing(side) {
 	ctx.quadraticCurveTo(ww * 0.5, wl * 0.3, ww * 1.0, wl * 0.55);
 	ctx.moveTo(0, 0.5);
 	ctx.lineTo(ww * 0.7, wl * 0.25);
-	// Cross veins for wing texture
-	ctx.moveTo(ww * 0.15, wl * 0.25);
-	ctx.lineTo(ww * 0.65, wl * 0.2);
-	ctx.moveTo(ww * 0.1, wl * 0.45);
-	ctx.lineTo(ww * 0.6, wl * 0.4);
-	ctx.moveTo(ww * 0.05, wl * 0.65);
-	ctx.lineTo(ww * 0.45, wl * 0.6);
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
 
@@ -1541,6 +1535,7 @@ function drawWing(side) {
  * Draws the abdomen with subtle stripes.
  */
 function drawAbdomen() {
+	ctx.globalAlpha = 1.0;
 	var ax = 0;
 	var ay = BODY.abdomenOffsetY;
 	var rx = BODY.abdomenRadiusX;
@@ -1580,23 +1575,18 @@ function drawAbdomen() {
 		ctx.beginPath();
 		ctx.ellipse(ax, stripeY, rx * 1.05, ry * 0.07, 0, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.abdomenStripe;
-		ctx.globalAlpha = 0.85;
+		ctx.globalAlpha = 0.6;
 		ctx.fill();
 	}
 	ctx.globalAlpha = 1.0;
 
+	ctx.restore();
+
 	// Outline
 	ctx.strokeStyle = COLORS.abdomenStripe;
-	ctx.lineWidth = 0.8;
+	ctx.lineWidth = 0.7;
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
-	ctx.stroke();
-
-	// Rim light
-	ctx.strokeStyle = 'rgba(255, 200, 150, 0.4)';
-	ctx.lineWidth = 1.5;
-	ctx.beginPath();
-	ctx.ellipse(ax, ay, rx - 0.5, ry - 0.5, Math.PI * 0.6, Math.PI * 0.7, Math.PI * 1.3);
 	ctx.stroke();
 }
 
@@ -1604,6 +1594,7 @@ function drawAbdomen() {
  * Draws the thorax (darker, slightly smaller ellipse).
  */
 function drawThorax() {
+	ctx.globalAlpha = 1.0;
 	var tx = 0;
 	var ty = BODY.thoraxOffsetY;
 	var rx = BODY.thoraxRadiusX;
@@ -1638,6 +1629,7 @@ function drawThorax() {
  * Draws the head.
  */
 function drawHead() {
+	ctx.globalAlpha = 1.0;
 	var hx = 0;
 	var hy = BODY.headOffsetY;
 	var hrx = BODY.headRadius * 1.1;
@@ -1662,6 +1654,7 @@ function drawHead() {
  * Draws compound eyes on the head.
  */
 function drawEyes() {
+	ctx.globalAlpha = 1.0;
 	for (var side = -1; side <= 1; side += 2) {
 		var ex = BODY.eyeOffsetX * side;
 		var ey = BODY.eyeOffsetY;
@@ -1796,6 +1789,7 @@ function drawProboscis(extend) {
  * idle jitter (idle/feed).
  */
 function drawLegs(state, dtScale) {
+	ctx.globalAlpha = 1.0;
 	var t = Date.now() / 1000;
 	var isWalking = (state === 'walk' || state === 'explore' || state === 'phototaxis');
 	var isGrooming = (state === 'groom');
