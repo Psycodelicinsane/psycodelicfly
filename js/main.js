@@ -98,50 +98,30 @@ var currentMousePos = { x: 0, y: 0 };
 
 
 // --- Texture Loading (Photorealistic) ---
-var textures = {
-    wing: null,
-    body: null,
-    eye: null,
-    leg: null,
-    loaded: false
-};
 
-function loadTextures() {
-    var loadedCount = 0;
-    var total = 4;
-    
-    function onLoad() {
-        loadedCount++;
-        if (loadedCount === total) textures.loaded = true;
-    }
-    
-    // Wing texture
-    var wingImg = new Image();
-    wingImg.onload = onLoad;
-    wingImg.src = './img/wing_texture.png';
-    textures.wing = wingImg;
-    
-    // Body texture (thorax/abdomen)
-    var bodyImg = new Image();
-    bodyImg.onload = onLoad;
-    bodyImg.src = './img/body_texture.png';
-    textures.body = bodyImg;
-    
-    // Eye texture
-    var eyeImg = new Image();
-    eyeImg.onload = onLoad;
-    eyeImg.src = './img/eye_texture.png';
-    textures.eye = eyeImg;
-    
-    // Leg texture
-    var legImg = new Image();
-    legImg.onload = onLoad;
-    legImg.src = './img/leg_texture.png';
-    textures.leg = legImg;
+// --- Textures (Pre-loaded synchronously) ---
+var textures = {};
+
+function initTextures() {
+    textures.wing_L = new Image();
+    textures.wing_L.src = './img/wing_L.png';
+    textures.wing_R = new Image();
+    textures.wing_R.src = './img/wing_R.png';
+    textures.abdomen = new Image();
+    textures.abdomen.src = './img/abdomen.png';
+    textures.thorax = new Image();
+    textures.thorax.src = './img/thorax.png';
+    textures.head = new Image();
+    textures.head.src = './img/head.png';
+    textures.eye = new Image();
+    textures.eye.src = './img/eye.png';
+    textures.leg = new Image();
+    textures.leg.src = './img/leg.png';
+    textures.antenna = new Image();
+    textures.antenna.src = './img/antenna.png';
 }
 
-// Call texture loading
-loadTextures();
+initTextures();
 
 // ============================================================
 // BEHAVIOR STATE MACHINE
@@ -1553,9 +1533,13 @@ function drawWing(side) {
 		0, 0
 	);
 	// Use texture when loaded, otherwise fallback
-	if (textures.wing && textures.wing.complete && textures.wing.naturalWidth > 0) {
+	var wingTex = side === -1 ? textures.wing_L : textures.wing_R;
+	if (wingTex && wingTex.complete && wingTex.naturalWidth > 0) {
 		ctx.globalAlpha = wingAlpha;
-		ctx.drawImage(textures.wing, -ww * 0.1, 0, ww * 1.3, wl * 1.1);
+		ctx.save();
+		ctx.scale(side, 1);
+		ctx.drawImage(wingTex, -ww * 0.1, 0, ww * 1.3, wl * 1.1);
+		ctx.restore();
 		ctx.globalAlpha = 1.0;
 	} else {
 		ctx.fillStyle = COLORS.wing;
@@ -1607,8 +1591,8 @@ function drawAbdomen() {
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	// Use texture when loaded, otherwise fallback to solid color
-	if (textures.body && textures.body.complete && textures.body.naturalWidth > 0) {
-		ctx.drawImage(textures.body, ax - rx, ay - ry, rx * 2, ry * 2);
+	if (textures.abdomen && textures.abdomen.complete && textures.abdomen.naturalWidth > 0) {
+		ctx.drawImage(textures.abdomen, ax - rx, ay - ry, rx * 2, ry * 2);
 	} else {
 		ctx.fillStyle = COLORS.abdomen;
 		ctx.fill();
@@ -1669,8 +1653,8 @@ function drawThorax() {
 	ctx.beginPath();
 	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
 	// Use texture when loaded, otherwise fallback to gradient
-	if (textures.body && textures.body.complete && textures.body.naturalWidth > 0) {
-		ctx.drawImage(textures.body, tx - rx, ty - ry, rx * 2, ry * 2);
+	if (textures.thorax && textures.thorax.complete && textures.thorax.naturalWidth > 0) {
+		ctx.drawImage(textures.thorax, tx - rx, ty - ry, rx * 2, ry * 2);
 	} else {
 		ctx.fillStyle = tGrad;
 		ctx.fill();
@@ -1700,19 +1684,22 @@ function drawHead() {
 	var hrx = BODY.headRadius * 1.1;
 	var hry = BODY.headRadius;
 
-	// Head with gradient
-	var hGrad = ctx.createRadialGradient(hx - hrx * 0.2, hy - hry * 0.2, hrx * 0.15, hx, hy, hry);
-	hGrad.addColorStop(0, '#3d3218');
-	hGrad.addColorStop(0.5, COLORS.head);
-	hGrad.addColorStop(1, COLORS.headStroke);
+	if (textures.head && textures.head.complete && textures.head.naturalWidth > 0) {
+		ctx.drawImage(textures.head, hx - hrx, hy - hry, hrx * 2, hry * 2);
+	} else {
+		var hGrad = ctx.createRadialGradient(hx - hrx * 0.2, hy - hry * 0.2, hrx * 0.15, hx, hy, hry);
+		hGrad.addColorStop(0, '#3d3218');
+		hGrad.addColorStop(0.5, COLORS.head);
+		hGrad.addColorStop(1, COLORS.headStroke);
 
-	ctx.beginPath();
-	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
-	ctx.fillStyle = hGrad;
-	ctx.fill();
-	ctx.strokeStyle = COLORS.headStroke;
-	ctx.lineWidth = 0.7;
-	ctx.stroke();
+		ctx.beginPath();
+		ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
+		ctx.fillStyle = hGrad;
+		ctx.fill();
+		ctx.strokeStyle = COLORS.headStroke;
+		ctx.lineWidth = 0.7;
+		ctx.stroke();
+	}
 }
 
 /**
@@ -1734,18 +1721,18 @@ function drawEyes() {
 
 		ctx.beginPath();
 		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
-		// Use texture when loaded, otherwise fallback to gradient
+		// Compound eye facet pattern
+		ctx.save();
+		ctx.beginPath();
+		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
+		ctx.clip();
 		if (textures.eye && textures.eye.complete && textures.eye.naturalWidth > 0) {
-			ctx.save();
-			ctx.beginPath();
-			ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
-			ctx.clip();
 			ctx.drawImage(textures.eye, ex - erx, ey - ery, erx * 2, ery * 2);
-			ctx.restore();
 		} else {
 			ctx.fillStyle = eGrad;
 			ctx.fill();
 		}
+		ctx.restore();
 
 		// Compound eye facet pattern
 		ctx.save();
@@ -1996,15 +1983,16 @@ function drawLegs(state, dtScale) {
 		ctx.lineCap = 'round';
 		ctx.stroke();
 
-		// Joint dots
+		// Joint dots with texture tint
+		var jointColor = (textures.leg && textures.leg.complete) ? '#5c4428' : COLORS.legJoint;
 		ctx.beginPath();
 		ctx.arc(seg1EndX, seg1EndY, 0.7, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.legJoint;
+		ctx.fillStyle = jointColor;
 		ctx.fill();
 
 		ctx.beginPath();
 		ctx.arc(seg2EndX, seg2EndY, 0.5, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.legJoint;
+		ctx.fillStyle = jointColor;
 		ctx.fill();
 	}
 }
