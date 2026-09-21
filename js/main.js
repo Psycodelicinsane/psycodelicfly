@@ -1489,7 +1489,7 @@ function drawWing(side) {
 	ctx.scale(wingScale, wingScale);
 
 	// Dynamic wing opacity (more visible when spread)
-	var wingAlpha = 0.75 + anim.wingSpread * 0.2;
+	var wingAlpha = 0.7 + anim.wingSpread * 0.25;
 
 	// Teardrop wing shape (extends backward toward abdomen)
 	ctx.beginPath();
@@ -1504,18 +1504,18 @@ function drawWing(side) {
 		-ww * 0.1, wl * 0.3,
 		0, 0
 	);
-	ctx.fillStyle = 'rgba(220, 240, 255, 0.85)';
+	ctx.fillStyle = 'rgba(210, 235, 255, 0.8)';
 	ctx.globalAlpha = wingAlpha;
 	ctx.fill();
-	ctx.strokeStyle = 'rgba(150, 190, 230, 0.9)';
-	ctx.lineWidth = 0.6;
-	ctx.globalAlpha = Math.min(1, wingAlpha + 0.25);
+	ctx.strokeStyle = 'rgba(140, 185, 225, 0.85)';
+	ctx.lineWidth = 0.7;
+	ctx.globalAlpha = Math.min(1, wingAlpha + 0.15);
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
 
 	// Wing veins (more detailed)
-	ctx.strokeStyle = COLORS.wingVein;
-	ctx.lineWidth = 0.4;
+	ctx.strokeStyle = 'rgba(120, 160, 210, 0.8)';
+	ctx.lineWidth = 0.5;
 	ctx.globalAlpha = 0.85;
 	ctx.beginPath();
 	ctx.moveTo(0, 0);
@@ -1524,13 +1524,13 @@ function drawWing(side) {
 	ctx.quadraticCurveTo(ww * 0.5, wl * 0.3, ww * 1.0, wl * 0.55);
 	ctx.moveTo(0, 0.5);
 	ctx.lineTo(ww * 0.7, wl * 0.25);
-	// Cross veins for texture
-	ctx.moveTo(ww * 0.1, wl * 0.2);
-	ctx.lineTo(ww * 0.6, wl * 0.15);
-	ctx.moveTo(ww * 0.15, wl * 0.4);
-	ctx.lineTo(ww * 0.7, wl * 0.35);
-	ctx.moveTo(ww * 0.1, wl * 0.6);
-	ctx.lineTo(ww * 0.5, wl * 0.55);
+	// Cross veins for wing texture
+	ctx.moveTo(ww * 0.15, wl * 0.25);
+	ctx.lineTo(ww * 0.65, wl * 0.2);
+	ctx.moveTo(ww * 0.1, wl * 0.45);
+	ctx.lineTo(ww * 0.6, wl * 0.4);
+	ctx.moveTo(ww * 0.05, wl * 0.65);
+	ctx.lineTo(ww * 0.45, wl * 0.6);
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
 
@@ -1592,26 +1592,7 @@ function drawAbdomen() {
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.stroke();
 
-	// Subtle chitin texture overlay
-	ctx.save();
-	ctx.beginPath();
-	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
-	ctx.clip();
-	ctx.globalAlpha = 0.06;
-	for (var py = 0; py < ry * 2; py += 2.5) {
-		for (var px = 0; px < rx * 2; px += 2) {
-			var nx = px - rx;
-			var ny = py - ry;
-			if ((nx*nx)/(rx*rx) + (ny*ny)/(ry*ry) < 1) {
-				ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
-				ctx.fillRect(ax + nx, ay + ny, 1.5, 1.5);
-			}
-		}
-	}
-	ctx.globalAlpha = 1.0;
-	ctx.restore();
-
-	// Rim light (bottom-right)
+	// Rim light
 	ctx.strokeStyle = 'rgba(255, 200, 150, 0.4)';
 	ctx.lineWidth = 1.5;
 	ctx.beginPath();
@@ -1721,7 +1702,7 @@ function drawEyes() {
 		ctx.beginPath();
 		ctx.ellipse(ex - side * 1.2, ey - 1.8, erx * 0.4, ery * 0.35, side * 0.3, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.eyeHighlight;
-		ctx.globalAlpha = 0.85;
+		ctx.globalAlpha = 0.6;
 		ctx.fill();
 		ctx.globalAlpha = 1.0;
 	}
@@ -2123,7 +2104,7 @@ function drawBarrier() {
 
 // --- Draw ---
 function draw() {
-	// Update canvas background - light green contrast
+	// Update canvas background based on light level
 	var ll = BRAIN.stimulate.lightLevel;
 	if (ll >= 1) {
 		canvas.style.backgroundColor = '#a8c686';
