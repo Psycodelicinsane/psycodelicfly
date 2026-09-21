@@ -96,33 +96,6 @@ var ripples = [];
 var windArrowEnd = null;
 var currentMousePos = { x: 0, y: 0 };
 
-
-// --- Texture Loading (Photorealistic) ---
-
-// --- Textures (Pre-loaded synchronously) ---
-var textures = {};
-
-function initTextures() {
-    textures.wing_L = new Image();
-    textures.wing_L.src = './img/wing_L.png';
-    textures.wing_R = new Image();
-    textures.wing_R.src = './img/wing_R.png';
-    textures.abdomen = new Image();
-    textures.abdomen.src = './img/abdomen.png';
-    textures.thorax = new Image();
-    textures.thorax.src = './img/thorax.png';
-    textures.head = new Image();
-    textures.head.src = './img/head.png';
-    textures.eye = new Image();
-    textures.eye.src = './img/eye.png';
-    textures.leg = new Image();
-    textures.leg.src = './img/leg.png';
-    textures.antenna = new Image();
-    textures.antenna.src = './img/antenna.png';
-}
-
-initTextures();
-
 // ============================================================
 // BEHAVIOR STATE MACHINE
 // ============================================================
@@ -1431,23 +1404,23 @@ var BODY = {
 
 // --- Colors (Realistic Chitin & Biological Tones) ---
 var COLORS = {
-	thorax: '#6b5030',
-	thoraxStroke: '#3d2e1a',
-	abdomen: '#8a6b3a',
-	abdomenStripe: '#5c4428',
+	thorax: '#2c2416',
+	thoraxStroke: '#141009',
+	abdomen: '#4a3b22',
+	abdomenStripe: '#292012',
 	abdomenLight: '#695532',
-	head: '#6b5030',
-	headStroke: '#3d2e1a',
+	head: '#2c2416',
+	headStroke: '#141009',
 	eyeFill: '#6b0909',
 	eyeHighlight: '#ff2a2a',
-	antenna: '#3d2e1a',
-	antennaBulb: '#6b5030',
+	antenna: '#1f190e',
+	antennaBulb: '#362c19',
 	wing: 'rgba(230, 242, 255, 0.4)',
 	wingStroke: 'rgba(180, 205, 235, 0.65)',
 	wingVein: 'rgba(140, 175, 215, 0.55)',
-	leg: '#3d2e1a',
-	legJoint: '#5c4428',
-	proboscis: '#3d2e1a',
+	leg: '#141009',
+	legJoint: '#261e12',
+	proboscis: '#1f190e',
 };
 
 /**
@@ -1464,12 +1437,8 @@ function drawFlyBody(dtScale) {
 	// --- Abdomen (back) ---
 	drawAbdomen();
 
-	// --- Thorax (middle, in front of abdomen) ---
+	// --- Thorax (middle) ---
 	drawThorax();
-
-	// --- Wings (on top of everything, extending from thorax) ---
-	drawWing(-1); // left
-	drawWing(1);  // right
 
 	// --- Head (front) ---
 	drawHead();
@@ -1484,6 +1453,10 @@ function drawFlyBody(dtScale) {
 	if (anim.proboscisExtend > 0.01) {
 		drawProboscis(anim.proboscisExtend);
 	}
+
+	// --- Wings (ON TOP of everything) ---
+	drawWing(-1); // left
+	drawWing(1);  // right
 }
 
 /**
@@ -1508,7 +1481,6 @@ function drawWing(side) {
 	}
 
 	ctx.save();
-	ctx.globalAlpha = 1.0;
 	ctx.translate(wx + microOffset, wy);
 	ctx.rotate(side * (0.35 + spreadAngle) + microOffset * 0.02 + buzzOffset);
 
@@ -1517,7 +1489,7 @@ function drawWing(side) {
 	ctx.scale(wingScale, wingScale);
 
 	// Dynamic wing opacity (more visible when spread)
-	var wingAlpha = 0.65 + anim.wingSpread * 0.25;
+	var wingAlpha = 0.3 + anim.wingSpread * 0.35;
 
 	// Teardrop wing shape (extends backward toward abdomen)
 	ctx.beginPath();
@@ -1532,21 +1504,9 @@ function drawWing(side) {
 		-ww * 0.1, wl * 0.3,
 		0, 0
 	);
-	// Use texture when loaded, otherwise fallback
-	var wingTex = side === -1 ? textures.wing_L : textures.wing_R;
-	if (wingTex && wingTex.complete && wingTex.naturalWidth > 0) {
-		ctx.globalAlpha = wingAlpha;
-		ctx.save();
-		ctx.scale(side, 1);
-		ctx.drawImage(wingTex, -ww * 0.1, 0, ww * 1.3, wl * 1.1);
-		ctx.restore();
-		ctx.globalAlpha = 1.0;
-	} else {
-		ctx.fillStyle = COLORS.wing;
-		ctx.globalAlpha = wingAlpha;
-		ctx.fill();
-		ctx.globalAlpha = 1.0;
-	}
+	ctx.fillStyle = COLORS.wing;
+	ctx.globalAlpha = wingAlpha;
+	ctx.fill();
 	ctx.strokeStyle = COLORS.wingStroke;
 	ctx.lineWidth = 0.6;
 	ctx.globalAlpha = Math.min(1, wingAlpha + 0.25);
@@ -1580,55 +1540,59 @@ function drawAbdomen() {
 	var rx = BODY.abdomenRadiusX;
 	var ry = BODY.abdomenRadiusY;
 
-	// Abdomen curl during abdomen-specific grooming
 	var abdomenCurl = 0;
 	if (behavior.current === 'groom' && (behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax')) {
 		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 2;
 	}
 	ay += abdomenCurl;
 
-	// Main abdomen shape
+	// Base chitin gradient
+	var abGrad = ctx.createRadialGradient(ax - rx * 0.3, ay - ry * 0.2, 0, ax, ay, ry);
+	abGrad.addColorStop(0, '#8a6b3a');
+	abGrad.addColorStop(0.5, '#6b5030');
+	abGrad.addColorStop(1, '#4a3520');
+
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
-	// Use texture when loaded, otherwise fallback to solid color
-	if (textures.abdomen && textures.abdomen.complete && textures.abdomen.naturalWidth > 0) {
-		ctx.drawImage(textures.abdomen, ax - rx, ay - ry, rx * 2, ry * 2);
-	} else {
-		ctx.fillStyle = COLORS.abdomen;
-		ctx.fill();
-	}
-
-	// Subtle highlight along center
-	ctx.beginPath();
-	ctx.ellipse(ax, ay - 2, rx * 0.35, ry * 0.85, 0, 0, Math.PI * 2);
-	var hlGrad = ctx.createLinearGradient(ax - rx * 0.3, ay, ax + rx * 0.3, ay);
-	hlGrad.addColorStop(0, 'rgba(255,255,255,0.05)');
-	hlGrad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
-	hlGrad.addColorStop(1, 'rgba(255,255,255,0.05)');
-	ctx.fillStyle = hlGrad;
+	ctx.fillStyle = abGrad;
 	ctx.fill();
 
-	// Stripes (darker bands across the abdomen)
+	// Segment divisions
 	ctx.save();
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.clip();
 
-	for (var s = 0; s < 5; s++) {
-		var stripeY = ay - ry * 0.4 + s * (ry * 0.42);
-		ctx.beginPath();
-		ctx.ellipse(ax, stripeY, rx * 1.05, ry * 0.07, 0, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.abdomenStripe;
-		ctx.globalAlpha = 0.6;
-		ctx.fill();
+	for (var seg = 0; seg < 5; seg++) {
+		var segY = ay - ry * 0.5 + seg * (ry * 0.28);
+		ctx.fillStyle = '#2a1d0f';
+		ctx.globalAlpha = 0.7;
+		ctx.fillRect(ax - rx * 1.05, segY, rx * 2.1, ry * 0.06);
+		ctx.fillStyle = '#c9a060';
+		ctx.globalAlpha = 0.3;
+		ctx.fillRect(ax - rx * 1.05, segY + ry * 0.06, rx * 2.1, ry * 0.03);
 	}
 	ctx.globalAlpha = 1.0;
 
+	// Dorsal midline
+	ctx.fillStyle = '#1a1208';
+	ctx.globalAlpha = 0.5;
+	ctx.fillRect(ax - rx * 0.12, ay - ry, rx * 0.24, ry * 2);
+	ctx.globalAlpha = 1.0;
 	ctx.restore();
 
+	// Specular highlight
+	var specGrad = ctx.createRadialGradient(ax - rx * 0.4, ay - ry * 0.4, 0, ax - rx * 0.4, ay - ry * 0.4, ry * 0.6);
+	specGrad.addColorStop(0, 'rgba(255, 220, 180, 0.4)');
+	specGrad.addColorStop(1, 'rgba(255, 220, 180, 0)');
+	ctx.fillStyle = specGrad;
+	ctx.beginPath();
+	ctx.ellipse(ax - rx * 0.3, ay - ry * 0.3, rx * 0.5, ry * 0.4, -0.3, 0, Math.PI * 2);
+	ctx.fill();
+
 	// Outline
-	ctx.strokeStyle = COLORS.abdomenStripe;
-	ctx.lineWidth = 0.7;
+	ctx.strokeStyle = '#2a1d0f';
+	ctx.lineWidth = 0.8;
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.stroke();
@@ -1644,34 +1608,56 @@ function drawThorax() {
 	var rx = BODY.thoraxRadiusX;
 	var ry = BODY.thoraxRadiusY;
 
-	// Radial gradient for chitin sheen
-	var tGrad = ctx.createRadialGradient(tx - rx * 0.3, ty - ry * 0.3, rx * 0.2, tx, ty, ry);
-	tGrad.addColorStop(0, '#4a3d22');
-	tGrad.addColorStop(0.6, COLORS.thorax);
-	tGrad.addColorStop(1, COLORS.thoraxStroke);
+	// Complex chitin gradient
+	var tGrad = ctx.createRadialGradient(tx - rx * 0.4, ty - ry * 0.4, 0, tx, ty, ry);
+	tGrad.addColorStop(0, '#7a6040');
+	tGrad.addColorStop(0.3, '#5a4530');
+	tGrad.addColorStop(0.7, '#3d2e1a');
+	tGrad.addColorStop(1, '#2a1d0f');
 
 	ctx.beginPath();
 	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
-	// Use texture when loaded, otherwise fallback to gradient
-	if (textures.thorax && textures.thorax.complete && textures.thorax.naturalWidth > 0) {
-		ctx.drawImage(textures.thorax, tx - rx, ty - ry, rx * 2, ry * 2);
-	} else {
-		ctx.fillStyle = tGrad;
-		ctx.fill();
-	}
-	ctx.strokeStyle = COLORS.thoraxStroke;
-	ctx.lineWidth = 0.9;
-	ctx.stroke();
+	ctx.fillStyle = tGrad;
+	ctx.fill();
 
-	// Subtle midline groove
+	// Scutum subtle pattern
+	ctx.save();
 	ctx.beginPath();
-	ctx.moveTo(0, ty - ry * 0.75);
-	ctx.lineTo(0, ty + ry * 0.75);
-	ctx.strokeStyle = COLORS.thoraxStroke;
-	ctx.lineWidth = 0.5;
-	ctx.globalAlpha = 0.3;
+	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
+	ctx.clip();
+
+	var scutGrad = ctx.createLinearGradient(tx, ty - ry, tx, ty);
+	scutGrad.addColorStop(0, 'rgba(20, 12, 6, 0.3)');
+	scutGrad.addColorStop(0.5, 'rgba(20, 12, 6, 0)');
+	scutGrad.addColorStop(1, 'rgba(20, 12, 6, 0.15)');
+	ctx.fillStyle = scutGrad;
+	ctx.fillRect(tx - rx, ty - ry, rx * 2, ry);
+
+	// Midline groove
+	ctx.beginPath();
+	ctx.moveTo(0, ty - ry * 0.7);
+	ctx.quadraticCurveTo(1, ty, 0, ty + ry * 0.7);
+	ctx.strokeStyle = '#1a1208';
+	ctx.lineWidth = 0.4;
+	ctx.globalAlpha = 0.4;
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
+	ctx.restore();
+
+	// Specular highlight
+	var specGrad = ctx.createRadialGradient(tx - rx * 0.5, ty - ry * 0.5, 0, tx - rx * 0.5, ty - ry * 0.5, ry * 0.4);
+	specGrad.addColorStop(0, 'rgba(255, 200, 150, 0.5)');
+	specGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
+	ctx.fillStyle = specGrad;
+	ctx.beginPath();
+	ctx.ellipse(tx - rx * 0.4, ty - ry * 0.4, rx * 0.4, ry * 0.35, -0.3, 0, Math.PI * 2);
+	ctx.fill();
+
+	ctx.strokeStyle = '#1a1208';
+	ctx.lineWidth = 0.9;
+	ctx.beginPath();
+	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
+	ctx.stroke();
 }
 
 /**
@@ -1684,22 +1670,30 @@ function drawHead() {
 	var hrx = BODY.headRadius * 1.1;
 	var hry = BODY.headRadius;
 
-	if (textures.head && textures.head.complete && textures.head.naturalWidth > 0) {
-		ctx.drawImage(textures.head, hx - hrx, hy - hry, hrx * 2, hry * 2);
-	} else {
-		var hGrad = ctx.createRadialGradient(hx - hrx * 0.2, hy - hry * 0.2, hrx * 0.15, hx, hy, hry);
-		hGrad.addColorStop(0, '#3d3218');
-		hGrad.addColorStop(0.5, COLORS.head);
-		hGrad.addColorStop(1, COLORS.headStroke);
+	var hGrad = ctx.createRadialGradient(hx - hrx * 0.3, hy - hry * 0.3, 0, hx, hy, hry);
+	hGrad.addColorStop(0, '#5a4530');
+	hGrad.addColorStop(0.5, '#3d2e1a');
+	hGrad.addColorStop(1, '#1a1208');
 
-		ctx.beginPath();
-		ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
-		ctx.fillStyle = hGrad;
-		ctx.fill();
-		ctx.strokeStyle = COLORS.headStroke;
-		ctx.lineWidth = 0.7;
-		ctx.stroke();
-	}
+	ctx.beginPath();
+	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
+	ctx.fillStyle = hGrad;
+	ctx.fill();
+
+	// Specular highlight
+	var specGrad = ctx.createRadialGradient(hx - hrx * 0.35, hy - hry * 0.4, 0, hx - hrx * 0.35, hy - hry * 0.4, hry * 0.4);
+	specGrad.addColorStop(0, 'rgba(255, 200, 150, 0.6)');
+	specGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
+	ctx.fillStyle = specGrad;
+	ctx.beginPath();
+	ctx.ellipse(hx - hrx * 0.3, hy - hry * 0.35, hrx * 0.4, hry * 0.35, -0.3, 0, Math.PI * 2);
+	ctx.fill();
+
+	ctx.strokeStyle = '#1a1208';
+	ctx.lineWidth = 0.7;
+	ctx.beginPath();
+	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
+	ctx.stroke();
 }
 
 /**
@@ -1713,53 +1707,56 @@ function drawEyes() {
 		var erx = BODY.eyeRadiusX;
 		var ery = BODY.eyeRadiusY;
 
-		// Eye base with gradient (dark red compound eye)
-		var eGrad = ctx.createRadialGradient(ex - erx * 0.3, ey - ery * 0.3, erx * 0.1, ex, ey, ery);
-		eGrad.addColorStop(0, '#990000');
-		eGrad.addColorStop(0.6, COLORS.eyeFill);
-		eGrad.addColorStop(1, '#3d0000');
+		// Eye base gradient
+		var eGrad = ctx.createRadialGradient(ex - erx * 0.2, ey - ery * 0.2, 0, ex, ey, ery);
+		eGrad.addColorStop(0, '#cc3333');
+		eGrad.addColorStop(0.6, '#991a1a');
+		eGrad.addColorStop(1, '#550000');
 
 		ctx.beginPath();
 		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
-		// Compound eye facet pattern
-		ctx.save();
-		ctx.beginPath();
-		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
-		ctx.clip();
-		if (textures.eye && textures.eye.complete && textures.eye.naturalWidth > 0) {
-			ctx.drawImage(textures.eye, ex - erx, ey - ery, erx * 2, ery * 2);
-		} else {
-			ctx.fillStyle = eGrad;
-			ctx.fill();
-		}
-		ctx.restore();
+		ctx.fillStyle = eGrad;
+		ctx.fill();
 
-		// Compound eye facet pattern
+		// Hexagonal ommatidia pattern
 		ctx.save();
 		ctx.beginPath();
 		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
 		ctx.clip();
 
-		ctx.globalAlpha = 0.25;
-		for (var fy = -ery + 1; fy < ery; fy += 1.5) {
-			for (var fx = -erx + 1; fx < erx; fx += 1.2) {
+		var facetSize = 1.3;
+		for (var row = 0; row < 7; row++) {
+			for (var col = 0; col < 5; col++) {
+				var fy = -ery + 1 + row * facetSize * 1.5;
+				var fx = -erx + 1 + col * facetSize * 1.6 + (row % 2) * facetSize * 0.8;
 				var dist = Math.sqrt((fx * fx) / (erx * erx) + (fy * fy) / (ery * ery));
-				if (dist < 0.9) {
-					ctx.fillStyle = Math.random() > 0.5 ? '#220000' : '#440000';
-					ctx.fillRect(ex + fx, ey + fy, 1, 1);
+				if (dist < 0.85) {
+					ctx.fillStyle = Math.random() > 0.4 ? '#660000' : '#880000';
+					ctx.beginPath();
+					ctx.moveTo(ex + fx + facetSize * 0.5, ey + fy);
+					ctx.lineTo(ex + fx + facetSize, ey + fy + facetSize * 0.3);
+					ctx.lineTo(ex + fx + facetSize, ey + fy + facetSize * 0.7);
+					ctx.lineTo(ex + fx + facetSize * 0.5, ey + fy + facetSize);
+					ctx.lineTo(ex + fx, ey + fy + facetSize * 0.7);
+					ctx.lineTo(ex + fx, ey + fy + facetSize * 0.3);
+					ctx.closePath();
+					ctx.fill();
 				}
 			}
 		}
-		ctx.globalAlpha = 1.0;
 		ctx.restore();
 
-		// Highlight (specular)
+		// Specular highlight (corneal reflection)
 		ctx.beginPath();
-		ctx.ellipse(ex - side * 1.2, ey - 1.8, erx * 0.4, ery * 0.35, side * 0.3, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.eyeHighlight;
-		ctx.globalAlpha = 0.6;
+		ctx.ellipse(ex - side * 1, ey - 1.5, erx * 0.35, ery * 0.3, side * 0.3, 0, Math.PI * 2);
+		ctx.fillStyle = 'rgba(255, 120, 120, 0.7)';
 		ctx.fill();
-		ctx.globalAlpha = 1.0;
+
+		// Pseudopupil (dark spot)
+		ctx.beginPath();
+		ctx.arc(ex - side * 0.8, ey + 0.5, 1.2, 0, Math.PI * 2);
+		ctx.fillStyle = '#000000';
+		ctx.fill();
 	}
 }
 
@@ -1851,7 +1848,6 @@ function drawProboscis(extend) {
  * idle jitter (idle/feed).
  */
 function drawLegs(state, dtScale) {
-	ctx.globalAlpha = 1.0;
 	var t = Date.now() / 1000;
 	var isWalking = (state === 'walk' || state === 'explore' || state === 'phototaxis');
 	var isGrooming = (state === 'groom');
@@ -1983,16 +1979,15 @@ function drawLegs(state, dtScale) {
 		ctx.lineCap = 'round';
 		ctx.stroke();
 
-		// Joint dots with texture tint
-		var jointColor = (textures.leg && textures.leg.complete) ? '#5c4428' : COLORS.legJoint;
+		// Joint dots
 		ctx.beginPath();
 		ctx.arc(seg1EndX, seg1EndY, 0.7, 0, Math.PI * 2);
-		ctx.fillStyle = jointColor;
+		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
 
 		ctx.beginPath();
 		ctx.arc(seg2EndX, seg2EndY, 0.5, 0, Math.PI * 2);
-		ctx.fillStyle = jointColor;
+		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
 	}
 }
@@ -2164,11 +2159,11 @@ function draw() {
 	// Update canvas background based on light level
 	var ll = BRAIN.stimulate.lightLevel;
 	if (ll >= 1) {
-		canvas.style.backgroundColor = '#a8c686';
+		canvas.style.backgroundColor = '#1a2433';
 	} else if (ll >= 0.5) {
-		canvas.style.backgroundColor = '#7da35e';
+		canvas.style.backgroundColor = '#151d2a';
 	} else {
-		canvas.style.backgroundColor = '#4a6b35';
+		canvas.style.backgroundColor = '#0c1420';
 	}
 
 	ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
