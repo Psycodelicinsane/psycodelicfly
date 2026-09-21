@@ -1402,25 +1402,25 @@ var BODY = {
 	],
 };
 
-// --- Colors (Photorealistic Biological Tones) ---
+// --- Colors (Realistic Chitin & Biological Tones) ---
 var COLORS = {
-	thorax: '#3d2e1a',
-	thoraxStroke: '#2a1d0f',
-	abdomen: '#5c4428',
-	abdomenStripe: '#3d2a14',
-	abdomenLight: '#8a6b3a',
-	head: '#3d2e1a',
-	headStroke: '#2a1d0f',
-	eyeFill: '#8b1a1a',
-	eyeHighlight: '#ff4444',
-	antenna: '#2a1d0f',
-	antennaBulb: '#5c4428',
-	wing: 'rgba(220, 235, 255, 0.35)',
-	wingStroke: 'rgba(170, 195, 225, 0.55)',
-	wingVein: 'rgba(130, 165, 205, 0.45)',
-	leg: '#1a1208',
-	legJoint: '#3d2a14',
-	proboscis: '#2a1d0f',
+	thorax: '#2c2416',
+	thoraxStroke: '#141009',
+	abdomen: '#4a3b22',
+	abdomenStripe: '#292012',
+	abdomenLight: '#695532',
+	head: '#2c2416',
+	headStroke: '#141009',
+	eyeFill: '#6b0909',
+	eyeHighlight: '#ff2a2a',
+	antenna: '#1f190e',
+	antennaBulb: '#362c19',
+	wing: 'rgba(230, 242, 255, 0.4)',
+	wingStroke: 'rgba(180, 205, 235, 0.65)',
+	wingVein: 'rgba(140, 175, 215, 0.55)',
+	leg: '#141009',
+	legJoint: '#261e12',
+	proboscis: '#1f190e',
 };
 
 /**
@@ -1468,8 +1468,13 @@ function drawWing(side) {
 	var wl = BODY.wingLength;
 	var ww = BODY.wingWidth * side;
 
+	// Wing micro-movement (idle flutter)
 	var microOffset = anim.wingMicro * 0.5 * side;
+
+	// Wing spread for flight/startle
 	var spreadAngle = anim.wingSpread * 0.85;
+
+	// Flight buzz: rapid oscillation when wings are spread
 	var buzzOffset = 0;
 	if (anim.wingSpread > 0.5) {
 		buzzOffset = Math.sin(Date.now() / 30) * 0.15 * anim.wingSpread;
@@ -1479,18 +1484,14 @@ function drawWing(side) {
 	ctx.translate(wx + microOffset, wy);
 	ctx.rotate(side * (0.35 + spreadAngle) + microOffset * 0.02 + buzzOffset);
 
+	// Scale wings up during flight (compensates for spread rotation)
 	var wingScale = 1.0 + anim.wingSpread * 0.3;
 	ctx.scale(wingScale, wingScale);
 
+	// Dynamic wing opacity (more visible when spread)
 	var wingAlpha = 0.3 + anim.wingSpread * 0.35;
 
-	// Wing membrane with subtle color variation
-	var wingGrad = ctx.createLinearGradient(0, 0, ww * 0.8, wl * 0.7);
-	wingGrad.addColorStop(0, 'rgba(230, 242, 255, ' + (wingAlpha * 0.7).toFixed(2) + ')');
-	wingGrad.addColorStop(0.5, 'rgba(200, 220, 245, ' + (wingAlpha * 0.5).toFixed(2) + ')');
-	wingGrad.addColorStop(1, 'rgba(180, 200, 235, ' + (wingAlpha * 0.3).toFixed(2) + ')');
-
-	// Teardrop wing shape
+	// Teardrop wing shape (extends backward toward abdomen)
 	ctx.beginPath();
 	ctx.moveTo(0, 0);
 	ctx.bezierCurveTo(
@@ -1503,319 +1504,151 @@ function drawWing(side) {
 		-ww * 0.1, wl * 0.3,
 		0, 0
 	);
-	ctx.fillStyle = wingGrad;
+	ctx.fillStyle = COLORS.wing;
+	ctx.globalAlpha = wingAlpha;
 	ctx.fill();
-
-	// Wing margin (edge)
-	ctx.strokeStyle = 'rgba(160, 185, 220, ' + Math.min(1, wingAlpha + 0.2).toFixed(2) + ')';
+	ctx.strokeStyle = COLORS.wingStroke;
 	ctx.lineWidth = 0.6;
+	ctx.globalAlpha = Math.min(1, wingAlpha + 0.25);
 	ctx.stroke();
+	ctx.globalAlpha = 1.0;
 
-	// Wing veins (longitudinal)
-	ctx.strokeStyle = 'rgba(120, 155, 200, ' + (wingAlpha * 0.6).toFixed(2) + ')';
-	ctx.lineWidth = 0.5;
+	// Wing veins (more detailed)
+	ctx.strokeStyle = COLORS.wingVein;
+	ctx.lineWidth = 0.4;
+	ctx.globalAlpha = 0.6;
 	ctx.beginPath();
-	// Costa (leading edge)
 	ctx.moveTo(0, 0);
-	ctx.quadraticCurveTo(ww * 0.3, wl * 0.3, ww * 0.5, wl * 0.85);
-	// Subcosta
+	ctx.quadraticCurveTo(ww * 0.3, wl * 0.4, ww * 0.5, wl * 0.85);
 	ctx.moveTo(0, 1);
-	ctx.quadraticCurveTo(ww * 0.5, wl * 0.25, ww * 1.0, wl * 0.55);
-	// Radius
+	ctx.quadraticCurveTo(ww * 0.5, wl * 0.3, ww * 1.0, wl * 0.55);
 	ctx.moveTo(0, 0.5);
-	ctx.quadraticCurveTo(ww * 0.7, wl * 0.2, ww * 0.9, wl * 0.7);
-	// Media
-	ctx.moveTo(0, 2);
-	ctx.quadraticCurveTo(ww * 0.2, wl * 0.4, ww * 0.3, wl * 0.8);
-	// Cubitus
-	ctx.moveTo(0, 3);
-	ctx.lineTo(ww * 0.1, wl * 0.6);
-	// Anal vein
-	ctx.moveTo(-ww * 0.05, wl * 0.3);
-	ctx.lineTo(-ww * 0.05, wl * 0.85);
+	ctx.lineTo(ww * 0.7, wl * 0.25);
 	ctx.stroke();
-
-	// Cross veins
-	ctx.strokeStyle = 'rgba(100, 140, 190, ' + (wingAlpha * 0.3).toFixed(2) + ')';
-	ctx.lineWidth = 0.3;
-	ctx.beginPath();
-	for (var cv = 1; cv <= 4; cv++) {
-		var cvY = wl * cv * 0.18;
-		ctx.moveTo(ww * 0.05, cvY);
-		ctx.lineTo(ww * 0.8, cvY + wl * 0.05);
-	}
-	ctx.stroke();
-
-	// Specular highlight on wing membrane
-	ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-	ctx.beginPath();
-	ctx.ellipse(ww * 0.3, wl * 0.3, ww * 0.3, wl * 0.25, 0.3, 0, Math.PI * 2);
-	ctx.fill();
+	ctx.globalAlpha = 1.0;
 
 	ctx.restore();
 }
 
+/**
+ * Draws the abdomen with subtle stripes.
+ */
 function drawAbdomen() {
 	var ax = 0;
 	var ay = BODY.abdomenOffsetY;
 	var rx = BODY.abdomenRadiusX;
 	var ry = BODY.abdomenRadiusY;
 
+	// Abdomen curl during abdomen-specific grooming
 	var abdomenCurl = 0;
 	if (behavior.current === 'groom' && (behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax')) {
 		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 2;
 	}
 	ay += abdomenCurl;
 
-	// Photorealistic abdomen: layered segments with chitin texture
-	// Base ellipse with gradient
-	var abGrad = ctx.createRadialGradient(ax, ay, rx * 0.2, ax, ay, ry);
-	abGrad.addColorStop(0, '#8a6b3a');
-	abGrad.addColorStop(0.4, '#6b5030');
-	abGrad.addColorStop(0.7, '#4a3520');
-	abGrad.addColorStop(1, '#2a1d10');
-
+	// Main abdomen shape
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
-	ctx.fillStyle = abGrad;
+	ctx.fillStyle = COLORS.abdomen;
 	ctx.fill();
 
-	// Segment divisions (Drosophila abdomen has visible segments)
+	// Subtle highlight along center
+	ctx.beginPath();
+	ctx.ellipse(ax, ay - 2, rx * 0.35, ry * 0.85, 0, 0, Math.PI * 2);
+	var hlGrad = ctx.createLinearGradient(ax - rx * 0.3, ay, ax + rx * 0.3, ay);
+	hlGrad.addColorStop(0, 'rgba(255,255,255,0.05)');
+	hlGrad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+	hlGrad.addColorStop(1, 'rgba(255,255,255,0.05)');
+	ctx.fillStyle = hlGrad;
+	ctx.fill();
+
+	// Stripes (darker bands across the abdomen)
 	ctx.save();
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.clip();
 
-	for (var seg = 0; seg < 5; seg++) {
-		var segY = ay - ry * 0.6 + seg * (ry * 0.32);
-		// Segment band
-		ctx.fillStyle = '#1a1208';
-		ctx.globalAlpha = 0.7;
-		ctx.fillRect(ax - rx * 1.1, segY, rx * 2.2, ry * 0.08);
-		// Light reflection below band
-		ctx.fillStyle = '#d4a86a';
-		ctx.globalAlpha = 0.3;
-		ctx.fillRect(ax - rx * 1.1, segY + ry * 0.08, rx * 2.2, ry * 0.04);
-	}
-
-	// Chitin texture (subtle noise pattern)
-	ctx.globalAlpha = 0.08;
-	for (var py = 0; py < ry * 2; py += 2.5) {
-		for (var px = 0; px < rx * 2; px += 2) {
-			var nx = px - rx;
-			var ny = py - ry;
-			if ((nx*nx)/(rx*rx) + (ny*ny)/(ry*ry) < 1) {
-				ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
-				ctx.fillRect(ax + nx, ay + ny, 1.5, 1.5);
-			}
-		}
+	for (var s = 0; s < 5; s++) {
+		var stripeY = ay - ry * 0.4 + s * (ry * 0.42);
+		ctx.beginPath();
+		ctx.ellipse(ax, stripeY, rx * 1.05, ry * 0.07, 0, 0, Math.PI * 2);
+		ctx.fillStyle = COLORS.abdomenStripe;
+		ctx.globalAlpha = 0.6;
+		ctx.fill();
 	}
 	ctx.globalAlpha = 1.0;
-
-	// Dorsal midline (darker stripe)
-	ctx.fillStyle = '#1a1208';
-	ctx.globalAlpha = 0.5;
-	ctx.fillRect(ax - rx * 0.15, ay - ry, rx * 0.3, ry * 2);
-	ctx.globalAlpha = 1.0;
-
-	// Specular highlight (top-left)
-	var hlGrad = ctx.createRadialGradient(ax - rx * 0.3, ay - ry * 0.3, 0, ax - rx * 0.3, ay - ry * 0.3, ry * 0.7);
-	hlGrad.addColorStop(0, 'rgba(255, 220, 180, 0.4)');
-	hlGrad.addColorStop(0.5, 'rgba(255, 220, 180, 0.1)');
-	hlGrad.addColorStop(1, 'rgba(255, 220, 180, 0)');
-	ctx.fillStyle = hlGrad;
-	ctx.fill();
 
 	ctx.restore();
 
-	// Outline with subtle rim light
-	ctx.strokeStyle = '#1a1208';
-	ctx.lineWidth = 0.8;
+	// Outline
+	ctx.strokeStyle = COLORS.abdomenStripe;
+	ctx.lineWidth = 0.7;
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.stroke();
-
-	// Rim light (bottom-right)
-	ctx.strokeStyle = 'rgba(255, 200, 150, 0.3)';
-	ctx.lineWidth = 1.5;
-	ctx.beginPath();
-	ctx.ellipse(ax, ay, rx - 0.5, ry - 0.5, Math.PI * 0.6, Math.PI * 0.7, Math.PI * 1.3);
-	ctx.stroke();
 }
 
+/**
+ * Draws the thorax (darker, slightly smaller ellipse).
+ */
 function drawThorax() {
 	var tx = 0;
 	var ty = BODY.thoraxOffsetY;
 	var rx = BODY.thoraxRadiusX;
 	var ry = BODY.thoraxRadiusY;
 
-	// Photorealistic thorax with complex chitin pattern
-	var tGrad = ctx.createRadialGradient(tx - rx * 0.4, ty - ry * 0.4, 0, tx, ty, ry);
-	tGrad.addColorStop(0, '#6b5030');
-	tGrad.addColorStop(0.3, '#4a3520');
-	tGrad.addColorStop(0.6, '#3d2e1a');
-	tGrad.addColorStop(0.85, '#2a1d0f');
-	tGrad.addColorStop(1, '#1a1208');
+	// Radial gradient for chitin sheen
+	var tGrad = ctx.createRadialGradient(tx - rx * 0.3, ty - ry * 0.3, rx * 0.2, tx, ty, ry);
+	tGrad.addColorStop(0, '#4a3d22');
+	tGrad.addColorStop(0.6, COLORS.thorax);
+	tGrad.addColorStop(1, COLORS.thoraxStroke);
 
 	ctx.beginPath();
 	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
 	ctx.fillStyle = tGrad;
 	ctx.fill();
+	ctx.strokeStyle = COLORS.thoraxStroke;
+	ctx.lineWidth = 0.9;
+	ctx.stroke();
 
-	// Thorax has distinct regions: scutum, scutellum, pleura
-	ctx.save();
+	// Subtle midline groove
 	ctx.beginPath();
-	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
-	ctx.clip();
-
-	// Scutum (dorsal plate) - slightly darker
-	var scutGrad = ctx.createLinearGradient(tx, ty - ry, tx, ty);
-	scutGrad.addColorStop(0, 'rgba(30, 20, 10, 0.4)');
-	scutGrad.addColorStop(0.5, 'rgba(30, 20, 10, 0)');
-	scutGrad.addColorStop(1, 'rgba(30, 20, 10, 0.2)');
-	ctx.fillStyle = scutGrad;
-	ctx.fillRect(tx - rx, ty - ry, rx * 2, ry);
-
-	// Scutellum (rear plate)
-	ctx.fillStyle = 'rgba(20, 12, 6, 0.3)';
-	ctx.beginPath();
-	ctx.ellipse(tx + rx * 0.2, ty + ry * 0.5, rx * 0.4, ry * 0.3, 0, 0, Math.PI * 2);
-	ctx.fill();
-
-	// Microtexture (fine scratches and bumps)
-	ctx.globalAlpha = 0.06;
-	for (var i = 0; i < 60; i++) {
-		var angle = Math.random() * Math.PI * 2;
-		var dist = Math.random() * ry * 0.85;
-		var sx = tx + Math.cos(angle) * dist * 0.9;
-		var sy = ty + Math.sin(angle) * dist;
-		ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
-		ctx.fillRect(sx, sy, 2, 0.5);
-	}
-	ctx.globalAlpha = 1.0;
-
-	// Bristle bases (tiny dark dots for hair attachment)
-	ctx.fillStyle = '#0a0604';
-	for (var b = 0; b < 12; b++) {
-		var bx = tx + (Math.random() - 0.5) * rx * 1.6;
-		var by = ty + (Math.random() - 0.5) * ry * 1.6;
-		if ((bx-tx)*(bx-tx)/(rx*rx) + (by-ty)*(by-ty)/(ry*ry) < 0.7) {
-			ctx.beginPath();
-			ctx.arc(bx, by, 0.4, 0, Math.PI * 2);
-			ctx.fill();
-		}
-	}
-
-	// Midline groove
-	ctx.beginPath();
-	ctx.moveTo(0, ty - ry * 0.8);
-	ctx.quadraticCurveTo(1, ty, 0, ty + ry * 0.8);
-	ctx.strokeStyle = '#0a0604';
-	ctx.lineWidth = 0.6;
-	ctx.globalAlpha = 0.4;
+	ctx.moveTo(0, ty - ry * 0.75);
+	ctx.lineTo(0, ty + ry * 0.75);
+	ctx.strokeStyle = COLORS.thoraxStroke;
+	ctx.lineWidth = 0.5;
+	ctx.globalAlpha = 0.3;
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
-
-	ctx.restore();
-
-	// Specular highlight
-	var specGrad = ctx.createRadialGradient(tx - rx * 0.4, ty - ry * 0.4, 0, tx - rx * 0.4, ty - ry * 0.4, ry * 0.5);
-	specGrad.addColorStop(0, 'rgba(255, 200, 150, 0.5)');
-	specGrad.addColorStop(0.6, 'rgba(255, 200, 150, 0.1)');
-	specGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
-	ctx.fillStyle = specGrad;
-	ctx.beginPath();
-	ctx.ellipse(tx - rx * 0.3, ty - ry * 0.3, rx * 0.6, ry * 0.5, -0.3, 0, Math.PI * 2);
-	ctx.fill();
-
-	// Outline
-	ctx.strokeStyle = '#1a1208';
-	ctx.lineWidth = 1.0;
-	ctx.beginPath();
-	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
-	ctx.stroke();
-
-	// Rim light
-	ctx.strokeStyle = 'rgba(255, 180, 120, 0.25)';
-	ctx.lineWidth = 1.2;
-	ctx.beginPath();
-	ctx.ellipse(tx, ty, rx - 0.5, ry - 0.5, Math.PI * 0.7, Math.PI * 0.6, Math.PI * 1.4);
-	ctx.stroke();
 }
 
+/**
+ * Draws the head.
+ */
 function drawHead() {
 	var hx = 0;
 	var hy = BODY.headOffsetY;
 	var hrx = BODY.headRadius * 1.1;
 	var hry = BODY.headRadius;
 
-	// Head base with realistic chitin gradient
-	var hGrad = ctx.createRadialGradient(hx - hrx * 0.3, hy - hry * 0.3, hrx * 0.1, hx, hy, hry);
-	hGrad.addColorStop(0, '#6b5030');
-	hGrad.addColorStop(0.4, '#4a3520');
-	hGrad.addColorStop(0.7, '#3d2e1a');
-	hGrad.addColorStop(1, '#1a1208');
+	// Head with gradient
+	var hGrad = ctx.createRadialGradient(hx - hrx * 0.2, hy - hry * 0.2, hrx * 0.15, hx, hy, hry);
+	hGrad.addColorStop(0, '#3d3218');
+	hGrad.addColorStop(0.5, COLORS.head);
+	hGrad.addColorStop(1, COLORS.headStroke);
 
 	ctx.beginPath();
 	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
 	ctx.fillStyle = hGrad;
 	ctx.fill();
-
-	// Head has distinct face regions
-	ctx.save();
-	ctx.beginPath();
-	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
-	ctx.clip();
-
-	// Frons (face area between eyes) - slightly lighter
-	ctx.fillStyle = 'rgba(100, 75, 45, 0.2)';
-	ctx.beginPath();
-	ctx.ellipse(hx, hy + hry * 0.2, hrx * 0.6, hry * 0.5, 0, 0, Math.PI * 2);
-	ctx.fill();
-
-	// Genal region (cheeks)
-	ctx.fillStyle = 'rgba(80, 60, 30, 0.15)';
-	ctx.beginPath();
-	ctx.ellipse(hx - hrx * 0.5, hy + hry * 0.1, hrx * 0.3, hry * 0.35, 0, 0, Math.PI * 2);
-	ctx.fill();
-	ctx.beginPath();
-	ctx.ellipse(hx + hrx * 0.5, hy + hry * 0.1, hrx * 0.3, hry * 0.35, 0, 0, Math.PI * 2);
-	ctx.fill();
-
-	// Microtexture
-	ctx.globalAlpha = 0.05;
-	for (var py = 0; py < hry * 2; py += 2) {
-		for (var px = 0; px < hrx * 2; px += 2) {
-			var nx = px - hrx;
-			var ny = py - hry;
-			if ((nx*nx)/(hrx*hrx) + (ny*ny)/(hry*hry) < 1) {
-				ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
-				ctx.fillRect(hx + nx, hy + ny, 1.2, 1.2);
-			}
-		}
-	}
-	ctx.globalAlpha = 1.0;
-
-	ctx.restore();
-
-	// Specular highlight
-	var specGrad = ctx.createRadialGradient(hx - hrx * 0.3, hy - hry * 0.4, 0, hx - hrx * 0.3, hy - hry * 0.4, hry * 0.5);
-	specGrad.addColorStop(0, 'rgba(255, 200, 150, 0.6)');
-	specGrad.addColorStop(0.7, 'rgba(255, 200, 150, 0.1)');
-	specGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
-	ctx.fillStyle = specGrad;
-	ctx.beginPath();
-	ctx.ellipse(hx - hrx * 0.25, hy - hry * 0.35, hrx * 0.5, hry * 0.4, -0.3, 0, Math.PI * 2);
-	ctx.fill();
-
-	// Outline
-	ctx.strokeStyle = '#1a1208';
-	ctx.lineWidth = 0.8;
-	ctx.beginPath();
-	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
+	ctx.strokeStyle = COLORS.headStroke;
+	ctx.lineWidth = 0.7;
 	ctx.stroke();
 }
 
+/**
+ * Draws compound eyes on the head.
+ */
 function drawEyes() {
 	for (var side = -1; side <= 1; side += 2) {
 		var ex = BODY.eyeOffsetX * side;
@@ -1834,53 +1667,32 @@ function drawEyes() {
 		ctx.fillStyle = eGrad;
 		ctx.fill();
 
-		// Compound eye facet pattern (hexagonal ommatidia)
+		// Compound eye facet pattern
 		ctx.save();
 		ctx.beginPath();
 		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
 		ctx.clip();
 
-		var facetSize = 1.3;
-		for (var row = 0; row < 8; row++) {
-			for (var col = 0; col < 6; col++) {
-				var fy = -ery + 1 + row * facetSize * 1.5;
-				var fx = -erx + 1 + col * facetSize * 1.7 + (row % 2) * facetSize * 0.85;
+		ctx.globalAlpha = 0.25;
+		for (var fy = -ery + 1; fy < ery; fy += 1.5) {
+			for (var fx = -erx + 1; fx < erx; fx += 1.2) {
 				var dist = Math.sqrt((fx * fx) / (erx * erx) + (fy * fy) / (ery * ery));
 				if (dist < 0.9) {
-					// Hexagonal facet shape
-					ctx.fillStyle = Math.random() > 0.4 ? '#330000' : '#550000';
-					ctx.beginPath();
-					ctx.moveTo(ex + fx + facetSize * 0.5, ey + fy);
-					ctx.lineTo(ex + fx + facetSize * 1.0, ey + fy + facetSize * 0.3);
-					ctx.lineTo(ex + fx + facetSize * 1.0, ey + fy + facetSize * 0.7);
-					ctx.lineTo(ex + fx + facetSize * 0.5, ey + fy + facetSize * 1.0);
-					ctx.lineTo(ex + fx, ey + fy + facetSize * 0.7);
-					ctx.lineTo(ex + fx, ey + fy + facetSize * 0.3);
-					ctx.closePath();
-					ctx.fill();
-					// Highlight on each facet
-					ctx.fillStyle = 'rgba(255, 100, 100, 0.4)';
-					ctx.beginPath();
-					ctx.arc(ex + fx + facetSize * 0.3, ey + fy + facetSize * 0.3, 0.3, 0, Math.PI * 2);
-					ctx.fill();
+					ctx.fillStyle = Math.random() > 0.5 ? '#220000' : '#440000';
+					ctx.fillRect(ex + fx, ey + fy, 1, 1);
 				}
 			}
 		}
+		ctx.globalAlpha = 1.0;
 		ctx.restore();
 
-		// Specular highlight (corneal reflection)
+		// Highlight (specular)
 		ctx.beginPath();
 		ctx.ellipse(ex - side * 1.2, ey - 1.8, erx * 0.4, ery * 0.35, side * 0.3, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.eyeHighlight;
-		ctx.globalAlpha = 0.7;
+		ctx.globalAlpha = 0.6;
 		ctx.fill();
 		ctx.globalAlpha = 1.0;
-
-		// Pseudopupil (dark spot that looks back at observer)
-		ctx.fillStyle = '#000000';
-		ctx.beginPath();
-		ctx.arc(ex - side * 1, ey + 1, 1.8, 0, Math.PI * 2);
-		ctx.fill();
 	}
 }
 
