@@ -106,7 +106,7 @@
 
   function update(dt) {
     if (!caretakerConnected) return;
-    // Only show cursor when Claude recently acted (within 3s of a command)
+    // Only show cursor when IA recently acted (within 3s of a command)
     var idleTime = Date.now() - lastCommandTime;
     if (lastCommandTime === 0 || idleTime > 3000) {
       // Fade out: clear attention so cursor/trail stop drawing

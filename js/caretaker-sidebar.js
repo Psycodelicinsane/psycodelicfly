@@ -5,7 +5,7 @@
   var chatHistory = null;
   var chatInput = null;
   var chatEnviarBtn = null;
-  var chatLoading = false;
+  var chatCargando = false;
   var CHAT_API_URL = 'http://' + (location.hostname || 'localhost') + ':7600';
 
   var iconMap = {
@@ -98,7 +98,7 @@
       case 'set_temp':
         return 'Set temp to ' + (p.level || 'unknown');
       case 'touch':
-        return 'Touched fly at (' + Math.round(p.x || 0) + ', ' + Math.round(p.y || 0) + ')';
+        return 'Tocared fly at (' + Math.round(p.x || 0) + ', ' + Math.round(p.y || 0) + ')';
       case 'blow_wind':
         return 'Blew wind (strength ' + (p.strength || 0.5).toFixed(1) + ')';
       default:
@@ -192,12 +192,12 @@
   }
 
   function sendChatMessage() {
-    if (chatInput === null || chatLoading === true) return;
+    if (chatInput === null || chatCargando === true) return;
     var msg = chatInput.value.trim();
     if (msg === '') return;
     chatInput.value = '';
     appendChatMessage('user', msg, new Date().toISOString(), false);
-    chatLoading = true;
+    chatCargando = true;
     chatEnviarBtn.disabled = true;
     var loadingEl = document.createElement('div');
     loadingEl.className = 'chat-loading';
@@ -214,14 +214,14 @@
         } else {
           appendChatMessage('assistant', data.message, data.timestamp, false);
         }
-        chatLoading = false;
+        chatCargando = false;
         chatEnviarBtn.disabled = false;
         chatInput.focus();
       })
       .catch(function(err) {
         if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
         appendChatMessage('assistant', 'Error de conexión: ' + err.message, new Date().toISOString(), true);
-        chatLoading = false;
+        chatCargando = false;
         chatEnviarBtn.disabled = false;
       });
   }

@@ -2,7 +2,7 @@
  *
  * Bridges the main-thread behavioral layer (connectome.js, fly-logic.js, main.js)
  * to the LIF Web Worker (sim-worker.js). Loads the full connectome binary,
- * initializes the worker, translates BRAIN.stimulate/drives to worker messages,
+ * initializes the worker, translates BRAIN.stimulate/Impulsos to worker messages,
  * and aggregates worker fire states back into BRAIN.postSynaptic format.
  *
  * Loaded after connectome.js, before fly-logic.js and main.js.
@@ -52,7 +52,7 @@
 		});
 	}
 
-	function updateLoadingProgress(loaded, total) {
+	function updateCargandoProgress(loaded, total) {
 		var subtitle = document.getElementById('connectomeSubtitle');
 		if (!subtitle) return;
 		var loadedMB = (loaded / (1024 * 1024)).toFixed(1);
@@ -73,7 +73,7 @@
 
 	var worker = null;
 	var workerReady = false;
-	var latestFireState = null;
+	var latestFireEstado = null;
 	var neuronCount = 0;
 	var groupCount = 0;
 	var groupIdArr = null;       // Uint16Array[neuronCount] from worker
@@ -84,7 +84,7 @@
 	var groupIdToName = [];      // e.g. [0: 'VIS_R1R6', ...]
 	var pendingGroupSpikes = null; // Float32Array[groupCount] accumulated since last brain tick
 	var pendingWorkerTicks = 0;
-	var pendingDriveFrames = 0;  // brain ticks since last updateDrives (for batched catch-up)
+	var pendingImpulsoFrames = 0;  // brain ticks since last updateImpulsos (for batched catch-up)
 
 	/* ---- initialization ---- */
 
@@ -110,7 +110,7 @@
 					groupNameToId[g.name] = g.id;
 					groupIdToName[g.id] = g.name;
 				}
-				return fetchBinaryWithProgress(binUrl, updateLoadingProgress);
+				return fetchBinaryWithProgress(binUrl, updateCargandoProgress);
 			})
 			.then(function (buffer) {
 				if (subtitle) {
@@ -146,7 +146,7 @@
 			buildGroupIndices();
 			workerReady = true;
 			BRAIN.workerReady = true;
-			BRAIN.workerNeuronCount = neuronCount;
+			BRAIN.workerNeuronaCount = neuronCount;
 			BRAIN.workerRegionType = regionTypeArr;
 			BRAIN.workerGroupIdArr = groupIdArr;
 			BRAIN.workerGroupIdToName = groupIdToName;
@@ -162,7 +162,7 @@
 			// Switch to worker-driven update
 			BRAIN.update = workerUpdate;
 			worker.postMessage({type: 'start'});
-			console.log('Connectome worker ready: ' + neuronCount + ' neurons, ' +
+			console.log('Conectoma worker ready: ' + neuronCount + ' neurons, ' +
 				e.data.edgeCount + ' edges');
 			// Update subtitle with actual counts
 			var subtitle = document.getElementById('connectomeSubtitle');
@@ -181,9 +181,9 @@
 			break;
 
 		case 'tick':
-			latestFireState = e.data.fireState;
-			BRAIN.latestFireState = e.data.fireState;
-			BRAIN.workerFiredNeurons = e.data.firedNeurons || 0;
+			latestFireEstado = e.data.fireEstado;
+			BRAIN.latestFireEstado = e.data.fireEstado;
+			BRAIN.workerFiredNeuronas = e.data.firedNeuronas || 0;
 			if (pendingGroupSpikes && e.data.groupSpikeCounts) {
 				for (var g = 0; g < groupCount; g++) {
 					pendingGroupSpikes[g] += e.data.groupSpikeCounts[g] || 0;
@@ -196,8 +196,8 @@
 			/* Display performance info in the connectome subtitle */
 			var statsSubtitle = document.getElementById('connectomeSubtitle');
 			if (statsSubtitle && !statsSubtitle.classList.contains('loading')) {
-				var firedPct = Math.round((e.data.firedNeurons || 0) / e.data.totalNeurons * 100);
-				var activePct = Math.round(e.data.activeNeurons / e.data.totalNeurons * 100);
+				var firedPct = Math.round((e.data.firedNeuronas || 0) / e.data.totalNeuronas * 100);
+				var activePct = Math.round(e.data.activeNeuronas / e.data.totalNeuronas * 100);
 				statsSubtitle.textContent = neuronCount.toLocaleString() + ' neurons (' +
 					firedPct + '% firing, ' + activePct + '% active groups, ' +
 					e.data.avgTickMs.toFixed(1) + 'ms/tick) \u2014 FlyWire FAFB v783';
@@ -249,54 +249,54 @@
 		}
 	}
 
-	/* ---- virtual VNC motor layer ---- */
-	// FlyWire FAFB covers the brain only. Leg and wing motor neurons live in
+	/* ---- virtual VNC Motor layer ---- */
+	// FlyWire FAFB covers the brain only. Leg and wing Motor neurons live in
 	// the ventral nerve cord (VNC), which is a separate dataset. Descending
-	// neurons (GNG_DESC) are the brain's motor output to the VNC. This function
+	// neurons (GNG_DESC) are the brain's Motor output to the VNC. This function
 	// synthesizes what the VNC would produce by distributing descending neuron
-	// activation across the motor groups that BRAIN.motorcontrol() reads.
-	// Context from central circuits biases the distribution toward the
-	// appropriate motor pattern (walk vs flight vs groom vs feed).
+	// activation across the Motor groups that BRAIN.Motorcontrol() reads.
+	// Context from Central circuits biases the distribution toward the
+	// appropriate Motor pattern (walk vs flight vs groom vs feed).
 
-	var MOTOR_SCALE = 0.6; // overall gain from descending -> motor groups
+	var MOTOR_SCALE = 0.6; // overall gain from descending -> Motor groups
 
 	function readPS(name) {
 		if (!BRAIN.postSynaptic[name]) return 0;
-		return BRAIN.postSynaptic[name][BRAIN.nextState] || 0;
+		return BRAIN.postSynaptic[name][BRAIN.nextEstado] || 0;
 	}
 
 	function addPS(name, val) {
 		if (!BRAIN.postSynaptic[name]) return;
-		BRAIN.postSynaptic[name][BRAIN.nextState] += val;
+		BRAIN.postSynaptic[name][BRAIN.nextEstado] += val;
 	}
 
 	function synthesizeMotorOutputs() {
 		var desc = readPS('GNG_DESC');
 		var vcpg = readPS('VNC_CPG');
 
-		// Read central circuit activations to infer motor intent
+		// Read Central circuit activations to infer Motor intent
 		var cxPfn = readPS('CX_PFN');    // path integration -> locomotion
 		var cxFc = readPS('CX_FC');       // fan-shaped body -> locomotion
 		var cxEpg = readPS('CX_EPG');     // heading -> steering
 		var cxHd = readPS('CX_HDELTA');   // heading delta -> turning
-		var sezFeed = readPS('SEZ_FEED');
-		var sezGroom = readPS('SEZ_GROOM');
+		var sezComida = readPS('SEZ_FEED');
+		var sezAseo = readPS('SEZ_GROOM');
 		var mbApp = readPS('MB_MBON_APP'); // approach
 		var mbAv = readPS('MB_MBON_AV');   // avoidance
 		var lhApp = readPS('LH_APP');      // lateral horn approach
 		var lhAv = readPS('LH_AV');        // lateral horn avoidance
-		var dFear = readPS('DRIVE_FEAR');
-		var dGroom = readPS('DRIVE_GROOM');
+		var dMiedo = readPS('DRIVE_FEAR');
+		var dAseo = readPS('DRIVE_GROOM');
 		var prob = readPS('MN_PROBOSCIS');
 		var head = readPS('MN_HEAD');
 		var dnStartle = readPS('DN_STARTLE');
 		var noci = readPS('NOCI');
 
-		// Compute motor intent weights (unnormalized, then used proportionally)
+		// Compute Motor intent weights (unnormalized, then used proportionally)
 		var walkIntent = (cxPfn + cxFc + cxEpg) * 0.3 + (mbApp + lhApp) * 0.5 + (desc + vcpg) * 0.2;
-		var flightIntent = dFear * 2.0 + (mbAv + lhAv) * 0.8 + dnStartle * 1.5 + noci * 1.0;
-		var groomIntent = dGroom * 1.5 + sezGroom * 1.0;
-		var feedIntent = sezFeed * 1.0 + prob * 0.5;
+		var flightIntent = dMiedo * 2.0 + (mbAv + lhAv) * 0.8 + dnStartle * 1.5 + noci * 1.0;
+		var groomIntent = dAseo * 1.5 + sezAseo * 1.0;
+		var feedIntent = sezComida * 1.0 + prob * 0.5;
 		var descProxy = Math.max(
 			walkIntent * 0.45,
 			flightIntent * 0.35,
@@ -306,24 +306,24 @@
 		if (descProxy > desc) {
 			desc = descProxy;
 			if (BRAIN.postSynaptic.GNG_DESC) {
-				BRAIN.postSynaptic.GNG_DESC[BRAIN.nextState] = desc;
+				BRAIN.postSynaptic.GNG_DESC[BRAIN.nextEstado] = desc;
 			}
 		}
 		var total = desc + vcpg;
 		if (total < 0.5) return;
 
-		// Baseline: descending activity drives walking (the default motor program)
+		// Baseline: descending activity Impulsos walking (the default Motor program)
 		var baseWalk = total * MOTOR_SCALE;
 
-		// Scale walk by locomotor intent from CX
-		var walkDrive = baseWalk * (1.0 + walkIntent * 0.1);
+		// Scale walk by locoMotor intent from CX
+		var walkImpulso = baseWalk * (1.0 + walkIntent * 0.1);
 
 		// Symmetric left/right walk output. Steering is handled by the behavioral
 		// layer (computeMovementForBehavior) using targetDir, not by leg asymmetry.
 		// A small random jitter prevents perfectly straight lines.
 		var jitter = (Math.random() - 0.5) * 0.04;
-		var walkL = walkDrive * (1.0 + jitter) / 3.0;
-		var walkR = walkDrive * (1.0 - jitter) / 3.0;
+		var walkL = walkImpulso * (1.0 + jitter) / 3.0;
+		var walkR = walkImpulso * (1.0 - jitter) / 3.0;
 
 		// Distribute to 3 leg pairs per side
 		addPS('MN_LEG_L1', walkL);
@@ -335,22 +335,22 @@
 
 		// Flight: strong avoidance/fear/startle -> wing activation
 		if (flightIntent > 1.0) {
-			var flightDrive = flightIntent * MOTOR_SCALE * 0.7;
-			addPS('MN_WING_L', flightDrive);
-			addPS('MN_WING_R', flightDrive);
+			var flightImpulso = flightIntent * MOTOR_SCALE * 0.7;
+			addPS('MN_WING_L', flightImpulso);
+			addPS('MN_WING_R', flightImpulso);
 		}
 
 		// Startle: fear burst -> DN_STARTLE equivalent
-		if (dFear > 3.0) {
-			addPS('DN_STARTLE', dFear * MOTOR_SCALE);
+		if (dMiedo > 3.0) {
+			addPS('DN_STARTLE', dMiedo * MOTOR_SCALE);
 		}
 
-		// Grooming: groom intent -> abdomen + front legs (motorcontrol reads these)
+		// Aseoing: groom intent -> abdomen + front legs (Motorcontrol reads these)
 		if (groomIntent > 1.0) {
 			addPS('MN_ABDOMEN', groomIntent * MOTOR_SCALE * 0.3);
 		}
 
-		// Feed intent: boost proboscis (already has real neurons, just amplify)
+		// Comida intent: boost proboscis (already has real neurons, just amplify)
 		if (feedIntent > 0.5) {
 			addPS('MN_PROBOSCIS', feedIntent * MOTOR_SCALE * 0.3);
 		}
@@ -359,59 +359,59 @@
 	/* ---- worker-driven BRAIN.update replacement ---- */
 
 	function workerUpdate() {
-		pendingDriveFrames = Math.min(pendingDriveFrames + 1, 20);
+		pendingImpulsoFrames = Math.min(pendingImpulsoFrames + 1, 20);
 
 		// One-shot stimuli (e.g. NOCI pain) are sent immediately via the worker
 		// 'stimulate' message for direct V injection, not gated on worker ticks.
-		// This prevents overwrite by subsequent setStimulusState replacements.
+		// This prevents overwrite by subsequent setStimulusEstado replacements.
 		sendOneShotStimuli();
 
 		// Only run the full pipeline when new worker tick data is available.
-		// updateDrives and sendStimulation are throttled to match motor pipeline
+		// updateImpulsos and sendStimulation are throttled to match Motor pipeline
 		// frequency, preventing drive decay from attenuating transient signals
-		// (e.g. fear spikes) before the motor pipeline processes them.
-		if (latestFireState || pendingWorkerTicks > 0) {
+		// (e.g. fear spikes) before the Motor pipeline processes them.
+		if (latestFireEstado || pendingWorkerTicks > 0) {
 			// Batch-run drive updates for all elapsed frames since last pipeline run.
-			// Calling updateDrives N times preserves per-frame accumulation/decay
+			// Calling updateImpulsos N times preserves per-frame accumulation/decay
 			// rates (e.g. fear *= 0.85 runs N times giving 0.85^N total decay).
-			for (var i = 0; i < pendingDriveFrames; i++) {
-				BRAIN.updateDrives();
+			for (var i = 0; i < pendingImpulsoFrames; i++) {
+				BRAIN.updateImpulsos();
 			}
-			pendingDriveFrames = 0;
+			pendingImpulsoFrames = 0;
 
-			// Send sustained stimulation state to worker
+			// Enviar sustained stimulation state to worker
 			sendStimulation();
 
 			// Aggregate worker spikes into BRAIN.postSynaptic
-			aggregateFireState();
+			aggregateFireEstado();
 
 			// Virtual group bypass: groups with 0 real neurons
-			var vd = BRAIN.drives;
+			var vd = BRAIN.Impulsos;
 			if (BRAIN.postSynaptic['DRIVE_FEAR'])
-				BRAIN.postSynaptic['DRIVE_FEAR'][BRAIN.nextState] = vd.fear * FIRE_STATE_SCALE;
+				BRAIN.postSynaptic['DRIVE_FEAR'][BRAIN.nextEstado] = vd.fear * FIRE_STATE_SCALE;
 			if (BRAIN.postSynaptic['DRIVE_CURIOSITY'])
-				BRAIN.postSynaptic['DRIVE_CURIOSITY'][BRAIN.nextState] = vd.curiosity * FIRE_STATE_SCALE;
+				BRAIN.postSynaptic['DRIVE_CURIOSITY'][BRAIN.nextEstado] = vd.curiosity * FIRE_STATE_SCALE;
 			if (BRAIN.postSynaptic['DRIVE_GROOM'])
-				BRAIN.postSynaptic['DRIVE_GROOM'][BRAIN.nextState] = vd.groom * FIRE_STATE_SCALE;
+				BRAIN.postSynaptic['DRIVE_GROOM'][BRAIN.nextEstado] = vd.groom * FIRE_STATE_SCALE;
 
-			// Synthesize VNC motor outputs from descending neuron activity
+			// Synthesize VNC Motor outputs from descending neuron activity
 			synthesizeMotorOutputs();
 
 			// Motor control
-			BRAIN.motorcontrol();
+			BRAIN.Motorcontrol();
 
-			// State swap
+			// Estado swap
 			for (var ps in BRAIN.postSynaptic) {
-				BRAIN.postSynaptic[ps][BRAIN.thisState] =
-					BRAIN.postSynaptic[ps][BRAIN.nextState];
+				BRAIN.postSynaptic[ps][BRAIN.thisEstado] =
+					BRAIN.postSynaptic[ps][BRAIN.nextEstado];
 			}
-			var temp = BRAIN.thisState;
-			BRAIN.thisState = BRAIN.nextState;
-			BRAIN.nextState = temp;
+			var temp = BRAIN.thisEstado;
+			BRAIN.thisEstado = BRAIN.nextEstado;
+			BRAIN.nextEstado = temp;
 		}
 	}
 
-	/* ---- translate BRAIN.stimulate + BRAIN.drives to worker stimulation ---- */
+	/* ---- translate BRAIN.stimulate + BRAIN.Impulsos to worker stimulation ---- */
 
 	function collectOneShotSegments() {
 		var segs = [];
@@ -424,9 +424,9 @@
 
 	function collectStimulationSegments() {
 		var segs = [];
-		var d = BRAIN.drives;
+		var d = BRAIN.Impulsos;
 
-		// Drive stimulation
+		// Impulso stimulation
 		if (d.hunger > 0.2) {
 			var pulses = d.hunger > 0.6 ? 3 : (d.hunger > 0.4 ? 2 : 1);
 			segs.push({name: 'DRIVE_HUNGER', intensity: STIM_INTENSITY * d.hunger * pulses});
@@ -446,7 +446,7 @@
 			segs.push({name: 'DRIVE_GROOM', intensity: STIM_INTENSITY * d.groom});
 		}
 
-		// Sensory stimulation
+		// Sensorial stimulation
 		if (BRAIN.stimulate.touch) {
 			segs.push({name: 'MECH_BRISTLE', intensity: STIM_INTENSITY});
 			if (BRAIN.stimulate.touchLocation === 'head' ||
@@ -527,7 +527,7 @@
 		}
 
 		if (totalLen === 0) {
-			worker.postMessage({type: 'setStimulusState', indices: null, intensities: null});
+			worker.postMessage({type: 'setStimulusEstado', indices: null, intensities: null});
 			return;
 		}
 
@@ -543,19 +543,19 @@
 			offset += seg.indices.length;
 		}
 
-		worker.postMessage({type: 'setStimulusState', indices: allIndices, intensities: allIntensities});
+		worker.postMessage({type: 'setStimulusEstado', indices: allIndices, intensities: allIntensities});
 	}
 
 	/* ---- aggregate fire state into BRAIN.postSynaptic ---- */
 
-	function aggregateFireState() {
+	function aggregateFireEstado() {
 		var groupFires = new Float32Array(groupCount);
 		var tickWindow = pendingWorkerTicks;
 
 		if (pendingGroupSpikes && pendingWorkerTicks > 0) {
 			groupFires.set(pendingGroupSpikes);
-		} else if (latestFireState) {
-			var fire = latestFireState;
+		} else if (latestFireEstado) {
+			var fire = latestFireEstado;
 			tickWindow = 1;
 			for (var i = 0; i < neuronCount; i++) {
 				if (fire[i]) {
@@ -566,7 +566,7 @@
 
 		if (tickWindow < 1) tickWindow = 1;
 
-		// Normalize by group size, scale, and write to BRAIN.postSynaptic[nextState]
+		// Normalize by group size, scale, and write to BRAIN.postSynaptic[nextEstado]
 		for (var g = 0; g < groupCount; g++) {
 			var name = groupIdToName[g];
 			if (!name || !BRAIN.postSynaptic[name]) continue;
@@ -574,14 +574,14 @@
 			var windowActivation = size > 0
 				? (groupFires[g] / (size * tickWindow)) * FIRE_STATE_SCALE
 				: 0;
-			var prevActivation = BRAIN.postSynaptic[name][BRAIN.thisState] || 0;
+			var prevActivation = BRAIN.postSynaptic[name][BRAIN.thisEstado] || 0;
 			var activation = Math.max(windowActivation, prevActivation * 0.75);
-			BRAIN.postSynaptic[name][BRAIN.nextState] = activation;
+			BRAIN.postSynaptic[name][BRAIN.nextEstado] = activation;
 		}
 
 		if (pendingGroupSpikes) pendingGroupSpikes.fill(0);
 		pendingWorkerTicks = 0;
-		latestFireState = null;
+		latestFireEstado = null;
 	}
 
 	/* ---- pause / resume API for visibilitychange ---- */
@@ -589,12 +589,12 @@
 	function stopWorker() {
 		if (!workerReady || !worker) return;
 		worker.postMessage({type: 'stop'});
-		worker.postMessage({type: 'setStimulusState', indices: null, intensities: null});
-		latestFireState = null;
+		worker.postMessage({type: 'setStimulusEstado', indices: null, intensities: null});
+		latestFireEstado = null;
 		if (pendingGroupSpikes) pendingGroupSpikes.fill(0);
 		pendingWorkerTicks = 0;
-		BRAIN.latestFireState = null;
-		pendingDriveFrames = 0;
+		BRAIN.latestFireEstado = null;
+		pendingImpulsoFrames = 0;
 	}
 
 	function startWorker() {
@@ -602,7 +602,7 @@
 		worker.postMessage({type: 'reset'});
 		if (pendingGroupSpikes) pendingGroupSpikes.fill(0);
 		pendingWorkerTicks = 0;
-		pendingDriveFrames = 0;
+		pendingImpulsoFrames = 0;
 		worker.postMessage({type: 'start'});
 	}
 
@@ -614,7 +614,7 @@
 	if (BRAIN._testMode) {
 		BRAIN._bridge = {
 			synthesizeMotorOutputs: synthesizeMotorOutputs,
-			aggregateFireState: aggregateFireState,
+			aggregateFireEstado: aggregateFireEstado,
 			buildGroupIndices: buildGroupIndices,
 			collectStimulationSegments: collectStimulationSegments,
 			collectOneShotSegments: collectOneShotSegments,
@@ -622,7 +622,7 @@
 			FIRE_STATE_SCALE: FIRE_STATE_SCALE,
 			MOTOR_SCALE: MOTOR_SCALE,
 			STIM_INTENSITY: STIM_INTENSITY,
-			_setGroupState: function (gc, nc, gIdArr, gSizes, gIdToNameArr) {
+			_setGroupEstado: function (gc, nc, gIdArr, gSizes, gIdToNameArr) {
 				groupCount = gc;
 				neuronCount = nc;
 				groupIdArr = gIdArr;
@@ -634,10 +634,10 @@
 				}
 				pendingGroupSpikes = new Float32Array(gc);
 				pendingWorkerTicks = 0;
-				pendingDriveFrames = 0;
+				pendingImpulsoFrames = 0;
 			},
-			_setFireState: function (fireState, spikes, ticks) {
-				latestFireState = fireState;
+			_setFireEstado: function (fireEstado, spikes, ticks) {
+				latestFireEstado = fireEstado;
 				if (spikes) pendingGroupSpikes = spikes;
 				pendingWorkerTicks = ticks;
 			},

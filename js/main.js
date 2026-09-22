@@ -142,10 +142,10 @@ var canvasTocarActive = false;
 var touchTimestamps = [];
 var lightEstados = [1, 0.5, 0];
 var lightEstadoIndex = 0;
-var lightLabels = ['Brillante', 'Tenue', 'Oscuro'];
+var lightEtiquetas = ['Brillante', 'Tenue', 'Oscuro'];
 var tempEstados = [0.5, 0.75, 0.25];
 var tempEstadoIndex = 0;
-var tempLabels = ['Neutral', 'Cálido', 'Frío'];
+var tempEtiquetas = ['Neutral', 'Cálido', 'Frío'];
 
 // Region-based neuron color map (built after BRAIN.setup)
 var neuronColorMap = {};
@@ -657,7 +657,7 @@ function updateBrain() {
 	// Update behavior state label
 	var behaviorEstadoEl = document.getElementById('behaviorEstado');
 	if (behaviorEstadoEl) {
-		var stateLabels = {
+		var etiquetasEstado = {
 			idle: 'inactivo',
 			feed: 'comiendo',
 			groom: 'aseándose',
@@ -669,7 +669,7 @@ function updateBrain() {
 			phototaxis: 'fototaxis',
 			brace: 'en guardia'
 		};
-		behaviorEstadoEl.textContent = stateLabels[behavior.current] || behavior.current;
+		behaviorEstadoEl.textContent = etiquetasEstado[behavior.current] || behavior.current;
 	}
 }
 
@@ -1214,14 +1214,14 @@ function cycleLightLevel() {
 	lightEstadoIndex = (lightEstadoIndex + 1) % lightEstados.length;
 	BRAIN.stimulate.lightLevel = lightEstados[lightEstadoIndex];
 	var btn = document.getElementById('lightBtn');
-	if (btn) btn.textContent = 'Luz: ' + lightLabels[lightEstadoIndex];
+	if (btn) btn.textContent = 'Luz: ' + lightEtiquetas[lightEstadoIndex];
 }
 
 function cycleTempLevel() {
 	tempEstadoIndex = (tempEstadoIndex + 1) % tempEstados.length;
 	BRAIN.stimulate.temperature = tempEstados[tempEstadoIndex];
 	var btn = document.getElementById('tempBtn');
-	if (btn) btn.textContent = 'Temp: ' + tempLabels[tempEstadoIndex];
+	if (btn) btn.textContent = 'Temp: ' + tempEtiquetas[tempEstadoIndex];
 }
 
 function drawFood() {

@@ -90,7 +90,7 @@
           '<div class="cal-details">' +
             '<span title="Incidentes">' + score.fear_incidents + 'i</span>' +
             '<span title="Alimentars">' + score.total_feeds + 'f</span>' +
-            '<span title="Avg Hunger">' + (score.avg_hunger !== null ? score.avg_hunger.toFixed(1) : '-') + 'h</span>' +
+            '<span title="Avg Hambre">' + (score.avg_hunger !== null ? score.avg_hunger.toFixed(1) : '-') + 'h</span>' +
           '</div>' : '') +
         '</div>';
     }

@@ -21,16 +21,16 @@ var BEHAVIOR_THRESHOLDS = {
 	feed: 8,
 	groom: 8,
 	walk: 5,
-	restFatigue: 0.7,
-	exploreCuriosity: 0.4,
-	phototaxisLight: 0.5,
+	restFatiga: 0.7,
+	exploreCuriosidad: 0.4,
+	phototaxisLuz: 0.5,
 };
 
 /**
  * Returns true if the given behavior state is in its cooldown period.
  * Requires global `behavior` object with a `cooldowns` map.
  */
-function isCoolingDown(state, now) {
+function isFríoingDown(state, now) {
 	return behavior.cooldowns[state] !== undefined && now < behavior.cooldowns[state];
 }
 
@@ -46,7 +46,7 @@ function hasNearbyFood() {
 }
 
 /**
- * Evaluates accumulator outputs and drives to determine which behavior
+ * Evaluates accumulator outputs and Impulsos to determine which behavior
  * state should be active. Returns the state name string.
  * Priority order (highest first): startle, fly, feed, groom, brace, rest, phototaxis, explore, walk, idle.
  * Requires globals `BRAIN`, `behavior`, `food`, `fly`.
@@ -55,34 +55,34 @@ function evaluateBehaviorEntry() {
 	var now = Date.now();
 	var totalWalk = BRAIN.accumWalkLeft + BRAIN.accumWalkRight;
 
-	if (BRAIN.accumStartle > BEHAVIOR_THRESHOLDS.startle && !isCoolingDown('startle', now)) {
+	if (BRAIN.accumStartle > BEHAVIOR_THRESHOLDS.startle && !isFríoingDown('startle', now)) {
 		return 'startle';
 	}
-	if (BRAIN.accumFlight > BEHAVIOR_THRESHOLDS.fly && !isCoolingDown('fly', now)) {
+	if (BRAIN.accumFlight > BEHAVIOR_THRESHOLDS.fly && !isFríoingDown('fly', now)) {
 		return 'fly';
 	}
-	var feedReady = BRAIN.accumFeed > BEHAVIOR_THRESHOLDS.feed ||
-		(BRAIN.drives.hunger > 0.7 && BRAIN.stimulate.foodNearby);
-	if (feedReady && hasNearbyFood() && !isCoolingDown('feed', now)) {
+	var feedReady = BRAIN.accumComida > BEHAVIOR_THRESHOLDS.feed ||
+		(BRAIN.Impulsos.hunger > 0.7 && BRAIN.stimulate.foodNearby);
+	if (feedReady && hasNearbyFood() && !isFríoingDown('feed', now)) {
 		return 'feed';
 	}
-	if (BRAIN.accumGroom > BEHAVIOR_THRESHOLDS.groom && !isCoolingDown('groom', now)) {
+	if (BRAIN.accumAseo > BEHAVIOR_THRESHOLDS.groom && !isFríoingDown('groom', now)) {
 		return 'groom';
 	}
 	if (BRAIN.stimulate.wind && BRAIN.stimulate.windStrength < 0.5 &&
-		BRAIN.accumStartle < BEHAVIOR_THRESHOLDS.startle && !isCoolingDown('brace', now)) {
+		BRAIN.accumStartle < BEHAVIOR_THRESHOLDS.startle && !isFríoingDown('brace', now)) {
 		return 'brace';
 	}
-	var restThreshold = BRAIN.stimulate.lightLevel === 0 ? 0.4 : BEHAVIOR_THRESHOLDS.restFatigue;
-	if (BRAIN.drives.fatigue > restThreshold) {
+	var restThreshold = BRAIN.stimulate.lightLevel === 0 ? 0.4 : BEHAVIOR_THRESHOLDS.restFatiga;
+	if (BRAIN.Impulsos.fatigue > restThreshold) {
 		return 'rest';
 	}
-	if (BRAIN.stimulate.lightLevel > BEHAVIOR_THRESHOLDS.phototaxisLight &&
-		BRAIN.drives.curiosity > 0.2 && totalWalk > 3) {
+	if (BRAIN.stimulate.lightLevel > BEHAVIOR_THRESHOLDS.phototaxisLuz &&
+		BRAIN.Impulsos.curiosity > 0.2 && totalWalk > 3) {
 		return 'phototaxis';
 	}
 	if (totalWalk > BEHAVIOR_THRESHOLDS.walk &&
-		BRAIN.drives.curiosity > BEHAVIOR_THRESHOLDS.exploreCuriosity) {
+		BRAIN.Impulsos.curiosity > BEHAVIOR_THRESHOLDS.exploreCuriosidad) {
 		return 'explore';
 	}
 	if (totalWalk > BEHAVIOR_THRESHOLDS.walk) {
@@ -125,7 +125,7 @@ function computeFoodProgress(foodItem, now) {
  * Pure extraction of pause-feeding logic (main.js ~lines 1773-1776).
  * Mutates foodItem in place: accumulates eaten progress and resets feedStart to 0.
  */
-function pauseFeeding(foodItem, now) {
+function pauseComidaing(foodItem, now) {
 	if (foodItem.feedStart === 0) return;
 	var ate = now - foodItem.feedStart;
 	foodItem.eaten = Math.min(1, (foodItem.eaten || 0) + ate / foodItem.feedDuration);
