@@ -1995,22 +1995,22 @@ function update(dt) {
 	var barrierMargin = 12;
 	var bounds = getLayoutBounds();
 
-	// Screen bounds (clamped to visible area: toolbar=44px top, panel=90px bottom)
+	// Screen bounds - gentle push back from walls (don't clamp, push)
 	if (fly.x < barrierMargin) {
-		fly.x = 0;
+		fly.x = barrierMargin;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	} else if (fly.x > window.innerWidth - barrierMargin) {
-		fly.x = window.innerWidth;
+		fly.x = window.innerWidth - barrierMargin;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	}
 	if (fly.y < bounds.top + barrierMargin) {
-		fly.y = 44;
+		fly.y = bounds.top + barrierMargin;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	} else if (fly.y > bounds.bottom - barrierMargin) {
-		fly.y = window.innerHeight;
+		fly.y = bounds.bottom - barrierMargin;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	}
@@ -2095,11 +2095,11 @@ function draw() {
 	// Update canvas background based on light level
 	var ll = BRAIN.stimulate.lightLevel;
 	if (ll >= 1) {
-		canvas.style.backgroundColor = '#1a2433';
+		canvas.style.backgroundColor = '#a8c686';
 	} else if (ll >= 0.5) {
-		canvas.style.backgroundColor = '#151d2a';
+		canvas.style.backgroundColor = '#7da35e';
 	} else {
-		canvas.style.backgroundColor = '#0c1420';
+		canvas.style.backgroundColor = '#4a6b35';
 	}
 
 	ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -2158,7 +2158,7 @@ function draw() {
 	}
 	// Also re-clamp the fly position to the new bounds
 	fly.x = Math.max(0, Math.min(fly.x, window.innerWidth));
-	fly.y = Math.max(getLayoutBounds().top, Math.min(fly.y, window.innerHeight));
+	fly.y = Math.max(getLayoutBounds().top, Math.min(fly.y, getLayoutBounds().bottom));
 	window.addEventListener('resize', resize);
 })();
 
