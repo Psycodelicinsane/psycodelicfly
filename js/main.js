@@ -22,7 +22,7 @@ document.getElementById('centerButton').onclick = function () {
 document.getElementById('zoomIn').onclick = function () { setZoom(zoomLevel * 1.3); };
 document.getElementById('zoomOut').onclick = function () { setZoom(zoomLevel / 1.3); };
 
-// --- State ---
+// --- Estado ---
 var facingDir = 0;
 var targetDir = 0;
 var speed = 0;
@@ -125,7 +125,7 @@ var BEHAVIOR_COOLDOWN = {
 
 // The behavior state object
 var behavior = {
-	current: 'idle',
+	current: 'inactivo',
 	enterTime: Date.now(),
 	cooldowns: {},
 	startlePhase: 'none',
@@ -135,16 +135,16 @@ var behavior = {
 };
 
 // --- Tool state ---
-var activeTool = 'feed';
+var activeTool = 'comiendo';
 var isDragging = false;
 var dragStart = { x: 0, y: 0 };
-var canvasTouchActive = false;
+var canvasTocarActive = false;
 var touchTimestamps = [];
-var lightStates = [1, 0.5, 0];
-var lightStateIndex = 0;
+var lightEstados = [1, 0.5, 0];
+var lightEstadoIndex = 0;
 var lightLabels = ['Brillante', 'Tenue', 'Oscuro'];
-var tempStates = [0.5, 0.75, 0.25];
-var tempStateIndex = 0;
+var tempEstados = [0.5, 0.75, 0.25];
+var tempEstadoIndex = 0;
 var tempLabels = ['Neutral', 'Cálido', 'Frío'];
 
 // Region-based neuron color map (built after BRAIN.setup)
@@ -420,7 +420,7 @@ for (var i = 0; i < toolButtons.length; i++) {
 	})(toolButtons[i]);
 }
 
-// --- Brain 3D toggle ---
+// --- Cerebro 3D toggle ---
 var brain3dBtn = document.getElementById('brain3dBtn');
 if (brain3dBtn) {
     brain3dBtn.addEventListener('click', function () {
@@ -437,7 +437,7 @@ if (brain3dBtn) {
     });
 }
 
-// --- Learn / Education panel toggle ---
+// --- Aprender / Education panel toggle ---
 var learnBtn = document.getElementById('learnBtn');
 if (learnBtn) {
     learnBtn.addEventListener('click', function () {
@@ -452,7 +452,7 @@ if (learnBtn) {
     });
 }
 
-// --- Help overlay toggle ---
+// --- Ayuda overlay toggle ---
 var helpOverlay = document.getElementById('helpOverlay');
 var helpBtn = document.getElementById('helpBtn');
 var helpCloseBtn = document.getElementById('helpCloseBtn');
@@ -526,7 +526,7 @@ if (sidebarToggle) {
 	});
 }
 
-// --- Activity sidebar toggle (desktop) ---
+// --- Actividad sidebar toggle (desktop) ---
 var activityToggle = document.getElementById('activityToggle');
 var activityCloseBtn = document.getElementById('caretaker-sidebar-close');
 
@@ -584,7 +584,7 @@ if (liteBtn) {
 	});
 }
 
-// --- Connectome panel toggle ---
+// --- Conectoma panel toggle ---
 var connectomeToggleBtn = document.getElementById('connectomeToggleBtn');
 var nodeHolder = document.getElementById('nodeHolder');
 
@@ -623,7 +623,7 @@ function updateBrain() {
 		for (var postSynaptic in BRAIN.connectome) {
 			var psBox = document.getElementById(postSynaptic);
 			if (!psBox) continue;
-			var neuron = BRAIN.postSynaptic[postSynaptic][BRAIN.thisState];
+			var neuron = BRAIN.postSynaptic[postSynaptic][BRAIN.thisEstado];
 			var color = neuronColorMap[postSynaptic] || '#55FF55';
 			var baseOpacity = Math.min(1, neuron / 50);
 			var dots = neuronDotCache[postSynaptic];
@@ -639,24 +639,24 @@ function updateBrain() {
 		}
 	}
 	// Evaluate behavioral state and compute movement
-	updateBehaviorState();
+	updateBehaviorEstado();
 	computeMovementForBehavior();
 
 	// Update drive meter bars
-	var driveHungerEl = document.getElementById('driveHunger');
-	var driveFearEl = document.getElementById('driveFear');
-	var driveFatigueEl = document.getElementById('driveFatigue');
-	var driveCuriosityEl = document.getElementById('driveCuriosity');
-	var driveGroomEl = document.getElementById('driveGroom');
-	if (driveHungerEl) driveHungerEl.style.width = (BRAIN.drives.hunger * 100) + '%';
-	if (driveFearEl) driveFearEl.style.width = (BRAIN.drives.fear * 100) + '%';
-	if (driveFatigueEl) driveFatigueEl.style.width = (BRAIN.drives.fatigue * 100) + '%';
-	if (driveCuriosityEl) driveCuriosityEl.style.width = (BRAIN.drives.curiosity * 100) + '%';
-	if (driveGroomEl) driveGroomEl.style.width = (BRAIN.drives.groom * 100) + '%';
+	var driveHambreEl = document.getElementById('driveHambre');
+	var driveMiedoEl = document.getElementById('driveMiedo');
+	var driveFatigaEl = document.getElementById('driveFatiga');
+	var driveCuriosidadEl = document.getElementById('driveCuriosidad');
+	var driveAseoEl = document.getElementById('driveAseo');
+	if (driveHambreEl) driveHambreEl.style.width = (BRAIN.drives.hunger * 100) + '%';
+	if (driveMiedoEl) driveMiedoEl.style.width = (BRAIN.drives.fear * 100) + '%';
+	if (driveFatigaEl) driveFatigaEl.style.width = (BRAIN.drives.fatigue * 100) + '%';
+	if (driveCuriosidadEl) driveCuriosidadEl.style.width = (BRAIN.drives.curiosity * 100) + '%';
+	if (driveAseoEl) driveAseoEl.style.width = (BRAIN.drives.groom * 100) + '%';
 
 	// Update behavior state label
-	var behaviorStateEl = document.getElementById('behaviorState');
-	if (behaviorStateEl) {
+	var behaviorEstadoEl = document.getElementById('behaviorEstado');
+	if (behaviorEstadoEl) {
 		var stateLabels = {
 			idle: 'inactivo',
 			feed: 'comiendo',
@@ -669,7 +669,7 @@ function updateBrain() {
 			phototaxis: 'fototaxis',
 			brace: 'en guardia'
 		};
-		behaviorStateEl.textContent = stateLabels[behavior.current] || behavior.current;
+		behaviorEstadoEl.textContent = stateLabels[behavior.current] || behavior.current;
 	}
 }
 
@@ -704,7 +704,7 @@ var brainTickId = setInterval(updateBrain, 500);
 // drives are maxed out causing a jarring behavioral cascade.
 // Fix: pause the brain tick when hidden, resume when visible. On resume,
 // clear all stale stimuli and snapshot drives to prevent drift.
-var driveSnapshotOnHide = null;
+var driveSnapshotOnOcultar = null;
 
 document.addEventListener('visibilitychange', function () {
 	if (document.hidden) {
@@ -716,7 +716,7 @@ document.addEventListener('visibilitychange', function () {
 		BRAIN.stopWorker();
 
 		// Snapshot current drive values so we can restore them on resume
-		driveSnapshotOnHide = {
+		driveSnapshotOnOcultar = {
 			hunger: BRAIN.drives.hunger,
 			fear: BRAIN.drives.fear,
 			fatigue: BRAIN.drives.fatigue,
@@ -754,18 +754,18 @@ document.addEventListener('visibilitychange', function () {
 
 		// Restore drive snapshot to undo any drift from throttled ticks
 		// that may have fired between the hide event and clearInterval
-		if (driveSnapshotOnHide) {
-			BRAIN.drives.hunger = driveSnapshotOnHide.hunger;
-			BRAIN.drives.fear = driveSnapshotOnHide.fear;
-			BRAIN.drives.fatigue = driveSnapshotOnHide.fatigue;
-			BRAIN.drives.curiosity = driveSnapshotOnHide.curiosity;
-			BRAIN.drives.groom = driveSnapshotOnHide.groom;
-			driveSnapshotOnHide = null;
+		if (driveSnapshotOnOcultar) {
+			BRAIN.drives.hunger = driveSnapshotOnOcultar.hunger;
+			BRAIN.drives.fear = driveSnapshotOnOcultar.fear;
+			BRAIN.drives.fatigue = driveSnapshotOnOcultar.fatigue;
+			BRAIN.drives.curiosity = driveSnapshotOnOcultar.curiosity;
+			BRAIN.drives.groom = driveSnapshotOnOcultar.groom;
+			driveSnapshotOnOcultar = null;
 		}
 
 		// Reset behavior and speed state to prevent high-speed transient
 		// states from persisting after stimuli have been cleared
-		behavior.current = 'idle';
+		behavior.current = 'inactivo';
 		behavior.startlePhase = 'none';
 		behavior.enterTime = Date.now();
 		behavior.cooldowns = {};
@@ -792,7 +792,7 @@ canvas.addEventListener('mousedown', handleCanvasMousedown, false);
 canvas.addEventListener('mousemove', handleCanvasMousemove, false);
 document.addEventListener('mouseup', handleCanvasMouseup, false);
 
-// --- Touch event handlers (mobile/tablet support) ---
+// --- Tocar event handlers (mobile/tablet support) ---
 canvas.addEventListener('touchstart', function (event) {
 	if (event.touches.length === 2) {
 		// Pinch-to-zoom start
@@ -801,10 +801,10 @@ canvas.addEventListener('touchstart', function (event) {
 		var dy = event.touches[0].clientY - event.touches[1].clientY;
 		pinchStartDist = Math.hypot(dx, dy);
 		pinchStartZoom = zoomLevel;
-		canvasTouchActive = false;
+		canvasTocarActive = false;
 		return;
 	}
-	canvasTouchActive = true;
+	canvasTocarActive = true;
 	event.preventDefault();
 	var touch = event.touches[0];
 	handleCanvasMousedown({ clientX: touch.clientX, clientY: touch.clientY });
@@ -829,11 +829,11 @@ canvas.addEventListener('touchmove', function (event) {
 
 document.addEventListener('touchend', function (event) {
 	pinchStartDist = 0;
-	if (canvasTouchActive) {
+	if (canvasTocarActive) {
 		event.preventDefault();
-		var touch = event.changedTouches[0];
+		var touch = event.changedTocares[0];
 		handleCanvasMouseup({ clientX: touch.clientX, clientY: touch.clientY });
-		canvasTouchActive = false;
+		canvasTocarActive = false;
 	}
 }, { passive: false });
 
@@ -849,13 +849,13 @@ function handleCanvasMousedown(event) {
 	var cx = world.x;
 	var cy = world.y;
 
-	if (activeTool === 'feed') {
+	if (activeTool === 'comiendo') {
 		var foodMinY = getLayoutBounds().top;
 		var foodMaxY = window.innerHeight;
 		cy = Math.max(foodMinY, Math.min(foodMaxY, cy));
 		food.push({ x: cx, y: cy, radius: 10, feedStart: 0, feedDuration: 0, eaten: 0 });
 	} else if (activeTool === 'touch') {
-		applyTouchTool(cx, cy);
+		applyTocarTool(cx, cy);
 		ripples.push({ x: cx, y: cy, startTime: Date.now() });
 	} else if (activeTool === 'air') {
 		isDragging = true;
@@ -904,7 +904,7 @@ function handleCanvasMouseup(event) {
 	}
 }
 
-function applyTouchTool(cx, cy) {
+function applyTocarTool(cx, cy) {
 	var distToFly = Math.hypot(cx - fly.x, cy - fly.y);
 	if (distToFly > 50) return; // click not on fly
 
@@ -970,7 +970,7 @@ function nearestFood() {
  * Called on the 500ms brain tick. Evaluates state transitions and
  * updates BRAIN behavior flags for the next tick's drive computation.
  */
-function updateBehaviorState() {
+function updateBehaviorEstado() {
 	var now = Date.now();
 	var elapsed = now - behavior.enterTime;
 	var minDur = BEHAVIOR_MIN_DURATION[behavior.current] || 0;
@@ -982,15 +982,15 @@ function updateBehaviorState() {
 		return;
 	}
 
-	var newState = evaluateBehaviorEntry();
+	var newEstado = evaluateBehaviorEntry();
 
-	if (newState !== behavior.current) {
+	if (newEstado !== behavior.current) {
 		// Set cooldown for the state being exited
 		if (BEHAVIOR_COOLDOWN[behavior.current]) {
 			behavior.cooldowns[behavior.current] = now + BEHAVIOR_COOLDOWN[behavior.current];
 		}
 		// Pause feeding timer when exiting feed state but keep eaten progress
-		if (behavior.current === 'feed') {
+		if (behavior.current === 'comiendo') {
 			for (var fi = 0; fi < food.length; fi++) {
 				if (food[fi].feedStart !== 0) {
 					var ate = Date.now() - food[fi].feedStart;
@@ -999,23 +999,23 @@ function updateBehaviorState() {
 				}
 			}
 		}
-		behavior.current = newState;
+		behavior.current = newEstado;
 		behavior.enterTime = now;
 
 		// Startle: initialize freeze phase and drain DN_STARTLE
-		if (newState === 'startle') {
+		if (newEstado === 'asustada') {
 			behavior.startlePhase = 'freeze';
 			behavior.startleFreezeEnd = now + 200;
 			if (BRAIN.postSynaptic['DN_STARTLE']) {
-				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.thisState] = 0;
-				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextState] = 0;
+				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.thisEstado] = 0;
+				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextEstado] = 0;
 			}
 		} else {
 			behavior.startlePhase = 'none';
 		}
 
-		// Groom: snapshot the touch location that triggered grooming
-		if (newState === 'groom') {
+		// Aseo: snapshot the touch location that triggered grooming
+		if (newEstado === 'aseándose') {
 			behavior.groomLocation = BRAIN.stimulate.touchLocation || 'thorax';
 		}
 	}
@@ -1024,16 +1024,16 @@ function updateBehaviorState() {
 }
 
 /**
- * Syncs BRAIN._isMoving/_isFeeding/_isGrooming flags with the
+ * Syncs BRAIN._isMoving/_isComidaing/_isAseoing flags with the
  * behavioral state machine so that drive updates in the next
  * brain tick reflect actual behavior, not just accumulator values.
  */
 function syncBrainFlags() {
 	var s = behavior.current;
-	BRAIN._isMoving = (s === 'walk' || s === 'explore' || s === 'phototaxis' ||
-		s === 'fly' || (s === 'startle' && behavior.startlePhase === 'burst'));
-	BRAIN._isFeeding = (s === 'feed');
-	BRAIN._isGrooming = (s === 'groom');
+	BRAIN._isMoving = (s === 'caminando' || s === 'explorando' || s === 'fototaxis' ||
+		s === 'volando' || (s === 'asustada' && behavior.startlePhase === 'burst'));
+	BRAIN._isComidaing = (s === 'comiendo');
+	BRAIN._isAseoing = (s === 'aseándose');
 }
 
 /**
@@ -1045,7 +1045,7 @@ function computeMovementForBehavior() {
 	var scalingFactor = 20;
 	var state = behavior.current;
 
-	if (state === 'walk' || state === 'explore') {
+	if (state === 'caminando' || state === 'explorando') {
 		// Direction: motor asymmetry capped to prevent worker noise from causing spinning.
 		// Steering is primarily handled by behavioral biases (food-seek, explore wander).
 		var newDir = (BRAIN.accumleft - BRAIN.accumright) / scalingFactor;
@@ -1053,7 +1053,7 @@ function computeMovementForBehavior() {
 		targetDir = facingDir + newDir * Math.PI;
 		targetSpeed = (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5);
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 1.5);
-		if (state === 'explore') {
+		if (state === 'explorando') {
 			targetDir += (Math.random() - 0.5) * 0.3;
 		}
 		// Food-seeking: steer toward nearest food when hungry and food detected
@@ -1074,7 +1074,7 @@ function computeMovementForBehavior() {
 			var headSign = (BRAIN.accumWalkLeft - BRAIN.accumWalkRight > 0) ? 1 : -1;
 			targetDir += headBias * headSign;
 		}
-	} else if (state === 'phototaxis') {
+	} else if (state === 'fototaxis') {
 		// Steer toward canvas center (light source placeholder)
 		var dx = window.innerWidth / 2 - fly.x;
 		var dy = -(window.innerHeight / 2 - fly.y);
@@ -1082,13 +1082,13 @@ function computeMovementForBehavior() {
 		targetSpeed = (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5);
 		if (targetSpeed < 0.3) targetSpeed = 0.3;
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 1.5);
-	} else if (state === 'fly') {
+	} else if (state === 'volando') {
 		var newDir = (BRAIN.accumleft - BRAIN.accumright) / scalingFactor;
 		targetDir = facingDir + newDir * Math.PI + (Math.random() - 0.5) * 0.2;
 		targetSpeed = ((Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5)) * 2.5;
 		if (targetSpeed < 1.5) targetSpeed = 1.5;
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 0.5);
-	} else if (state === 'startle') {
+	} else if (state === 'asustada') {
 		if (behavior.startlePhase === 'freeze') {
 			targetSpeed = 0;
 			speedChangeInterval = -speed * 0.5;
@@ -1098,7 +1098,7 @@ function computeMovementForBehavior() {
 			targetSpeed = 0.5;
 			speedChangeInterval = (targetSpeed - speed) / 30;
 		}
-	} else if (state === 'feed') {
+	} else if (state === 'comiendo') {
 		// Drift toward nearest food until within contact range (20px)
 		var nf = nearestFood();
 		if (nf && nf.dist > 20) {
@@ -1110,7 +1110,7 @@ function computeMovementForBehavior() {
 			targetSpeed = 0;
 			speedChangeInterval = -speed * 0.1;
 		}
-	} else if (state === 'brace') {
+	} else if (state === 'en guardia') {
 		targetSpeed = 0;
 		speedChangeInterval = -speed * 0.1;
 		// Orient to face into the wind (toward wind source = windDirection + PI)
@@ -1118,7 +1118,7 @@ function computeMovementForBehavior() {
 		var braceDiff = normalizeAngle(braceDir - targetDir);
 		targetDir += braceDiff * 0.8;
 		targetDir = normalizeAngle(targetDir);
-	} else if (state === 'groom' || state === 'rest') {
+	} else if (state === 'aseándose' || state === 'descansando') {
 		targetSpeed = 0;
 		speedChangeInterval = -speed * 0.1;
 	} else {
@@ -1134,7 +1134,7 @@ function computeMovementForBehavior() {
  * and speed clamping for stationary behaviors.
  */
 function applyBehaviorMovement(dtScale) {
-	if (behavior.current === 'startle') {
+	if (behavior.current === 'asustada') {
 		var now = Date.now();
 		if (behavior.startlePhase === 'freeze') {
 			speed = 0;
@@ -1151,16 +1151,16 @@ function applyBehaviorMovement(dtScale) {
 		}
 	}
 
-	if (behavior.current === 'groom' ||
-		behavior.current === 'rest' || behavior.current === 'idle' ||
-		behavior.current === 'brace') {
+	if (behavior.current === 'aseándose' ||
+		behavior.current === 'descansando' || behavior.current === 'inactivo' ||
+		behavior.current === 'en guardia') {
 		if (speed > 0.05) {
 			speed *= Math.pow(0.92, dtScale);
 		} else {
 			speed = 0;
 		}
 	}
-	if (behavior.current === 'feed') {
+	if (behavior.current === 'comiendo') {
 		var nf = nearestFood();
 		if (nf && nf.dist > 20) {
 			// Allow slow drift: clamp speed to max 0.2 so it doesn't overshoot
@@ -1186,42 +1186,42 @@ function updateAnimForBehavior(dtScale) {
 
 	// Wing spread target (exponential interpolation for frame-rate independence)
 	var targetWingSpread = 0;
-	if (state === 'fly' || (state === 'startle' && behavior.startlePhase === 'burst')) {
+	if (state === 'volando' || (state === 'asustada' && behavior.startlePhase === 'burst')) {
 		targetWingSpread = 1;
 	}
 	anim.wingSpread += (targetWingSpread - anim.wingSpread) * (1 - Math.pow(0.85, dtScale));
 
 	// Proboscis extension target (exponential interpolation for frame-rate independence)
 	var targetProboscis = 0;
-	if (state === 'feed') {
+	if (state === 'comiendo') {
 		targetProboscis = 1;
 	}
 	anim.proboscisExtend += (targetProboscis - anim.proboscisExtend) * (1 - Math.pow(0.9, dtScale));
 
-	// Groom phase advances when grooming (linear dt scaling for phase accumulator)
-	if (state === 'groom') {
+	// Aseo phase advances when grooming (linear dt scaling for phase accumulator)
+	if (state === 'aseándose') {
 		anim.groomPhase += 0.12 * dtScale;
 	}
 
 	// Walk phase advances when walking (linear dt scaling for phase accumulator)
-	if (state === 'walk' || state === 'explore' || state === 'phototaxis') {
+	if (state === 'caminando' || state === 'explorando' || state === 'fototaxis') {
 		var spd = Math.abs(speed);
 		anim.walkPhase += spd * 0.5 * dtScale;
 	}
 }
 
 function cycleLightLevel() {
-	lightStateIndex = (lightStateIndex + 1) % lightStates.length;
-	BRAIN.stimulate.lightLevel = lightStates[lightStateIndex];
+	lightEstadoIndex = (lightEstadoIndex + 1) % lightEstados.length;
+	BRAIN.stimulate.lightLevel = lightEstados[lightEstadoIndex];
 	var btn = document.getElementById('lightBtn');
-	if (btn) btn.textContent = 'Light: ' + lightLabels[lightStateIndex];
+	if (btn) btn.textContent = 'Luz: ' + lightLabels[lightEstadoIndex];
 }
 
 function cycleTempLevel() {
-	tempStateIndex = (tempStateIndex + 1) % tempStates.length;
-	BRAIN.stimulate.temperature = tempStates[tempStateIndex];
+	tempEstadoIndex = (tempEstadoIndex + 1) % tempEstados.length;
+	BRAIN.stimulate.temperature = tempEstados[tempEstadoIndex];
 	var btn = document.getElementById('tempBtn');
-	if (btn) btn.textContent = 'Temp: ' + tempLabels[tempStateIndex];
+	if (btn) btn.textContent = 'Temp: ' + tempLabels[tempEstadoIndex];
 }
 
 function drawFood() {
@@ -1434,13 +1434,17 @@ function drawFlyBody(dtScale) {
 	// --- Legs (behind body) ---
 	drawLegs(state, dtScale);
 
-	// --- Abdomen (back) ---
+	// --- Abdomen ---
 	drawAbdomen();
 
-	// --- Thorax (middle) ---
+	// --- Wings (over abdomen, behind thorax) ---
+	drawWing(-1); // left
+	drawWing(1);  // right
+
+	// --- Thorax ---
 	drawThorax();
 
-	// --- Head (front) ---
+	// --- Head ---
 	drawHead();
 
 	// --- Eyes ---
@@ -1453,10 +1457,6 @@ function drawFlyBody(dtScale) {
 	if (anim.proboscisExtend > 0.01) {
 		drawProboscis(anim.proboscisExtend);
 	}
-
-	// --- Wings (ON TOP of everything) ---
-	drawWing(-1); // left
-	drawWing(1);  // right
 }
 
 /**
@@ -1534,65 +1534,55 @@ function drawWing(side) {
  * Draws the abdomen with subtle stripes.
  */
 function drawAbdomen() {
-	ctx.globalAlpha = 1.0;
 	var ax = 0;
 	var ay = BODY.abdomenOffsetY;
 	var rx = BODY.abdomenRadiusX;
 	var ry = BODY.abdomenRadiusY;
 
+	// Abdomen curl during abdomen-specific grooming
 	var abdomenCurl = 0;
-	if (behavior.current === 'groom' && (behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax')) {
+	if (behavior.current === 'aseándose' && (behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax')) {
 		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 2;
 	}
 	ay += abdomenCurl;
 
-	// Base chitin gradient
-	var abGrad = ctx.createRadialGradient(ax - rx * 0.3, ay - ry * 0.2, 0, ax, ay, ry);
-	abGrad.addColorStop(0, '#8a6b3a');
-	abGrad.addColorStop(0.5, '#6b5030');
-	abGrad.addColorStop(1, '#4a3520');
-
+	// Main abdomen shape
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
-	ctx.fillStyle = abGrad;
+	ctx.fillStyle = COLORS.abdomen;
 	ctx.fill();
 
-	// Segment divisions
+	// Subtle highlight along center
+	ctx.beginPath();
+	ctx.ellipse(ax, ay - 2, rx * 0.35, ry * 0.85, 0, 0, Math.PI * 2);
+	var hlGrad = ctx.createLinearGradient(ax - rx * 0.3, ay, ax + rx * 0.3, ay);
+	hlGrad.addColorStop(0, 'rgba(255,255,255,0.05)');
+	hlGrad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+	hlGrad.addColorStop(1, 'rgba(255,255,255,0.05)');
+	ctx.fillStyle = hlGrad;
+	ctx.fill();
+
+	// Stripes (darker bands across the abdomen)
 	ctx.save();
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.clip();
 
-	for (var seg = 0; seg < 5; seg++) {
-		var segY = ay - ry * 0.5 + seg * (ry * 0.28);
-		ctx.fillStyle = '#2a1d0f';
-		ctx.globalAlpha = 0.7;
-		ctx.fillRect(ax - rx * 1.05, segY, rx * 2.1, ry * 0.06);
-		ctx.fillStyle = '#c9a060';
-		ctx.globalAlpha = 0.3;
-		ctx.fillRect(ax - rx * 1.05, segY + ry * 0.06, rx * 2.1, ry * 0.03);
+	for (var s = 0; s < 5; s++) {
+		var stripeY = ay - ry * 0.4 + s * (ry * 0.42);
+		ctx.beginPath();
+		ctx.ellipse(ax, stripeY, rx * 1.05, ry * 0.07, 0, 0, Math.PI * 2);
+		ctx.fillStyle = COLORS.abdomenStripe;
+		ctx.globalAlpha = 0.6;
+		ctx.fill();
 	}
 	ctx.globalAlpha = 1.0;
 
-	// Dorsal midline
-	ctx.fillStyle = '#1a1208';
-	ctx.globalAlpha = 0.5;
-	ctx.fillRect(ax - rx * 0.12, ay - ry, rx * 0.24, ry * 2);
-	ctx.globalAlpha = 1.0;
 	ctx.restore();
 
-	// Specular highlight
-	var specGrad = ctx.createRadialGradient(ax - rx * 0.4, ay - ry * 0.4, 0, ax - rx * 0.4, ay - ry * 0.4, ry * 0.6);
-	specGrad.addColorStop(0, 'rgba(255, 220, 180, 0.4)');
-	specGrad.addColorStop(1, 'rgba(255, 220, 180, 0)');
-	ctx.fillStyle = specGrad;
-	ctx.beginPath();
-	ctx.ellipse(ax - rx * 0.3, ay - ry * 0.3, rx * 0.5, ry * 0.4, -0.3, 0, Math.PI * 2);
-	ctx.fill();
-
 	// Outline
-	ctx.strokeStyle = '#2a1d0f';
-	ctx.lineWidth = 0.8;
+	ctx.strokeStyle = COLORS.abdomenStripe;
+	ctx.lineWidth = 0.7;
 	ctx.beginPath();
 	ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2);
 	ctx.stroke();
@@ -1602,97 +1592,57 @@ function drawAbdomen() {
  * Draws the thorax (darker, slightly smaller ellipse).
  */
 function drawThorax() {
-	ctx.globalAlpha = 1.0;
 	var tx = 0;
 	var ty = BODY.thoraxOffsetY;
 	var rx = BODY.thoraxRadiusX;
 	var ry = BODY.thoraxRadiusY;
 
-	// Complex chitin gradient
-	var tGrad = ctx.createRadialGradient(tx - rx * 0.4, ty - ry * 0.4, 0, tx, ty, ry);
-	tGrad.addColorStop(0, '#7a6040');
-	tGrad.addColorStop(0.3, '#5a4530');
-	tGrad.addColorStop(0.7, '#3d2e1a');
-	tGrad.addColorStop(1, '#2a1d0f');
+	// Radial gradient for chitin sheen
+	var tGrad = ctx.createRadialGradient(tx - rx * 0.3, ty - ry * 0.3, rx * 0.2, tx, ty, ry);
+	tGrad.addColorStop(0, '#4a3d22');
+	tGrad.addColorStop(0.6, COLORS.thorax);
+	tGrad.addColorStop(1, COLORS.thoraxStroke);
 
 	ctx.beginPath();
 	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
 	ctx.fillStyle = tGrad;
 	ctx.fill();
+	ctx.strokeStyle = COLORS.thoraxStroke;
+	ctx.lineWidth = 0.9;
+	ctx.stroke();
 
-	// Scutum subtle pattern
-	ctx.save();
+	// Subtle midline groove
 	ctx.beginPath();
-	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
-	ctx.clip();
-
-	var scutGrad = ctx.createLinearGradient(tx, ty - ry, tx, ty);
-	scutGrad.addColorStop(0, 'rgba(20, 12, 6, 0.3)');
-	scutGrad.addColorStop(0.5, 'rgba(20, 12, 6, 0)');
-	scutGrad.addColorStop(1, 'rgba(20, 12, 6, 0.15)');
-	ctx.fillStyle = scutGrad;
-	ctx.fillRect(tx - rx, ty - ry, rx * 2, ry);
-
-	// Midline groove
-	ctx.beginPath();
-	ctx.moveTo(0, ty - ry * 0.7);
-	ctx.quadraticCurveTo(1, ty, 0, ty + ry * 0.7);
-	ctx.strokeStyle = '#1a1208';
-	ctx.lineWidth = 0.4;
-	ctx.globalAlpha = 0.4;
+	ctx.moveTo(0, ty - ry * 0.75);
+	ctx.lineTo(0, ty + ry * 0.75);
+	ctx.strokeStyle = COLORS.thoraxStroke;
+	ctx.lineWidth = 0.5;
+	ctx.globalAlpha = 0.3;
 	ctx.stroke();
 	ctx.globalAlpha = 1.0;
-	ctx.restore();
-
-	// Specular highlight
-	var specGrad = ctx.createRadialGradient(tx - rx * 0.5, ty - ry * 0.5, 0, tx - rx * 0.5, ty - ry * 0.5, ry * 0.4);
-	specGrad.addColorStop(0, 'rgba(255, 200, 150, 0.5)');
-	specGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
-	ctx.fillStyle = specGrad;
-	ctx.beginPath();
-	ctx.ellipse(tx - rx * 0.4, ty - ry * 0.4, rx * 0.4, ry * 0.35, -0.3, 0, Math.PI * 2);
-	ctx.fill();
-
-	ctx.strokeStyle = '#1a1208';
-	ctx.lineWidth = 0.9;
-	ctx.beginPath();
-	ctx.ellipse(tx, ty, rx, ry, 0, 0, Math.PI * 2);
-	ctx.stroke();
 }
 
 /**
  * Draws the head.
  */
 function drawHead() {
-	ctx.globalAlpha = 1.0;
 	var hx = 0;
 	var hy = BODY.headOffsetY;
 	var hrx = BODY.headRadius * 1.1;
 	var hry = BODY.headRadius;
 
-	var hGrad = ctx.createRadialGradient(hx - hrx * 0.3, hy - hry * 0.3, 0, hx, hy, hry);
-	hGrad.addColorStop(0, '#5a4530');
-	hGrad.addColorStop(0.5, '#3d2e1a');
-	hGrad.addColorStop(1, '#1a1208');
+	// Head with gradient
+	var hGrad = ctx.createRadialGradient(hx - hrx * 0.2, hy - hry * 0.2, hrx * 0.15, hx, hy, hry);
+	hGrad.addColorStop(0, '#3d3218');
+	hGrad.addColorStop(0.5, COLORS.head);
+	hGrad.addColorStop(1, COLORS.headStroke);
 
 	ctx.beginPath();
 	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
 	ctx.fillStyle = hGrad;
 	ctx.fill();
-
-	// Specular highlight
-	var specGrad = ctx.createRadialGradient(hx - hrx * 0.35, hy - hry * 0.4, 0, hx - hrx * 0.35, hy - hry * 0.4, hry * 0.4);
-	specGrad.addColorStop(0, 'rgba(255, 200, 150, 0.6)');
-	specGrad.addColorStop(1, 'rgba(255, 200, 150, 0)');
-	ctx.fillStyle = specGrad;
-	ctx.beginPath();
-	ctx.ellipse(hx - hrx * 0.3, hy - hry * 0.35, hrx * 0.4, hry * 0.35, -0.3, 0, Math.PI * 2);
-	ctx.fill();
-
-	ctx.strokeStyle = '#1a1208';
+	ctx.strokeStyle = COLORS.headStroke;
 	ctx.lineWidth = 0.7;
-	ctx.beginPath();
-	ctx.ellipse(hx, hy, hrx, hry, 0, 0, Math.PI * 2);
 	ctx.stroke();
 }
 
@@ -1700,63 +1650,49 @@ function drawHead() {
  * Draws compound eyes on the head.
  */
 function drawEyes() {
-	ctx.globalAlpha = 1.0;
 	for (var side = -1; side <= 1; side += 2) {
 		var ex = BODY.eyeOffsetX * side;
 		var ey = BODY.eyeOffsetY;
 		var erx = BODY.eyeRadiusX;
 		var ery = BODY.eyeRadiusY;
 
-		// Eye base gradient
-		var eGrad = ctx.createRadialGradient(ex - erx * 0.2, ey - ery * 0.2, 0, ex, ey, ery);
-		eGrad.addColorStop(0, '#cc3333');
-		eGrad.addColorStop(0.6, '#991a1a');
-		eGrad.addColorStop(1, '#550000');
+		// Eye base with gradient (dark red compound eye)
+		var eGrad = ctx.createRadialGradient(ex - erx * 0.3, ey - ery * 0.3, erx * 0.1, ex, ey, ery);
+		eGrad.addColorStop(0, '#990000');
+		eGrad.addColorStop(0.6, COLORS.eyeFill);
+		eGrad.addColorStop(1, '#3d0000');
 
 		ctx.beginPath();
 		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
 		ctx.fillStyle = eGrad;
 		ctx.fill();
 
-		// Hexagonal ommatidia pattern
+		// Compound eye facet pattern
 		ctx.save();
 		ctx.beginPath();
 		ctx.ellipse(ex, ey, erx, ery, side * 0.3, 0, Math.PI * 2);
 		ctx.clip();
 
-		var facetSize = 1.3;
-		for (var row = 0; row < 7; row++) {
-			for (var col = 0; col < 5; col++) {
-				var fy = -ery + 1 + row * facetSize * 1.5;
-				var fx = -erx + 1 + col * facetSize * 1.6 + (row % 2) * facetSize * 0.8;
+		ctx.globalAlpha = 0.25;
+		for (var fy = -ery + 1; fy < ery; fy += 1.5) {
+			for (var fx = -erx + 1; fx < erx; fx += 1.2) {
 				var dist = Math.sqrt((fx * fx) / (erx * erx) + (fy * fy) / (ery * ery));
-				if (dist < 0.85) {
-					ctx.fillStyle = Math.random() > 0.4 ? '#660000' : '#880000';
-					ctx.beginPath();
-					ctx.moveTo(ex + fx + facetSize * 0.5, ey + fy);
-					ctx.lineTo(ex + fx + facetSize, ey + fy + facetSize * 0.3);
-					ctx.lineTo(ex + fx + facetSize, ey + fy + facetSize * 0.7);
-					ctx.lineTo(ex + fx + facetSize * 0.5, ey + fy + facetSize);
-					ctx.lineTo(ex + fx, ey + fy + facetSize * 0.7);
-					ctx.lineTo(ex + fx, ey + fy + facetSize * 0.3);
-					ctx.closePath();
-					ctx.fill();
+				if (dist < 0.9) {
+					ctx.fillStyle = Math.random() > 0.5 ? '#220000' : '#440000';
+					ctx.fillRect(ex + fx, ey + fy, 1, 1);
 				}
 			}
 		}
+		ctx.globalAlpha = 1.0;
 		ctx.restore();
 
-		// Specular highlight (corneal reflection)
+		// Highlight (specular)
 		ctx.beginPath();
-		ctx.ellipse(ex - side * 1, ey - 1.5, erx * 0.35, ery * 0.3, side * 0.3, 0, Math.PI * 2);
-		ctx.fillStyle = 'rgba(255, 120, 120, 0.7)';
+		ctx.ellipse(ex - side * 1.2, ey - 1.8, erx * 0.4, ery * 0.35, side * 0.3, 0, Math.PI * 2);
+		ctx.fillStyle = COLORS.eyeHighlight;
+		ctx.globalAlpha = 0.6;
 		ctx.fill();
-
-		// Pseudopupil (dark spot)
-		ctx.beginPath();
-		ctx.arc(ex - side * 0.8, ey + 0.5, 1.2, 0, Math.PI * 2);
-		ctx.fillStyle = '#000000';
-		ctx.fill();
+		ctx.globalAlpha = 1.0;
 	}
 }
 
@@ -1785,7 +1721,7 @@ function drawAntennae(t, dtScale) {
 		var baseAngle = -Math.PI / 2 + side * 0.5 + twitch;
 
 		// Wind-sensing posture: bias antennae toward wind direction
-		if (BRAIN.stimulate.wind || behavior.current === 'brace') {
+		if (BRAIN.stimulate.wind || behavior.current === 'en guardia') {
 			// Convert world-space windDirection to body-local frame.
 			// The canvas transform is: rotate(-facingDir + PI/2), so body-local
 			// "forward" (-Y in body space) corresponds to facingDir in world space.
@@ -1843,19 +1779,19 @@ function drawProboscis(extend) {
 
 /**
  * Draws all 6 legs with behavior-specific animation.
- * State-dependent modes: tripod gait (walk/explore/phototaxis),
+ * Estado-dependent modes: tripod gait (walk/explore/phototaxis),
  * grooming rub (groom), tucked (fly/rest), jump pose (startle burst),
  * idle jitter (idle/feed).
  */
 function drawLegs(state, dtScale) {
 	var t = Date.now() / 1000;
-	var isWalking = (state === 'walk' || state === 'explore' || state === 'phototaxis');
-	var isGrooming = (state === 'groom');
-	var isFlying = (state === 'fly');
-	var isStartleBurst = (state === 'startle' && behavior.startlePhase === 'burst');
-	var isStartleFreeze = (state === 'startle' && behavior.startlePhase === 'freeze');
-	var isResting = (state === 'rest');
-	var isBracing = (state === 'brace');
+	var isWalking = (state === 'caminando' || state === 'explorando' || state === 'fototaxis');
+	var isAseoing = (state === 'aseándose');
+	var isFlying = (state === 'volando');
+	var isStartleBurst = (state === 'asustada' && behavior.startlePhase === 'burst');
+	var isStartleFreeze = (state === 'asustada' && behavior.startlePhase === 'freeze');
+	var isResting = (state === 'descansando');
+	var isBracing = (state === 'en guardia');
 
 	// Update idle jitter targets periodically
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
@@ -1897,7 +1833,7 @@ function drawLegs(state, dtScale) {
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var legPhase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
 			walkOffset = Math.sin(legPhase) * 0.35;
-		} else if (isGrooming) {
+		} else if (isAseoing) {
 			var groomLoc = behavior.groomLocation || 'thorax';
 			if (groomLoc === 'head' && pairIdx === 0) {
 				// Front legs rub the head area: swing forward and inward
@@ -2038,9 +1974,9 @@ function update(dt) {
 	// gentle turns look natural. At dtScale=1 (60fps): 0.3 closes 70% of the gap
 	// per frame (~3 frames to 97%), 0.9 closes 10% per frame (~22 frames to 90%).
 	var turnRetention;
-	if (behavior.current === 'startle' && behavior.startlePhase === 'burst') {
+	if (behavior.current === 'asustada' && behavior.startlePhase === 'burst') {
 		turnRetention = 0.3;
-	} else if (behavior.current === 'fly') {
+	} else if (behavior.current === 'volando') {
 		turnRetention = 0.4;
 	} else {
 		turnRetention = 0.9;
@@ -2088,7 +2024,7 @@ function update(dt) {
 			BRAIN.stimulate.foodNearby = true;
 			if (dist <= 20) {
 				BRAIN.stimulate.foodContact = true;
-				if (behavior.current === 'feed') {
+				if (behavior.current === 'comiendo') {
 					// Gradual feeding: start timer on first contact, shrink food, remove when done
 					if (food[i].feedStart === 0) {
 						food[i].feedStart = Date.now();

@@ -19,10 +19,10 @@
     if (calendarContent === null) return;
     if (calendarContent.classList.contains('collapsed')) {
       calendarContent.classList.remove('collapsed');
-      calendarToggle.textContent = 'Hide';
+      calendarToggle.textContent = 'Ocultar';
     } else {
       calendarContent.classList.add('collapsed');
-      calendarToggle.textContent = 'Show';
+      calendarToggle.textContent = 'Mostrar';
     }
   }
 

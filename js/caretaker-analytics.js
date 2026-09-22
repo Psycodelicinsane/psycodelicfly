@@ -23,10 +23,10 @@
     var isCollapsed = analyticsContent.classList.contains('collapsed');
     if (isCollapsed) {
       analyticsContent.classList.remove('collapsed');
-      analyticsToggle.textContent = 'Hide';
+      analyticsToggle.textContent = 'Ocultar';
     } else {
       analyticsContent.classList.add('collapsed');
-      analyticsToggle.textContent = 'Show';
+      analyticsToggle.textContent = 'Mostrar';
     }
   }
 
