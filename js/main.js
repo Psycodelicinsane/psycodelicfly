@@ -1803,7 +1803,7 @@ function drawLegs(state, dtScale) {
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
 		anim.legJitterTimer = t;
 		anim.legJitterNextInterval = 1.5 + Math.random() * 2.0;
-		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.15;
+		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.1;
 	}
 	for (var j = 0; j < 6; j++) anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
 	
@@ -1812,78 +1812,77 @@ function drawLegs(state, dtScale) {
 	var L2 = BODY.legSeg2;
 	var L3 = BODY.legSeg3;
 	
+	// Top-down fly anatomy:
+	// Fly faces UP (-Y).
+	// Left legs (even indices: 0=front-left, 2=mid-left, 4=rear-left) attach on left (-X) and reach OUT to the left (angles around PI to 3*PI/2)
+	// Right legs (odd indices: 1=front-right, 3=mid-right, 5=rear-right) attach on right (+X) and reach OUT to the right (angles around 0 to PI/2)
+	
 	for (var legIdx = 0; legIdx < 6; legIdx++) {
-		var pairIdx = Math.floor(legIdx / 2);
-		var side = (legIdx % 2 === 0) ? -1 : 1;
+		var pairIdx = Math.floor(legIdx / 2); // 0=front, 1=mid, 2=rear
+		var side = (legIdx % 2 === 0) ? -1 : 1; // -1 = left, 1 = right
 		var attach = BODY.legAttach[pairIdx];
 		
-		// Hip position - attach to thorax, mirror for right side
 		var hipX = attach.x * side;
 		var hipY = attach.y;
 		
-		// Calculate leg angles based on state
-		var angle1, angle2, angle3;
+		// Base resting angles for top-down view
+		// Front legs point forward-outward (-Y and towards side)
+		// Mid legs point straight out to sides
+		// Rear legs point backward-outward (+Y and towards side)
+		var baseHipAngle;
+		if (pairIdx === 0) {
+			// Front: points forward and out (-PI/2 is straight up, + side * 0.5 points outward)
+			baseHipAngle = -Math.PI/2 + (side * 0.7);
+		} else if (pairIdx === 1) {
+			// Mid: points straight out to sides
+			baseHipAngle = (side === -1) ? Math.PI : 0;
+		} else {
+			// Rear: points backward and out
+			baseHipAngle = Math.PI/2 + (side * 0.7);
+		}
+		
+		var angle1 = baseHipAngle;
+		var angle2 = baseHipAngle + (side * 0.6);
+		var angle3 = angle2 + (side * 0.3);
 		
 		if (isWalking) {
-			// Tripod gait
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var phase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
 			var swing = Math.sin(phase) * 0.4;
-			
-			if (pairIdx === 0) {
-				// Front legs: point forward (-Y) with swing
-				angle1 = -Math.PI / 2 + swing + (0.2 * side);
-			} else if (pairIdx === 1) {
-				// Middle legs: point sideways
-				angle1 = (side === -1 ? Math.PI : 0) + swing;
-			} else {
-				// Rear legs: point backward (+Y) with swing
-				angle1 = Math.PI / 2 + swing + (0.2 * side);
-			}
-			angle2 = angle1 + (0.5 * side);
-			angle3 = angle2 + (0.3 * side);
+			angle1 += swing;
+			angle2 += swing * 0.8;
 		} else if (isFaceWashing && pairIdx === 0) {
-			// Front legs rub face rapidly
+			// Front legs sweep inward toward head (-Y)
 			var phase = anim.groomPhase * 4;
-			angle1 = -Math.PI / 2 + Math.sin(phase) * 0.8;
-			angle2 = angle1 + 0.8;
-			angle3 = angle2 + 0.5;
+			angle1 = -Math.PI/2 + (side * 0.2) + Math.sin(phase) * 0.5;
+			angle2 = angle1 + (side * 0.8);
+			angle3 = angle2 + (side * 0.4);
 		} else if (isFaceWashing) {
-			// Other legs tuck
-			angle1 = (side === -1) ? Math.PI * 0.8 : Math.PI * 0.2;
-			angle2 = angle1;
-			angle3 = angle1;
+			// Other legs tuck close to body
+			angle1 = baseHipAngle * 0.5;
+			angle2 = angle1 + (side * 0.3);
+			angle3 = angle2 + (side * 0.2);
 		} else if (isAbdomenGrooming && pairIdx === 2) {
-			// Rear legs reach back
+			// Rear legs reach toward abdomen (+Y)
 			var phase = anim.groomPhase * 2;
-			angle1 = Math.PI / 2 + Math.sin(phase) * 0.5;
-			angle2 = angle1 + 0.7;
-			angle3 = angle2 + 0.3;
+			angle1 = Math.PI/2 + (side * 0.3) + Math.sin(phase) * 0.4;
+			angle2 = angle1 + (side * 0.6);
+			angle3 = angle2 + (side * 0.3);
 		} else if (isFlying) {
-			// Tuck legs
+			// Tuck legs neatly under body during flight (pointing slightly backward)
 			angle1 = (side === -1) ? Math.PI * 0.75 : Math.PI * 0.25;
-			angle2 = angle1;
-			angle3 = angle1;
+			angle2 = angle1 + (side * 0.3);
+			angle3 = angle2 + (side * 0.2);
 		} else if (isResting) {
-			// Tucked
-			angle1 = (side === -1) ? Math.PI * 0.6 : Math.PI * 0.4;
-			angle2 = angle1;
-			angle3 = angle1;
+			angle1 = baseHipAngle * 0.7;
+			angle2 = angle1 + (side * 0.4);
+			angle3 = angle2 + (side * 0.2);
 		} else {
-			// Idle - natural stance
-			if (pairIdx === 0) {
-				angle1 = -Math.PI / 2 + (0.3 * side);
-			} else if (pairIdx === 1) {
-				angle1 = (side === -1) ? Math.PI : 0;
-			} else {
-				angle1 = Math.PI / 2 + (0.3 * side);
-			}
+			// Idle jitter
 			angle1 += anim.legJitter[legIdx] * 0.2;
-			angle2 = angle1 + (0.5 * side);
-			angle3 = angle2 + (0.3 * side);
 		}
 		
-		// Calculate positions
+		// Calculate segment positions
 		var kneeX = hipX + Math.cos(angle1) * L1;
 		var kneeY = hipY + Math.sin(angle1) * L1;
 		
