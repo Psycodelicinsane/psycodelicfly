@@ -22,7 +22,7 @@ document.getElementById('centerButton').onclick = function () {
 document.getElementById('zoomIn').onclick = function () { setZoom(zoomLevel * 1.3); };
 document.getElementById('zoomOut').onclick = function () { setZoom(zoomLevel / 1.3); };
 
-// --- Estado ---
+// --- State ---
 var facingDir = 0;
 var targetDir = 0;
 var speed = 0;
@@ -125,7 +125,7 @@ var BEHAVIOR_COOLDOWN = {
 
 // The behavior state object
 var behavior = {
-	current: 'inactivo',
+	current: 'idle',
 	enterTime: Date.now(),
 	cooldowns: {},
 	startlePhase: 'none',
@@ -135,17 +135,17 @@ var behavior = {
 };
 
 // --- Tool state ---
-var activeTool = 'comiendo';
+var activeTool = 'feed';
 var isDragging = false;
 var dragStart = { x: 0, y: 0 };
-var canvasTocarActive = false;
+var canvasTouchActive = false;
 var touchTimestamps = [];
-var lightEstados = [1, 0.5, 0];
-var lightEstadoIndex = 0;
-var lightEtiquetas = ['Brillante', 'Tenue', 'Oscuro'];
-var tempEstados = [0.5, 0.75, 0.25];
-var tempEstadoIndex = 0;
-var tempEtiquetas = ['Neutral', 'Cálido', 'Frío'];
+var lightStates = [1, 0.5, 0];
+var lightStateIndex = 0;
+var lightLabels = ['Brillante', 'Tenue', 'Oscuro'];
+var tempStates = [0.5, 0.75, 0.25];
+var tempStateIndex = 0;
+var tempLabels = ['Neutral', 'Cálido', 'Frío'];
 
 // Region-based neuron color map (built after BRAIN.setup)
 var neuronColorMap = {};
@@ -420,7 +420,7 @@ for (var i = 0; i < toolButtons.length; i++) {
 	})(toolButtons[i]);
 }
 
-// --- Cerebro 3D toggle ---
+// --- Brain 3D toggle ---
 var brain3dBtn = document.getElementById('brain3dBtn');
 if (brain3dBtn) {
     brain3dBtn.addEventListener('click', function () {
@@ -437,7 +437,7 @@ if (brain3dBtn) {
     });
 }
 
-// --- Aprender / Education panel toggle ---
+// --- Learn / Education panel toggle ---
 var learnBtn = document.getElementById('learnBtn');
 if (learnBtn) {
     learnBtn.addEventListener('click', function () {
@@ -452,7 +452,7 @@ if (learnBtn) {
     });
 }
 
-// --- Ayuda overlay toggle ---
+// --- Help overlay toggle ---
 var helpOverlay = document.getElementById('helpOverlay');
 var helpBtn = document.getElementById('helpBtn');
 var helpCloseBtn = document.getElementById('helpCloseBtn');
@@ -526,7 +526,7 @@ if (sidebarToggle) {
 	});
 }
 
-// --- Actividad sidebar toggle (desktop) ---
+// --- Activity sidebar toggle (desktop) ---
 var activityToggle = document.getElementById('activityToggle');
 var activityCloseBtn = document.getElementById('caretaker-sidebar-close');
 
@@ -584,7 +584,7 @@ if (liteBtn) {
 	});
 }
 
-// --- Conectoma panel toggle ---
+// --- Connectome panel toggle ---
 var connectomeToggleBtn = document.getElementById('connectomeToggleBtn');
 var nodeHolder = document.getElementById('nodeHolder');
 
@@ -623,7 +623,7 @@ function updateBrain() {
 		for (var postSynaptic in BRAIN.connectome) {
 			var psBox = document.getElementById(postSynaptic);
 			if (!psBox) continue;
-			var neuron = BRAIN.postSynaptic[postSynaptic][BRAIN.thisEstado];
+			var neuron = BRAIN.postSynaptic[postSynaptic][BRAIN.thisState];
 			var color = neuronColorMap[postSynaptic] || '#55FF55';
 			var baseOpacity = Math.min(1, neuron / 50);
 			var dots = neuronDotCache[postSynaptic];
@@ -639,25 +639,25 @@ function updateBrain() {
 		}
 	}
 	// Evaluate behavioral state and compute movement
-	updateBehaviorEstado();
+	updateBehaviorState();
 	computeMovementForBehavior();
 
 	// Update drive meter bars
-	var driveHambreEl = document.getElementById('driveHambre');
-	var driveMiedoEl = document.getElementById('driveMiedo');
-	var driveFatigaEl = document.getElementById('driveFatiga');
-	var driveCuriosidadEl = document.getElementById('driveCuriosidad');
-	var driveAseoEl = document.getElementById('driveAseo');
-	if (driveHambreEl) driveHambreEl.style.width = (BRAIN.drives.hunger * 100) + '%';
-	if (driveMiedoEl) driveMiedoEl.style.width = (BRAIN.drives.fear * 100) + '%';
-	if (driveFatigaEl) driveFatigaEl.style.width = (BRAIN.drives.fatigue * 100) + '%';
-	if (driveCuriosidadEl) driveCuriosidadEl.style.width = (BRAIN.drives.curiosity * 100) + '%';
-	if (driveAseoEl) driveAseoEl.style.width = (BRAIN.drives.groom * 100) + '%';
+	var driveHungerEl = document.getElementById('driveHunger');
+	var driveFearEl = document.getElementById('driveFear');
+	var driveFatigueEl = document.getElementById('driveFatigue');
+	var driveCuriosityEl = document.getElementById('driveCuriosity');
+	var driveGroomEl = document.getElementById('driveGroom');
+	if (driveHungerEl) driveHungerEl.style.width = (BRAIN.drives.hunger * 100) + '%';
+	if (driveFearEl) driveFearEl.style.width = (BRAIN.drives.fear * 100) + '%';
+	if (driveFatigueEl) driveFatigueEl.style.width = (BRAIN.drives.fatigue * 100) + '%';
+	if (driveCuriosityEl) driveCuriosityEl.style.width = (BRAIN.drives.curiosity * 100) + '%';
+	if (driveGroomEl) driveGroomEl.style.width = (BRAIN.drives.groom * 100) + '%';
 
 	// Update behavior state label
-	var behaviorEstadoEl = document.getElementById('behaviorEstado');
-	if (behaviorEstadoEl) {
-		var etiquetasEstado = {
+	var behaviorStateEl = document.getElementById('behaviorState');
+	if (behaviorStateEl) {
+		var stateLabels = {
 			idle: 'inactivo',
 			feed: 'comiendo',
 			groom: 'aseándose',
@@ -669,7 +669,7 @@ function updateBrain() {
 			phototaxis: 'fototaxis',
 			brace: 'en guardia'
 		};
-		behaviorEstadoEl.textContent = etiquetasEstado[behavior.current] || behavior.current;
+		behaviorStateEl.textContent = stateLabels[behavior.current] || behavior.current;
 	}
 }
 
@@ -704,7 +704,7 @@ var brainTickId = setInterval(updateBrain, 500);
 // drives are maxed out causing a jarring behavioral cascade.
 // Fix: pause the brain tick when hidden, resume when visible. On resume,
 // clear all stale stimuli and snapshot drives to prevent drift.
-var driveSnapshotOnOcultar = null;
+var driveSnapshotOnHide = null;
 
 document.addEventListener('visibilitychange', function () {
 	if (document.hidden) {
@@ -716,7 +716,7 @@ document.addEventListener('visibilitychange', function () {
 		BRAIN.stopWorker();
 
 		// Snapshot current drive values so we can restore them on resume
-		driveSnapshotOnOcultar = {
+		driveSnapshotOnHide = {
 			hunger: BRAIN.drives.hunger,
 			fear: BRAIN.drives.fear,
 			fatigue: BRAIN.drives.fatigue,
@@ -754,18 +754,18 @@ document.addEventListener('visibilitychange', function () {
 
 		// Restore drive snapshot to undo any drift from throttled ticks
 		// that may have fired between the hide event and clearInterval
-		if (driveSnapshotOnOcultar) {
-			BRAIN.drives.hunger = driveSnapshotOnOcultar.hunger;
-			BRAIN.drives.fear = driveSnapshotOnOcultar.fear;
-			BRAIN.drives.fatigue = driveSnapshotOnOcultar.fatigue;
-			BRAIN.drives.curiosity = driveSnapshotOnOcultar.curiosity;
-			BRAIN.drives.groom = driveSnapshotOnOcultar.groom;
-			driveSnapshotOnOcultar = null;
+		if (driveSnapshotOnHide) {
+			BRAIN.drives.hunger = driveSnapshotOnHide.hunger;
+			BRAIN.drives.fear = driveSnapshotOnHide.fear;
+			BRAIN.drives.fatigue = driveSnapshotOnHide.fatigue;
+			BRAIN.drives.curiosity = driveSnapshotOnHide.curiosity;
+			BRAIN.drives.groom = driveSnapshotOnHide.groom;
+			driveSnapshotOnHide = null;
 		}
 
 		// Reset behavior and speed state to prevent high-speed transient
 		// states from persisting after stimuli have been cleared
-		behavior.current = 'inactivo';
+		behavior.current = 'idle';
 		behavior.startlePhase = 'none';
 		behavior.enterTime = Date.now();
 		behavior.cooldowns = {};
@@ -792,7 +792,7 @@ canvas.addEventListener('mousedown', handleCanvasMousedown, false);
 canvas.addEventListener('mousemove', handleCanvasMousemove, false);
 document.addEventListener('mouseup', handleCanvasMouseup, false);
 
-// --- Tocar event handlers (mobile/tablet support) ---
+// --- Touch event handlers (mobile/tablet support) ---
 canvas.addEventListener('touchstart', function (event) {
 	if (event.touches.length === 2) {
 		// Pinch-to-zoom start
@@ -801,10 +801,10 @@ canvas.addEventListener('touchstart', function (event) {
 		var dy = event.touches[0].clientY - event.touches[1].clientY;
 		pinchStartDist = Math.hypot(dx, dy);
 		pinchStartZoom = zoomLevel;
-		canvasTocarActive = false;
+		canvasTouchActive = false;
 		return;
 	}
-	canvasTocarActive = true;
+	canvasTouchActive = true;
 	event.preventDefault();
 	var touch = event.touches[0];
 	handleCanvasMousedown({ clientX: touch.clientX, clientY: touch.clientY });
@@ -829,11 +829,11 @@ canvas.addEventListener('touchmove', function (event) {
 
 document.addEventListener('touchend', function (event) {
 	pinchStartDist = 0;
-	if (canvasTocarActive) {
+	if (canvasTouchActive) {
 		event.preventDefault();
-		var touch = event.changedTocares[0];
+		var touch = event.changedTouches[0];
 		handleCanvasMouseup({ clientX: touch.clientX, clientY: touch.clientY });
-		canvasTocarActive = false;
+		canvasTouchActive = false;
 	}
 }, { passive: false });
 
@@ -849,13 +849,13 @@ function handleCanvasMousedown(event) {
 	var cx = world.x;
 	var cy = world.y;
 
-	if (activeTool === 'comiendo') {
+	if (activeTool === 'feed') {
 		var foodMinY = getLayoutBounds().top;
 		var foodMaxY = window.innerHeight;
 		cy = Math.max(foodMinY, Math.min(foodMaxY, cy));
 		food.push({ x: cx, y: cy, radius: 10, feedStart: 0, feedDuration: 0, eaten: 0 });
 	} else if (activeTool === 'touch') {
-		applyTocarTool(cx, cy);
+		applyTouchTool(cx, cy);
 		ripples.push({ x: cx, y: cy, startTime: Date.now() });
 	} else if (activeTool === 'air') {
 		isDragging = true;
@@ -904,7 +904,7 @@ function handleCanvasMouseup(event) {
 	}
 }
 
-function applyTocarTool(cx, cy) {
+function applyTouchTool(cx, cy) {
 	var distToFly = Math.hypot(cx - fly.x, cy - fly.y);
 	if (distToFly > 50) return; // click not on fly
 
@@ -970,7 +970,7 @@ function nearestFood() {
  * Called on the 500ms brain tick. Evaluates state transitions and
  * updates BRAIN behavior flags for the next tick's drive computation.
  */
-function updateBehaviorEstado() {
+function updateBehaviorState() {
 	var now = Date.now();
 	var elapsed = now - behavior.enterTime;
 	var minDur = BEHAVIOR_MIN_DURATION[behavior.current] || 0;
@@ -982,15 +982,15 @@ function updateBehaviorEstado() {
 		return;
 	}
 
-	var newEstado = evaluateBehaviorEntry();
+	var newState = evaluateBehaviorEntry();
 
-	if (newEstado !== behavior.current) {
+	if (newState !== behavior.current) {
 		// Set cooldown for the state being exited
 		if (BEHAVIOR_COOLDOWN[behavior.current]) {
 			behavior.cooldowns[behavior.current] = now + BEHAVIOR_COOLDOWN[behavior.current];
 		}
 		// Pause feeding timer when exiting feed state but keep eaten progress
-		if (behavior.current === 'comiendo') {
+		if (behavior.current === 'feed') {
 			for (var fi = 0; fi < food.length; fi++) {
 				if (food[fi].feedStart !== 0) {
 					var ate = Date.now() - food[fi].feedStart;
@@ -999,23 +999,23 @@ function updateBehaviorEstado() {
 				}
 			}
 		}
-		behavior.current = newEstado;
+		behavior.current = newState;
 		behavior.enterTime = now;
 
 		// Startle: initialize freeze phase and drain DN_STARTLE
-		if (newEstado === 'asustada') {
+		if (newState === 'startle') {
 			behavior.startlePhase = 'freeze';
 			behavior.startleFreezeEnd = now + 200;
 			if (BRAIN.postSynaptic['DN_STARTLE']) {
-				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.thisEstado] = 0;
-				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextEstado] = 0;
+				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.thisState] = 0;
+				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextState] = 0;
 			}
 		} else {
 			behavior.startlePhase = 'none';
 		}
 
-		// Aseo: snapshot the touch location that triggered grooming
-		if (newEstado === 'aseándose') {
+		// Groom: snapshot the touch location that triggered grooming
+		if (newState === 'groom') {
 			behavior.groomLocation = BRAIN.stimulate.touchLocation || 'thorax';
 		}
 	}
@@ -1024,16 +1024,16 @@ function updateBehaviorEstado() {
 }
 
 /**
- * Syncs BRAIN._isMoving/_isComidaing/_isAseoing flags with the
+ * Syncs BRAIN._isMoving/_isFeeding/_isGrooming flags with the
  * behavioral state machine so that drive updates in the next
  * brain tick reflect actual behavior, not just accumulator values.
  */
 function syncBrainFlags() {
 	var s = behavior.current;
-	BRAIN._isMoving = (s === 'caminando' || s === 'explorando' || s === 'fototaxis' ||
-		s === 'volando' || (s === 'asustada' && behavior.startlePhase === 'burst'));
-	BRAIN._isComidaing = (s === 'comiendo');
-	BRAIN._isAseoing = (s === 'aseándose');
+	BRAIN._isMoving = (s === 'walk' || s === 'explore' || s === 'phototaxis' ||
+		s === 'fly' || (s === 'startle' && behavior.startlePhase === 'burst'));
+	BRAIN._isFeeding = (s === 'feed');
+	BRAIN._isGrooming = (s === 'groom');
 }
 
 /**
@@ -1045,7 +1045,7 @@ function computeMovementForBehavior() {
 	var scalingFactor = 20;
 	var state = behavior.current;
 
-	if (state === 'caminando' || state === 'explorando') {
+	if (state === 'walk' || state === 'explore') {
 		// Direction: motor asymmetry capped to prevent worker noise from causing spinning.
 		// Steering is primarily handled by behavioral biases (food-seek, explore wander).
 		var newDir = (BRAIN.accumleft - BRAIN.accumright) / scalingFactor;
@@ -1053,7 +1053,7 @@ function computeMovementForBehavior() {
 		targetDir = facingDir + newDir * Math.PI;
 		targetSpeed = (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5);
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 1.5);
-		if (state === 'explorando') {
+		if (state === 'explore') {
 			targetDir += (Math.random() - 0.5) * 0.3;
 		}
 		// Food-seeking: steer toward nearest food when hungry and food detected
@@ -1074,7 +1074,7 @@ function computeMovementForBehavior() {
 			var headSign = (BRAIN.accumWalkLeft - BRAIN.accumWalkRight > 0) ? 1 : -1;
 			targetDir += headBias * headSign;
 		}
-	} else if (state === 'fototaxis') {
+	} else if (state === 'phototaxis') {
 		// Steer toward canvas center (light source placeholder)
 		var dx = window.innerWidth / 2 - fly.x;
 		var dy = -(window.innerHeight / 2 - fly.y);
@@ -1082,13 +1082,13 @@ function computeMovementForBehavior() {
 		targetSpeed = (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5);
 		if (targetSpeed < 0.3) targetSpeed = 0.3;
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 1.5);
-	} else if (state === 'volando') {
+	} else if (state === 'fly') {
 		var newDir = (BRAIN.accumleft - BRAIN.accumright) / scalingFactor;
 		targetDir = facingDir + newDir * Math.PI + (Math.random() - 0.5) * 0.2;
 		targetSpeed = ((Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5)) * 2.5;
 		if (targetSpeed < 1.5) targetSpeed = 1.5;
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 0.5);
-	} else if (state === 'asustada') {
+	} else if (state === 'startle') {
 		if (behavior.startlePhase === 'freeze') {
 			targetSpeed = 0;
 			speedChangeInterval = -speed * 0.5;
@@ -1098,7 +1098,7 @@ function computeMovementForBehavior() {
 			targetSpeed = 0.5;
 			speedChangeInterval = (targetSpeed - speed) / 30;
 		}
-	} else if (state === 'comiendo') {
+	} else if (state === 'feed') {
 		// Drift toward nearest food until within contact range (20px)
 		var nf = nearestFood();
 		if (nf && nf.dist > 20) {
@@ -1110,7 +1110,7 @@ function computeMovementForBehavior() {
 			targetSpeed = 0;
 			speedChangeInterval = -speed * 0.1;
 		}
-	} else if (state === 'en guardia') {
+	} else if (state === 'brace') {
 		targetSpeed = 0;
 		speedChangeInterval = -speed * 0.1;
 		// Orient to face into the wind (toward wind source = windDirection + PI)
@@ -1118,7 +1118,7 @@ function computeMovementForBehavior() {
 		var braceDiff = normalizeAngle(braceDir - targetDir);
 		targetDir += braceDiff * 0.8;
 		targetDir = normalizeAngle(targetDir);
-	} else if (state === 'aseándose' || state === 'descansando') {
+	} else if (state === 'groom' || state === 'rest') {
 		targetSpeed = 0;
 		speedChangeInterval = -speed * 0.1;
 	} else {
@@ -1134,7 +1134,7 @@ function computeMovementForBehavior() {
  * and speed clamping for stationary behaviors.
  */
 function applyBehaviorMovement(dtScale) {
-	if (behavior.current === 'asustada') {
+	if (behavior.current === 'startle') {
 		var now = Date.now();
 		if (behavior.startlePhase === 'freeze') {
 			speed = 0;
@@ -1151,16 +1151,16 @@ function applyBehaviorMovement(dtScale) {
 		}
 	}
 
-	if (behavior.current === 'aseándose' ||
-		behavior.current === 'descansando' || behavior.current === 'inactivo' ||
-		behavior.current === 'en guardia') {
+	if (behavior.current === 'groom' ||
+		behavior.current === 'rest' || behavior.current === 'idle' ||
+		behavior.current === 'brace') {
 		if (speed > 0.05) {
 			speed *= Math.pow(0.92, dtScale);
 		} else {
 			speed = 0;
 		}
 	}
-	if (behavior.current === 'comiendo') {
+	if (behavior.current === 'feed') {
 		var nf = nearestFood();
 		if (nf && nf.dist > 20) {
 			// Allow slow drift: clamp speed to max 0.2 so it doesn't overshoot
@@ -1186,42 +1186,42 @@ function updateAnimForBehavior(dtScale) {
 
 	// Wing spread target (exponential interpolation for frame-rate independence)
 	var targetWingSpread = 0;
-	if (state === 'volando' || (state === 'asustada' && behavior.startlePhase === 'burst')) {
+	if (state === 'fly' || (state === 'startle' && behavior.startlePhase === 'burst')) {
 		targetWingSpread = 1;
 	}
 	anim.wingSpread += (targetWingSpread - anim.wingSpread) * (1 - Math.pow(0.85, dtScale));
 
 	// Proboscis extension target (exponential interpolation for frame-rate independence)
 	var targetProboscis = 0;
-	if (state === 'comiendo') {
+	if (state === 'feed') {
 		targetProboscis = 1;
 	}
 	anim.proboscisExtend += (targetProboscis - anim.proboscisExtend) * (1 - Math.pow(0.9, dtScale));
 
-	// Aseo phase advances when grooming (linear dt scaling for phase accumulator)
-	if (state === 'aseándose') {
+	// Groom phase advances when grooming (linear dt scaling for phase accumulator)
+	if (state === 'groom') {
 		anim.groomPhase += 0.12 * dtScale;
 	}
 
 	// Walk phase advances when walking (linear dt scaling for phase accumulator)
-	if (state === 'caminando' || state === 'explorando' || state === 'fototaxis') {
+	if (state === 'walk' || state === 'explore' || state === 'phototaxis') {
 		var spd = Math.abs(speed);
 		anim.walkPhase += spd * 0.5 * dtScale;
 	}
 }
 
 function cycleLightLevel() {
-	lightEstadoIndex = (lightEstadoIndex + 1) % lightEstados.length;
-	BRAIN.stimulate.lightLevel = lightEstados[lightEstadoIndex];
+	lightStateIndex = (lightStateIndex + 1) % lightStates.length;
+	BRAIN.stimulate.lightLevel = lightStates[lightStateIndex];
 	var btn = document.getElementById('lightBtn');
-	if (btn) btn.textContent = 'Luz: ' + lightEtiquetas[lightEstadoIndex];
+	if (btn) btn.textContent = 'Light: ' + lightLabels[lightStateIndex];
 }
 
 function cycleTempLevel() {
-	tempEstadoIndex = (tempEstadoIndex + 1) % tempEstados.length;
-	BRAIN.stimulate.temperature = tempEstados[tempEstadoIndex];
+	tempStateIndex = (tempStateIndex + 1) % tempStates.length;
+	BRAIN.stimulate.temperature = tempStates[tempStateIndex];
 	var btn = document.getElementById('tempBtn');
-	if (btn) btn.textContent = 'Temp: ' + tempEtiquetas[tempEstadoIndex];
+	if (btn) btn.textContent = 'Temp: ' + tempLabels[tempStateIndex];
 }
 
 function drawFood() {
@@ -1404,23 +1404,23 @@ var BODY = {
 
 // --- Colors (Realistic Chitin & Biological Tones) ---
 var COLORS = {
-	thorax: '#2c2416',
-	thoraxStroke: '#141009',
-	abdomen: '#4a3b22',
-	abdomenStripe: '#292012',
+	thorax: '#6b5030',
+	thoraxStroke: '#3d2e1a',
+	abdomen: '#8a6b3a',
+	abdomenStripe: '#5c4428',
 	abdomenLight: '#695532',
-	head: '#2c2416',
-	headStroke: '#141009',
+	head: '#6b5030',
+	headStroke: '#3d2e1a',
 	eyeFill: '#6b0909',
 	eyeHighlight: '#ff2a2a',
-	antenna: '#1f190e',
-	antennaBulb: '#362c19',
+	antenna: '#3d2e1a',
+	antennaBulb: '#6b5030',
 	wing: 'rgba(230, 242, 255, 0.4)',
 	wingStroke: 'rgba(180, 205, 235, 0.65)',
 	wingVein: 'rgba(140, 175, 215, 0.55)',
-	leg: '#141009',
-	legJoint: '#261e12',
-	proboscis: '#1f190e',
+	leg: '#3d2e1a',
+	legJoint: '#5c4428',
+	proboscis: '#3d2e1a',
 };
 
 /**
@@ -1481,6 +1481,7 @@ function drawWing(side) {
 	}
 
 	ctx.save();
+	ctx.globalAlpha = 1.0;
 	ctx.translate(wx + microOffset, wy);
 	ctx.rotate(side * (0.35 + spreadAngle) + microOffset * 0.02 + buzzOffset);
 
@@ -1489,7 +1490,7 @@ function drawWing(side) {
 	ctx.scale(wingScale, wingScale);
 
 	// Dynamic wing opacity (more visible when spread)
-	var wingAlpha = 0.3 + anim.wingSpread * 0.35;
+	var wingAlpha = 0.65 + anim.wingSpread * 0.25;
 
 	// Teardrop wing shape (extends backward toward abdomen)
 	ctx.beginPath();
@@ -1534,6 +1535,7 @@ function drawWing(side) {
  * Draws the abdomen with subtle stripes.
  */
 function drawAbdomen() {
+	ctx.globalAlpha = 1.0;
 	var ax = 0;
 	var ay = BODY.abdomenOffsetY;
 	var rx = BODY.abdomenRadiusX;
@@ -1541,7 +1543,7 @@ function drawAbdomen() {
 
 	// Abdomen curl during abdomen-specific grooming
 	var abdomenCurl = 0;
-	if (behavior.current === 'aseándose' && (behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax')) {
+	if (behavior.current === 'groom' && (behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax')) {
 		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 2;
 	}
 	ay += abdomenCurl;
@@ -1592,6 +1594,7 @@ function drawAbdomen() {
  * Draws the thorax (darker, slightly smaller ellipse).
  */
 function drawThorax() {
+	ctx.globalAlpha = 1.0;
 	var tx = 0;
 	var ty = BODY.thoraxOffsetY;
 	var rx = BODY.thoraxRadiusX;
@@ -1626,6 +1629,7 @@ function drawThorax() {
  * Draws the head.
  */
 function drawHead() {
+	ctx.globalAlpha = 1.0;
 	var hx = 0;
 	var hy = BODY.headOffsetY;
 	var hrx = BODY.headRadius * 1.1;
@@ -1650,6 +1654,7 @@ function drawHead() {
  * Draws compound eyes on the head.
  */
 function drawEyes() {
+	ctx.globalAlpha = 1.0;
 	for (var side = -1; side <= 1; side += 2) {
 		var ex = BODY.eyeOffsetX * side;
 		var ey = BODY.eyeOffsetY;
@@ -1721,7 +1726,7 @@ function drawAntennae(t, dtScale) {
 		var baseAngle = -Math.PI / 2 + side * 0.5 + twitch;
 
 		// Wind-sensing posture: bias antennae toward wind direction
-		if (BRAIN.stimulate.wind || behavior.current === 'en guardia') {
+		if (BRAIN.stimulate.wind || behavior.current === 'brace') {
 			// Convert world-space windDirection to body-local frame.
 			// The canvas transform is: rotate(-facingDir + PI/2), so body-local
 			// "forward" (-Y in body space) corresponds to facingDir in world space.
@@ -1779,19 +1784,20 @@ function drawProboscis(extend) {
 
 /**
  * Draws all 6 legs with behavior-specific animation.
- * Estado-dependent modes: tripod gait (walk/explore/phototaxis),
+ * State-dependent modes: tripod gait (walk/explore/phototaxis),
  * grooming rub (groom), tucked (fly/rest), jump pose (startle burst),
  * idle jitter (idle/feed).
  */
 function drawLegs(state, dtScale) {
+	ctx.globalAlpha = 1.0;
 	var t = Date.now() / 1000;
-	var isWalking = (state === 'caminando' || state === 'explorando' || state === 'fototaxis');
-	var isAseoing = (state === 'aseándose');
-	var isFlying = (state === 'volando');
-	var isStartleBurst = (state === 'asustada' && behavior.startlePhase === 'burst');
-	var isStartleFreeze = (state === 'asustada' && behavior.startlePhase === 'freeze');
-	var isResting = (state === 'descansando');
-	var isBracing = (state === 'en guardia');
+	var isWalking = (state === 'walk' || state === 'explore' || state === 'phototaxis');
+	var isGrooming = (state === 'groom');
+	var isFlying = (state === 'fly');
+	var isStartleBurst = (state === 'startle' && behavior.startlePhase === 'burst');
+	var isStartleFreeze = (state === 'startle' && behavior.startlePhase === 'freeze');
+	var isResting = (state === 'rest');
+	var isBracing = (state === 'brace');
 
 	// Update idle jitter targets periodically
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
@@ -1833,7 +1839,7 @@ function drawLegs(state, dtScale) {
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var legPhase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
 			walkOffset = Math.sin(legPhase) * 0.35;
-		} else if (isAseoing) {
+		} else if (isGrooming) {
 			var groomLoc = behavior.groomLocation || 'thorax';
 			if (groomLoc === 'head' && pairIdx === 0) {
 				// Front legs rub the head area: swing forward and inward
@@ -1974,9 +1980,9 @@ function update(dt) {
 	// gentle turns look natural. At dtScale=1 (60fps): 0.3 closes 70% of the gap
 	// per frame (~3 frames to 97%), 0.9 closes 10% per frame (~22 frames to 90%).
 	var turnRetention;
-	if (behavior.current === 'asustada' && behavior.startlePhase === 'burst') {
+	if (behavior.current === 'startle' && behavior.startlePhase === 'burst') {
 		turnRetention = 0.3;
-	} else if (behavior.current === 'volando') {
+	} else if (behavior.current === 'fly') {
 		turnRetention = 0.4;
 	} else {
 		turnRetention = 0.9;
@@ -1995,22 +2001,22 @@ function update(dt) {
 	var barrierMargin = 12;
 	var bounds = getLayoutBounds();
 
-	// Screen bounds - gentle push back from walls (don't clamp, push)
+	// Screen bounds (clamped to visible area: toolbar=44px top, panel=90px bottom)
 	if (fly.x < barrierMargin) {
-		fly.x = barrierMargin;
+		fly.x = 0;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	} else if (fly.x > window.innerWidth - barrierMargin) {
-		fly.x = window.innerWidth - barrierMargin;
+		fly.x = window.innerWidth;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	}
 	if (fly.y < bounds.top + barrierMargin) {
-		fly.y = bounds.top + barrierMargin;
+		fly.y = 44;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	} else if (fly.y > bounds.bottom - barrierMargin) {
-		fly.y = bounds.bottom - barrierMargin;
+		fly.y = window.innerHeight;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	}
@@ -2024,7 +2030,7 @@ function update(dt) {
 			BRAIN.stimulate.foodNearby = true;
 			if (dist <= 20) {
 				BRAIN.stimulate.foodContact = true;
-				if (behavior.current === 'comiendo') {
+				if (behavior.current === 'feed') {
 					// Gradual feeding: start timer on first contact, shrink food, remove when done
 					if (food[i].feedStart === 0) {
 						food[i].feedStart = Date.now();
@@ -2158,7 +2164,7 @@ function draw() {
 	}
 	// Also re-clamp the fly position to the new bounds
 	fly.x = Math.max(0, Math.min(fly.x, window.innerWidth));
-	fly.y = Math.max(getLayoutBounds().top, Math.min(fly.y, getLayoutBounds().bottom));
+	fly.y = Math.max(getLayoutBounds().top, Math.min(fly.y, window.innerHeight));
 	window.addEventListener('resize', resize);
 })();
 

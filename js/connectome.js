@@ -1,9 +1,9 @@
-/* Drosophila melanogaster Functional Conectoma -- Javascript
+/* Drosophila melanogaster Functional Connectome -- Javascript
  * Adapted from C. elegans worm-sim (Busbice, Garrett, Churchill / zrispo)
  * Rewired for fruit fly brain with ~70 functional neuron groups.
  *
- * Core mechanics (dendriteAccumulate, runconnectome, fireNeurona) are
- * the same propagation engine. The neuron names, Motor outputs, Sensorial
+ * Core mechanics (dendriteAccumulate, runconnectome, fireNeuron) are
+ * the same propagation engine. The neuron names, motor outputs, sensory
  * inputs, and drive system are Drosophila-specific.
  */
 
@@ -24,7 +24,7 @@ BRAIN.dendriteAccumulate = function (preSynaptic) {
 	if (!BRAIN.weights[preSynaptic]) return;
 	for (var postSynaptic in BRAIN.weights[preSynaptic]) {
 		if (!BRAIN.postSynaptic[postSynaptic]) continue;
-		BRAIN.postSynaptic[postSynaptic][BRAIN.nextEstado] +=
+		BRAIN.postSynaptic[postSynaptic][BRAIN.nextState] +=
 			BRAIN.weights[preSynaptic][postSynaptic];
 	}
 };
@@ -36,14 +36,14 @@ BRAIN.dendriteAccumulateScaled = function (preSynaptic, scale) {
 	if (!BRAIN.weights[preSynaptic]) return;
 	for (var postSynaptic in BRAIN.weights[preSynaptic]) {
 		if (!BRAIN.postSynaptic[postSynaptic]) continue;
-		BRAIN.postSynaptic[postSynaptic][BRAIN.nextEstado] +=
+		BRAIN.postSynaptic[postSynaptic][BRAIN.nextState] +=
 			Math.round(BRAIN.weights[preSynaptic][postSynaptic] * scale);
 	}
 };
 
-// Estado double-buffering
-BRAIN.thisEstado = 0;
-BRAIN.nextEstado = 1;
+// State double-buffering
+BRAIN.thisState = 0;
+BRAIN.nextState = 1;
 
 // Threshold for neuron firing (lower than worm-sim's 30 because fly has
 // fewer neurons and needs faster signal propagation for responsiveness)
@@ -53,7 +53,7 @@ BRAIN.fireThreshold = 22;
 // MOTOR NEURON GROUPS
 // ============================================================
 
-BRAIN.MotorGrupos = {
+BRAIN.motorGroups = {
 	walk: ['MN_LEG_L1', 'MN_LEG_R1', 'MN_LEG_L2', 'MN_LEG_R2', 'MN_LEG_L3', 'MN_LEG_R3'],
 	walkLeft: ['MN_LEG_L1', 'MN_LEG_L2', 'MN_LEG_L3'],
 	walkRight: ['MN_LEG_R1', 'MN_LEG_R2', 'MN_LEG_R3'],
@@ -63,8 +63,8 @@ BRAIN.MotorGrupos = {
 	orient: ['MN_HEAD'],
 };
 
-// All Motor neurons (these cannot re-fire into the brain)
-BRAIN.MotorNeuronas = [
+// All motor neurons (these cannot re-fire into the brain)
+BRAIN.motorNeurons = [
 	'MN_LEG_L1', 'MN_LEG_R1',
 	'MN_LEG_L2', 'MN_LEG_R2',
 	'MN_LEG_L3', 'MN_LEG_R3',
@@ -75,7 +75,7 @@ BRAIN.MotorNeuronas = [
 ];
 
 // Motor neuron prefixes for the muscle-cannot-fire check
-BRAIN.MotorPrefixes = ['MN_'];
+BRAIN.motorPrefixes = ['MN_'];
 
 // ============================================================
 // BEHAVIOR ACCUMULATORS
@@ -84,8 +84,8 @@ BRAIN.MotorPrefixes = ['MN_'];
 BRAIN.accumWalkLeft = 0;
 BRAIN.accumWalkRight = 0;
 BRAIN.accumFlight = 0;
-BRAIN.accumComida = 0;
-BRAIN.accumAseo = 0;
+BRAIN.accumFeed = 0;
+BRAIN.accumGroom = 0;
 BRAIN.accumStartle = 0;
 BRAIN.accumHead = 0;
 
@@ -98,14 +98,14 @@ BRAIN.accumright = 0;
 // ============================================================
 
 BRAIN.neuronRegions = {
-	Sensorial: [
+	sensory: [
 		'VIS_R1R6', 'VIS_R7R8', 'VIS_ME', 'VIS_LO', 'VIS_LC', 'VIS_LPTC',
 		'OLF_ORN_FOOD', 'OLF_ORN_DANGER', 'OLF_LN', 'OLF_PN',
 		'MECH_BRISTLE', 'MECH_JO', 'MECH_CHORD', 'ANTENNAL_MECH',
 		'THERMO_WARM', 'THERMO_COOL',
 		'NOCI',
 	],
-	Central: [
+	central: [
 		'MB_KC', 'MB_APL', 'MB_MBON_APP', 'MB_MBON_AV', 'MB_DAN_REW', 'MB_DAN_PUN',
 		'LH_APP', 'LH_AV',
 		'CX_EPG', 'CX_PFN', 'CX_FC', 'CX_HDELTA',
@@ -113,11 +113,11 @@ BRAIN.neuronRegions = {
 		'GUS_GRN_SWEET', 'GUS_GRN_BITTER', 'GUS_GRN_WATER',
 		'GNG_DESC', 'CLOCK_DN',
 	],
-	Impulsos: [
+	drives: [
 		'DRIVE_HUNGER', 'DRIVE_FEAR', 'DRIVE_FATIGUE',
 		'DRIVE_CURIOSITY', 'DRIVE_GROOM',
 	],
-	Motor: [
+	motor: [
 		'DN_WALK', 'DN_FLIGHT', 'DN_TURN', 'DN_BACKUP', 'DN_STARTLE',
 		'VNC_CPG',
 		'MN_LEG_L1', 'MN_LEG_R1', 'MN_LEG_L2', 'MN_LEG_R2',
@@ -149,7 +149,7 @@ BRAIN.stimulate = {
 // INTERNAL DRIVES
 // ============================================================
 
-BRAIN.Impulsos = {
+BRAIN.drives = {
 	hunger: 0.3,
 	fear: 0.0,
 	fatigue: 0.0,
@@ -160,24 +160,24 @@ BRAIN.Impulsos = {
 // Track whether the fly is currently performing certain behaviors
 // (used for drive updates)
 BRAIN._isMoving = false;
-BRAIN._isComidaing = false;
-BRAIN._isAseoing = false;
+BRAIN._isFeeding = false;
+BRAIN._isGrooming = false;
 
 /**
- * Update internal Impulsos each brain tick.
- * Impulsos are floats clamped to [0, 1] that change over time
+ * Update internal drives each brain tick.
+ * Drives are floats clamped to [0, 1] that change over time
  * and in response to events.
  */
-BRAIN.updateImpulsos = function () {
-	var d = BRAIN.Impulsos;
+BRAIN.updateDrives = function () {
+	var d = BRAIN.drives;
 
-	// Hambre: increases over time, decreases when fed
+	// Hunger: increases over time, decreases when fed
 	d.hunger += 0.005;
-	if (BRAIN._isComidaing) {
+	if (BRAIN._isFeeding) {
 		d.hunger -= 0.3;
 	}
 
-	// Miedo: spikes on touch/wind, decays exponentially
+	// Fear: spikes on touch/wind, decays exponentially
 	if (BRAIN.stimulate.touch) {
 		d.fear += 0.3;
 	}
@@ -189,7 +189,7 @@ BRAIN.updateImpulsos = function () {
 	}
 	d.fear *= 0.85; // exponential decay
 
-	// Fatiga: increases when moving, decreases when resting
+	// Fatigue: increases when moving, decreases when resting
 	// In low light (< 0.3), fatigue accumulates faster (fly winds down in darkness)
 	if (BRAIN._isMoving) {
 		var fatigueGain = BRAIN.stimulate.lightLevel < 0.3 ? 0.006 : 0.003;
@@ -198,20 +198,20 @@ BRAIN.updateImpulsos = function () {
 		d.fatigue -= 0.01;
 	}
 
-	// Curiosidad: random walk (reduced range in low light -- less exploratory in darkness)
+	// Curiosity: random walk (reduced range in low light -- less exploratory in darkness)
 	var curiosityRange = BRAIN.stimulate.lightLevel < 0.3 ? 0.02 : 0.06;
 	d.curiosity += (Math.random() - 0.5) * curiosityRange;
 
-	// Aseoing urge: accumulates over time, spikes on touch, drops when grooming
+	// Grooming urge: accumulates over time, spikes on touch, drops when grooming
 	d.groom += 0.008;
 	if (BRAIN.stimulate.touch) {
 		d.groom += 0.2;
 	}
-	if (BRAIN._isAseoing) {
+	if (BRAIN._isGrooming) {
 		d.groom -= 0.5;
 	}
 
-	// Clamp all Impulsos to [0, 1]
+	// Clamp all drives to [0, 1]
 	for (var key in d) {
 		if (d[key] < 0) d[key] = 0;
 		if (d[key] > 1) d[key] = 1;
@@ -250,15 +250,15 @@ BRAIN.setup = function () {
 
 	// Also ensure every postSynaptic target mentioned in weights is initialized,
 	// even if it does not appear as a preSynaptic key
-	var allNeuronas = {};
+	var allNeurons = {};
 	for (var pre in BRAIN.weights) {
-		allNeuronas[pre] = true;
+		allNeurons[pre] = true;
 		for (var post in BRAIN.weights[pre]) {
-			allNeuronas[post] = true;
+			allNeurons[post] = true;
 		}
 	}
 
-	for (var neuron in allNeuronas) {
+	for (var neuron in allNeurons) {
 		BRAIN.postSynaptic[neuron] = [0, 0];
 	}
 };
@@ -268,13 +268,13 @@ BRAIN.setup = function () {
 // ============================================================
 
 BRAIN.update = function () {
-	// --- Update internal Impulsos ---
-	BRAIN.updateImpulsos();
+	// --- Update internal drives ---
+	BRAIN.updateDrives();
 
 	// --- Stimulate drive neurons proportionally ---
-	// Impulsos pulse multiple times per tick to sustain activity.
+	// Drives pulse multiple times per tick to sustain activity.
 	// The pulse count scales with drive intensity (1-3 pulses).
-	var d = BRAIN.Impulsos;
+	var d = BRAIN.drives;
 
 	if (d.hunger > 0.2) {
 		var pulses = d.hunger > 0.6 ? 3 : (d.hunger > 0.4 ? 2 : 1);
@@ -301,9 +301,9 @@ BRAIN.update = function () {
 		BRAIN.dendriteAccumulateScaled('DRIVE_GROOM', d.groom);
 	}
 
-	// --- Stimulate Sensorial neurons based on input ---
+	// --- Stimulate sensory neurons based on input ---
 
-	// Tocar / mechanoSensorial
+	// Touch / mechanosensory
 	if (BRAIN.stimulate.touch) {
 		BRAIN.dendriteAccumulate('MECH_BRISTLE');
 		// Location-specific: stronger grooming for head/thorax touch
@@ -333,19 +333,19 @@ BRAIN.update = function () {
 		BRAIN.dendriteAccumulateScaled('MECH_JO', windScale);
 	}
 
-	// Luz -- photoreceptor activation scales with light level
+	// Light -- photoreceptor activation scales with light level
 	if (BRAIN.stimulate.lightLevel > 0.2) {
 		BRAIN.dendriteAccumulateScaled('VIS_R1R6', BRAIN.stimulate.lightLevel);
 		BRAIN.dendriteAccumulateScaled('VIS_R7R8', BRAIN.stimulate.lightLevel * 0.7);
 	}
 
-	// Temperature -- extreme temps activate thermoSensorial
+	// Temperature -- extreme temps activate thermosensory
 	if (BRAIN.stimulate.temperature > 0.65) {
-		// Cálido stimulus
+		// Warm stimulus
 		var warmIntensity = (BRAIN.stimulate.temperature - 0.5) * 2;
 		BRAIN.dendriteAccumulateScaled('THERMO_WARM', warmIntensity);
 	} else if (BRAIN.stimulate.temperature < 0.35) {
-		// Frío stimulus
+		// Cool stimulus
 		var coolIntensity = (0.5 - BRAIN.stimulate.temperature) * 2;
 		BRAIN.dendriteAccumulateScaled('THERMO_COOL', coolIntensity);
 	}
@@ -370,15 +370,15 @@ BRAIN.update = function () {
 	}
 
 	// --- Tonic background activity ---
-	// Real fly brains have persistent tonic activity in Central circuits.
+	// Real fly brains have persistent tonic activity in central circuits.
 	// With only ~50 neuron groups (vs 302 in C. elegans or 130K in a real
 	// fly brain), signals decay too fast. Inject tonic excitation
-	// into Central processing nodes to maintain reverberant activity.
+	// into central processing nodes to maintain reverberant activity.
 	var tonicTargets = ['CX_FC', 'CX_EPG', 'CX_PFN'];
 	var tonicLevel = BRAIN.stimulate.lightLevel === 0 ? 4 : 8;
 	for (var t = 0; t < tonicTargets.length; t++) {
 		if (BRAIN.postSynaptic[tonicTargets[t]]) {
-			BRAIN.postSynaptic[tonicTargets[t]][BRAIN.nextEstado] += tonicLevel;
+			BRAIN.postSynaptic[tonicTargets[t]][BRAIN.nextState] += tonicLevel;
 		}
 	}
 
@@ -388,66 +388,66 @@ BRAIN.update = function () {
 };
 
 // ============================================================
-// RUN CONNECTOME -- Fire neurons above threshold, run Motor control
+// RUN CONNECTOME -- Fire neurons above threshold, run motor control
 // ============================================================
 
 BRAIN.runconnectome = function () {
 	for (var ps in BRAIN.postSynaptic) {
 		// Motor neurons cannot fire (they are output-only)
 		var isMotor = false;
-		for (var p = 0; p < BRAIN.MotorPrefixes.length; p++) {
-			if (ps.indexOf(BRAIN.MotorPrefixes[p]) === 0) {
+		for (var p = 0; p < BRAIN.motorPrefixes.length; p++) {
+			if (ps.indexOf(BRAIN.motorPrefixes[p]) === 0) {
 				isMotor = true;
 				break;
 			}
 		}
 
-		if (!isMotor && BRAIN.postSynaptic[ps][BRAIN.thisEstado] > BRAIN.fireThreshold) {
-			BRAIN.fireNeurona(ps);
+		if (!isMotor && BRAIN.postSynaptic[ps][BRAIN.thisState] > BRAIN.fireThreshold) {
+			BRAIN.fireNeuron(ps);
 		}
 	}
 
-	BRAIN.Motorcontrol();
+	BRAIN.motorcontrol();
 
-	// Swap states: copy nextEstado into thisEstado, then swap indices
+	// Swap states: copy nextState into thisState, then swap indices
 	for (var ps in BRAIN.postSynaptic) {
-		BRAIN.postSynaptic[ps][BRAIN.thisEstado] =
-			BRAIN.postSynaptic[ps][BRAIN.nextEstado];
+		BRAIN.postSynaptic[ps][BRAIN.thisState] =
+			BRAIN.postSynaptic[ps][BRAIN.nextState];
 	}
 
-	var temp = BRAIN.thisEstado;
-	BRAIN.thisEstado = BRAIN.nextEstado;
-	BRAIN.nextEstado = temp;
+	var temp = BRAIN.thisState;
+	BRAIN.thisState = BRAIN.nextState;
+	BRAIN.nextState = temp;
 };
 
 // ============================================================
 // FIRE NEURON -- Cascade signal when threshold exceeded
 // ============================================================
 
-BRAIN.fireNeurona = function (fneuron) {
+BRAIN.fireNeuron = function (fneuron) {
 	BRAIN.dendriteAccumulate(fneuron);
-	BRAIN.postSynaptic[fneuron][BRAIN.nextEstado] = 0;
+	BRAIN.postSynaptic[fneuron][BRAIN.nextState] = 0;
 };
 
 // ============================================================
-// MOTOR CONTROL -- Compute behavior accumulators from Motor neuron states
+// MOTOR CONTROL -- Compute behavior accumulators from motor neuron states
 // ============================================================
 
-BRAIN.Motorcontrol = function () {
+BRAIN.motorcontrol = function () {
 	// Reset all accumulators
 	BRAIN.accumWalkLeft = 0;
 	BRAIN.accumWalkRight = 0;
 	BRAIN.accumFlight = 0;
-	BRAIN.accumComida = 0;
-	BRAIN.accumAseo = 0;
+	BRAIN.accumFeed = 0;
+	BRAIN.accumGroom = 0;
 	BRAIN.accumStartle = 0;
 	BRAIN.accumHead = 0;
 
-	// Ayudaer to read and drain a Motor neuron
+	// Helper to read and drain a motor neuron
 	var readMotor = function (name) {
 		if (!BRAIN.postSynaptic[name]) return 0;
-		var val = BRAIN.postSynaptic[name][BRAIN.nextEstado];
-		BRAIN.postSynaptic[name][BRAIN.nextEstado] = 0;
+		var val = BRAIN.postSynaptic[name][BRAIN.nextState];
+		BRAIN.postSynaptic[name][BRAIN.nextState] = 0;
 		return val;
 	};
 
@@ -468,29 +468,29 @@ BRAIN.Motorcontrol = function () {
 	var wingR = readMotor('MN_WING_R');
 	BRAIN.accumFlight = wingL + wingR;
 
-	// Comidaing (proboscis)
-	BRAIN.accumComida = readMotor('MN_PROBOSCIS');
+	// Feeding (proboscis)
+	BRAIN.accumFeed = readMotor('MN_PROBOSCIS');
 
-	// Aseoing (front legs + abdomen when both active)
-	// Aseoing is detected when front legs are active AND abdomen is active,
+	// Grooming (front legs + abdomen when both active)
+	// Grooming is detected when front legs are active AND abdomen is active,
 	// or when SEZ_GROOM was the dominant command
 	var abdomen = readMotor('MN_ABDOMEN');
 	var head = readMotor('MN_HEAD');
 	BRAIN.accumHead = head;
-	BRAIN.accumAseo = abdomen + (abdomen > 0 ? head : 0) + Math.min(legL1, legR1);
+	BRAIN.accumGroom = abdomen + (abdomen > 0 ? head : 0) + Math.min(legL1, legR1);
 
-	// Startle is derived from DN_STARTLE neuron state (not a Motor neuron per se,
+	// Startle is derived from DN_STARTLE neuron state (not a motor neuron per se,
 	// but we track its activation level for behavior selection)
 	if (BRAIN.postSynaptic['DN_STARTLE']) {
-		BRAIN.accumStartle = BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextEstado];
+		BRAIN.accumStartle = BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextState];
 	}
 
-	// Floor all accumulators at 0 (negative Motor output has no physical meaning)
+	// Floor all accumulators at 0 (negative motor output has no physical meaning)
 	BRAIN.accumWalkLeft = Math.max(0, BRAIN.accumWalkLeft);
 	BRAIN.accumWalkRight = Math.max(0, BRAIN.accumWalkRight);
 	BRAIN.accumFlight = Math.max(0, BRAIN.accumFlight);
-	BRAIN.accumComida = Math.max(0, BRAIN.accumComida);
-	BRAIN.accumAseo = Math.max(0, BRAIN.accumAseo);
+	BRAIN.accumFeed = Math.max(0, BRAIN.accumFeed);
+	BRAIN.accumGroom = Math.max(0, BRAIN.accumGroom);
 	BRAIN.accumStartle = Math.max(0, BRAIN.accumStartle);
 	BRAIN.accumHead = Math.max(0, BRAIN.accumHead);
 

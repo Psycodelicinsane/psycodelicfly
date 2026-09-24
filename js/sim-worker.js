@@ -17,7 +17,7 @@
  *   Metadata: neuron_count x (uint8 region_type, uint16 group_id)
  *
  * Message protocol:
- *   Main -> Worker: init, start, stop, stimulate, setStimulusEstado, setParams
+ *   Main -> Worker: init, start, stop, stimulate, setStimulusState, setParams
  *   Worker -> Main: ready, tick, stats, error
  */
 
@@ -52,17 +52,17 @@ var tickCount = 0;
 var targetTickRate = TARGET_TICK_RATE;
 var tickTimeSum = 0;
 var tickTimeSamples = 0;
-var activeNeuronaCount = 0;
+var activeNeuronCount = 0;
 var cumulativeFiredCount = 0;
 
 /* neuropil-gated simulation structures (built by buildGroupStructures) */
-var numGrupos = 0;
-var groupOffset = null;          // Uint32Array[numGrupos+1] prefix sum
-var groupActive = null;          // Uint8Array[numGrupos]
-var groupFríodown = null;        // Uint8Array[numGrupos]
-var groupRecvInput = null;       // Uint8Array[numGrupos] per-tick scratch
-var groupFiredThisTick = null;   // Uint8Array[numGrupos] per-tick scratch
-var groupStimulatedThisTick = null; // Uint8Array[numGrupos] per-tick scratch
+var numGroups = 0;
+var groupOffset = null;          // Uint32Array[numGroups+1] prefix sum
+var groupActive = null;          // Uint8Array[numGroups]
+var groupCooldown = null;        // Uint8Array[numGroups]
+var groupRecvInput = null;       // Uint8Array[numGroups] per-tick scratch
+var groupFiredThisTick = null;   // Uint8Array[numGroups] per-tick scratch
+var groupStimulatedThisTick = null; // Uint8Array[numGroups] per-tick scratch
 
 /* ---------- decompressGzip ---------- */
 
@@ -157,27 +157,27 @@ function parseBinary(buffer) {
 
 function buildGroupStructures() {
 	/* determine number of groups */
-	numGrupos = 0;
+	numGroups = 0;
 	for (var i = 0; i < N; i++) {
-		if (groupId[i] >= numGrupos) numGrupos = groupId[i] + 1;
+		if (groupId[i] >= numGroups) numGroups = groupId[i] + 1;
 	}
 
 	/* count neurons per group */
-	var counts = new Uint32Array(numGrupos);
+	var counts = new Uint32Array(numGroups);
 	for (var i = 0; i < N; i++) {
 		counts[groupId[i]]++;
 	}
 
 	/* build prefix-sum offsets */
-	groupOffset = new Uint32Array(numGrupos + 1);
-	for (var g = 0; g < numGrupos; g++) {
+	groupOffset = new Uint32Array(numGroups + 1);
+	for (var g = 0; g < numGroups; g++) {
 		groupOffset[g + 1] = groupOffset[g] + counts[g];
 	}
 
 	/* build sortedByGroup: sortedByGroup[sorted_pos] = original_index */
 	var sortedByGroup = new Uint32Array(N);
-	var writePos = new Uint32Array(numGrupos);
-	for (var g = 0; g < numGrupos; g++) writePos[g] = groupOffset[g];
+	var writePos = new Uint32Array(numGroups);
+	for (var g = 0; g < numGroups; g++) writePos[g] = groupOffset[g];
 	for (var i = 0; i < N; i++) {
 		var g = groupId[i];
 		sortedByGroup[writePos[g]++] = i;
@@ -226,25 +226,25 @@ function buildGroupStructures() {
 	/* V, fired, refractory are zero-initialized -- no remap needed */
 
 	/* allocate per-group activation state */
-	groupActive = new Uint8Array(numGrupos);
-	groupFríodown = new Uint8Array(numGrupos);
-	groupRecvInput = new Uint8Array(numGrupos);
-	groupFiredThisTick = new Uint8Array(numGrupos);
-	groupStimulatedThisTick = new Uint8Array(numGrupos);
+	groupActive = new Uint8Array(numGroups);
+	groupCooldown = new Uint8Array(numGroups);
+	groupRecvInput = new Uint8Array(numGroups);
+	groupFiredThisTick = new Uint8Array(numGroups);
+	groupStimulatedThisTick = new Uint8Array(numGroups);
 }
 
 /* ---------- tick (neuropil-gated) ---------- */
 
 function tick() {
 	var t0 = performance.now();
-	var firedNeuronaCount = 0;
-	var groupSpikeCounts = new Uint16Array(numGrupos);
+	var firedNeuronCount = 0;
+	var groupSpikeCounts = new Uint16Array(numGroups);
 
 	/* reset per-tick scratch */
 	groupRecvInput.fill(0);
 	groupFiredThisTick.fill(0);
 	groupStimulatedThisTick.fill(0);
-	activeNeuronaCount = 0;
+	activeNeuronCount = 0;
 
 	/* activate groups with sustained stimulation */
 	if (sustainedIndices) {
@@ -255,18 +255,18 @@ function tick() {
 				groupStimulatedThisTick[g] = 1;
 				if (!groupActive[g]) {
 					groupActive[g] = 1;
-					groupFríodown[g] = COOLDOWN_TICKS;
+					groupCooldown[g] = COOLDOWN_TICKS;
 				}
 			}
 		}
 	}
 
 	/* step 1 -- decay V and refractory for active groups (contiguous access) */
-	for (var g = 0; g < numGrupos; g++) {
+	for (var g = 0; g < numGroups; g++) {
 		if (!groupActive[g]) continue;
 		var start = groupOffset[g];
 		var end = groupOffset[g + 1];
-		activeNeuronaCount += end - start;
+		activeNeuronCount += end - start;
 		for (var i = start; i < end; i++) {
 			if (refractory[i] > 0) {
 				refractory[i]--;
@@ -288,7 +288,7 @@ function tick() {
 	}
 
 	/* step 2 -- propagate from fired neurons in active groups */
-	for (var g = 0; g < numGrupos; g++) {
+	for (var g = 0; g < numGroups; g++) {
 		if (!groupActive[g]) continue;
 		for (var i = groupOffset[g]; i < groupOffset[g + 1]; i++) {
 			if (fired[i] === 0) continue;
@@ -301,15 +301,15 @@ function tick() {
 	}
 
 	/* activate groups that received synaptic input */
-	for (var g = 0; g < numGrupos; g++) {
+	for (var g = 0; g < numGroups; g++) {
 		if (groupRecvInput[g] && !groupActive[g]) {
 			groupActive[g] = 1;
-			groupFríodown[g] = COOLDOWN_TICKS;
+			groupCooldown[g] = COOLDOWN_TICKS;
 		}
 	}
 
 	/* step 3 -- clear fired + threshold check for active groups */
-	for (var g = 0; g < numGrupos; g++) {
+	for (var g = 0; g < numGroups; g++) {
 		if (!groupActive[g]) continue;
 		var start = groupOffset[g];
 		var end = groupOffset[g + 1];
@@ -321,19 +321,19 @@ function tick() {
 				refractory[i] = refractoryPeriod;
 				groupFiredThisTick[g] = 1;
 				groupSpikeCounts[g]++;
-				firedNeuronaCount++;
+				firedNeuronCount++;
 			}
 		}
 	}
 
 	/* update group cooldowns -- deactivate idle groups */
-	for (var g = 0; g < numGrupos; g++) {
+	for (var g = 0; g < numGroups; g++) {
 		if (!groupActive[g]) continue;
 		if (groupFiredThisTick[g] || groupRecvInput[g] || groupStimulatedThisTick[g]) {
-			groupFríodown[g] = COOLDOWN_TICKS;
+			groupCooldown[g] = COOLDOWN_TICKS;
 		} else {
-			groupFríodown[g]--;
-			if (groupFríodown[g] <= 0) {
+			groupCooldown[g]--;
+			if (groupCooldown[g] <= 0) {
 				groupActive[g] = 0;
 				/* clear residual state for deactivated group */
 				var start = groupOffset[g];
@@ -348,8 +348,8 @@ function tick() {
 	/* post fire state to main thread */
 	self.postMessage({
 		type: 'tick',
-		fireEstado: fired,
-		firedNeuronas: firedNeuronaCount,
+		fireState: fired,
+		firedNeurons: firedNeuronCount,
 		groupSpikeCounts: groupSpikeCounts,
 		tickCount: tickCount
 	});
@@ -359,23 +359,23 @@ function tick() {
 	var elapsed = performance.now() - t0;
 	tickTimeSum += elapsed;
 	tickTimeSamples++;
-	cumulativeFiredCount += firedNeuronaCount;
+	cumulativeFiredCount += firedNeuronCount;
 
 	if (tickTimeSamples >= STATS_INTERVAL) {
 		var avgMs = tickTimeSum / tickTimeSamples;
 		var avgFired = Math.round(cumulativeFiredCount / tickTimeSamples);
-		var activeGrupos = 0;
-		for (var g = 0; g < numGrupos; g++) {
-			if (groupActive[g]) activeGrupos++;
+		var activeGroups = 0;
+		for (var g = 0; g < numGroups; g++) {
+			if (groupActive[g]) activeGroups++;
 		}
 		self.postMessage({
 			type: 'stats',
 			avgTickMs: avgMs,
-			firedNeuronas: avgFired,
-			activeNeuronas: activeNeuronaCount,
-			totalNeuronas: N,
-			activeGrupos: activeGrupos,
-			totalGrupos: numGrupos,
+			firedNeurons: avgFired,
+			activeNeurons: activeNeuronCount,
+			totalNeurons: N,
+			activeGroups: activeGroups,
+			totalGroups: numGroups,
 			tickRate: targetTickRate
 		});
 		tickTimeSum = 0;
@@ -446,13 +446,13 @@ self.onmessage = function (e) {
 				/* activate target group for neuropil gating */
 				if (groupActive && !groupActive[groupId[idx]]) {
 					groupActive[groupId[idx]] = 1;
-					groupFríodown[groupId[idx]] = COOLDOWN_TICKS;
+					groupCooldown[groupId[idx]] = COOLDOWN_TICKS;
 				}
 			}
 		}
 		break;
 
-	case 'setStimulusEstado':
+	case 'setStimulusState':
 		sustainedIndices = e.data.indices;
 		sustainedIntensities = e.data.intensities;
 		break;
@@ -466,7 +466,7 @@ self.onmessage = function (e) {
 		sustainedIntensities = null;
 		if (groupActive) {
 			groupActive.fill(0);
-			groupFríodown.fill(0);
+			groupCooldown.fill(0);
 			groupRecvInput.fill(0);
 			groupFiredThisTick.fill(0);
 			groupStimulatedThisTick.fill(0);
@@ -474,7 +474,7 @@ self.onmessage = function (e) {
 		tickTimeSum = 0;
 		tickTimeSamples = 0;
 		cumulativeFiredCount = 0;
-		activeNeuronaCount = 0;
+		activeNeuronCount = 0;
 		break;
 
 	case 'setParams':

@@ -1,10 +1,10 @@
-/* Drosophila melanogaster Functional Conectoma
+/* Drosophila melanogaster Functional Connectome
  * Simplified from FlyWire connectome data into ~70 functional neuron groups.
  *
- * Neurona naming convention:
- *   Sensorial:  VIS_*, OLF_*, GUS_*, MECH_*, THERMO
+ * Neuron naming convention:
+ *   Sensory:  VIS_*, OLF_*, GUS_*, MECH_*, THERMO
  *   Central:  MB_*, LH_*, CX_*, SEZ_*, DN_*, GNG_*, ANTENNAL_*
- *   Impulsos:   DRIVE_*
+ *   Drives:   DRIVE_*
  *   Motor:    MN_*
  *
  * Weight magnitudes:
@@ -14,7 +14,7 @@
  *   Inhibitory:          -3 to -10
  *
  * Based on: Dorkenwald et al. 2024, FlyWire whole-brain connectome;
- * Hulse et al. 2021, Central complex; Aso et al. 2014, mushroom body.
+ * Hulse et al. 2021, central complex; Aso et al. 2014, mushroom body.
  */
 
 var weights = {
@@ -127,7 +127,7 @@ var weights = {
 		MB_DAN_REW: 3,      // mild reward
 	},
 
-	// --- MechanoSensorial ---
+	// --- Mechanosensory ---
 
 	// Bristle neurons (touch)
 	MECH_BRISTLE: {
@@ -154,9 +154,9 @@ var weights = {
 		DN_WALK: 2,         // walking feedback loop
 	},
 
-	// --- ThermoSensorial ---
+	// --- Thermosensory ---
 
-	// Cálido-sensing thermoSensorial neurons (activated by high temperature)
+	// Warm-sensing thermosensory neurons (activated by high temperature)
 	THERMO_WARM: {
 		CX_HDELTA: 4,       // orient away from heat
 		LH_AV: 3,           // innate avoidance of warmth
@@ -164,7 +164,7 @@ var weights = {
 		THERMO_COOL: -2,    // mutual inhibition
 	},
 
-	// Frío-sensing thermoSensorial neurons (activated by low temperature)
+	// Cool-sensing thermosensory neurons (activated by low temperature)
 	THERMO_COOL: {
 		CX_HDELTA: 3,       // orient toward warmth
 		LH_APP: 2,          // cool-seeking can be appetitive
@@ -290,7 +290,7 @@ var weights = {
 
 	// --- Subesophageal Zone (feeding and grooming command) ---
 
-	// Comidaing command center
+	// Feeding command center
 	SEZ_FEED: {
 		MN_PROBOSCIS: 14,    // extend proboscis
 		MN_HEAD: 4,          // lower head toward food
@@ -300,7 +300,7 @@ var weights = {
 		DRIVE_HUNGER: -3,    // feeding reduces hunger
 	},
 
-	// Aseoing command center
+	// Grooming command center
 	SEZ_GROOM: {
 		MN_LEG_L1: 10,       // front left leg (grooming effector)
 		MN_LEG_R1: 10,       // front right leg (grooming effector)
@@ -311,7 +311,7 @@ var weights = {
 		SEZ_FEED: -3,         // suppress feeding while grooming
 	},
 
-	// --- Antennal mechanoSensorial center ---
+	// --- Antennal mechanosensory center ---
 
 	ANTENNAL_MECH: {
 		DN_STARTLE: 5,        // strong wind -> startle
@@ -329,12 +329,12 @@ var weights = {
 		GNG_DESC: 2,          // recurrent: self-sustaining arousal
 	},
 
-	// --- Descending Neuronas (brain to VNC commands) ---
+	// --- Descending Neurons (brain to VNC commands) ---
 
 	// Walking command
 	DN_WALK: {
-		VNC_CPG: 8,           // activates Central pattern generator
-		MN_LEG_L1: 4,        // direct Motor activation (supplementing CPG)
+		VNC_CPG: 8,           // activates central pattern generator
+		MN_LEG_L1: 4,        // direct motor activation (supplementing CPG)
 		MN_LEG_R1: 4,        // front right
 		MN_LEG_L2: 5,        // middle left (primary drivers)
 		MN_LEG_R2: 5,        // middle right
@@ -395,7 +395,7 @@ var weights = {
 		SEZ_GROOM: -5,         // suppress grooming
 	},
 
-	// Ventral nerve cord Central pattern generator (walking rhythm)
+	// Ventral nerve cord central pattern generator (walking rhythm)
 	VNC_CPG: {
 		MN_LEG_L1: 3,         // rhythmic activation of all legs
 		MN_LEG_R1: 3,
@@ -427,7 +427,7 @@ var weights = {
 	// INTERNAL DRIVE NEURONS
 	// ============================================================
 
-	// Hambre drive
+	// Hunger drive
 	DRIVE_HUNGER: {
 		OLF_PN: 5,            // hunger sensitizes olfactory processing
 		LH_APP: 6,            // hunger biases toward appetitive approach
@@ -439,7 +439,7 @@ var weights = {
 		DRIVE_FATIGUE: -2,    // hunger opposes rest
 	},
 
-	// Miedo/threat drive
+	// Fear/threat drive
 	DRIVE_FEAR: {
 		DN_STARTLE: 5,        // fear lowers startle threshold
 		DN_FLIGHT: 4,         // fear promotes flight
@@ -451,7 +451,7 @@ var weights = {
 		DRIVE_FATIGUE: -2,    // fear overrides tiredness
 	},
 
-	// Fatiga drive
+	// Fatigue drive
 	DRIVE_FATIGUE: {
 		DN_WALK: -6,           // fatigue suppresses walking
 		DN_FLIGHT: -5,         // fatigue suppresses flight
@@ -460,7 +460,7 @@ var weights = {
 		DN_STARTLE: -2,       // fatigue slightly raises startle threshold
 	},
 
-	// Curiosidad/exploration drive
+	// Curiosity/exploration drive
 	DRIVE_CURIOSITY: {
 		CX_FC: 6,             // curiosity promotes locomotion
 		DN_WALK: 4,           // curiosity promotes walking
@@ -470,7 +470,7 @@ var weights = {
 		DRIVE_FATIGUE: 1,     // exploration slightly tiring
 	},
 
-	// Aseoing urge
+	// Grooming urge
 	DRIVE_GROOM: {
 		SEZ_GROOM: 8,         // grooming drive triggers grooming command
 		DN_WALK: -3,           // grooming suppresses walking
@@ -482,8 +482,8 @@ var weights = {
 	// MOTOR OUTPUT NEURONS
 	// ============================================================
 	// Motor neurons are the final output layer. They do NOT project
-	// back into the Central brain (no re-entrant connections from
-	// Motor neurons). They only appear as postSynaptic targets.
+	// back into the central brain (no re-entrant connections from
+	// motor neurons). They only appear as postSynaptic targets.
 	// We include empty entries so they appear in the weights object
 	// and get initialized in postSynaptic state.
 

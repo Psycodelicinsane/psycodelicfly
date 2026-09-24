@@ -8,10 +8,10 @@
 	'use strict';
 
 	var REGION_COLORS = [
-		[0.231, 0.510, 0.965],  // region_type 0 = Sensorial: #3b82f6
-		[0.545, 0.361, 0.965],  // region_type 1 = Central: #8b5cf6
-		[0.961, 0.620, 0.043],  // region_type 2 = Impulsos:  #f59e0b
-		[0.937, 0.267, 0.267]   // region_type 3 = Motor:   #ef4444
+		[0.231, 0.510, 0.965],  // region_type 0 = sensory: #3b82f6
+		[0.545, 0.361, 0.965],  // region_type 1 = central: #8b5cf6
+		[0.961, 0.620, 0.043],  // region_type 2 = drives:  #f59e0b
+		[0.937, 0.267, 0.267]   // region_type 3 = motor:   #ef4444
 	];
 	var POINT_SIZE = 1.0;
 	var MIN_SECTION_W = 60;        // minimum canvas-pixel width for tiny sections
@@ -20,7 +20,7 @@
 	var PAD = 2;
 	var PICK_RADIUS_SQ = 16;
 	var BRIGHTNESS_DECAY = 0.82;   // per-frame decay for interpolation at 10Hz tick rate
-	var SECTION_NAMES = ['Sensorial', 'Central', 'Impulsos', 'Motor'];
+	var SECTION_NAMES = ['Sensory', 'Central', 'Drives', 'Motor'];
 	var LABEL_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
 	var LABEL_BGS = ['rgba(59,130,246,0.1)', 'rgba(139,92,246,0.1)', 'rgba(245,158,11,0.1)', 'rgba(239,68,68,0.1)'];
 	var liteMode = false;
@@ -48,8 +48,8 @@
 	var displayScale = 1;          // CSS width / canvas pixel width for fill-stretching
 
 	function init() {
-		if (!BRAIN.workerNeuronaCount) return false;
-		neuronCount = BRAIN.workerNeuronaCount;
+		if (!BRAIN.workerNeuronCount) return false;
+		neuronCount = BRAIN.workerNeuronCount;
 
 		var holder = document.getElementById('nodeHolder');
 		holder.style.display = 'none';
@@ -225,10 +225,10 @@
 		var usableH = containerH - sectionGap - pad;
 		var rowsAvail = Math.max(1, Math.floor(usableH / pointSize));
 
-		var totalNeuronas = 0;
-		for (var r = 0; r < regionCounts.length; r++) totalNeuronas += regionCounts[r];
+		var totalNeurons = 0;
+		for (var r = 0; r < regionCounts.length; r++) totalNeurons += regionCounts[r];
 		var availableW = containerW - ((regionCounts.length - 1) * sectionGap);
-		var minRowsForWidth = Math.ceil(totalNeuronas * pointSize / Math.max(1, availableW));
+		var minRowsForWidth = Math.ceil(totalNeurons * pointSize / Math.max(1, availableW));
 		if (minRowsForWidth > rowsAvail) rowsAvail = minRowsForWidth;
 
 		var sections = [];
@@ -266,9 +266,9 @@
 
 	function buildLayout() {
 		var regionType = BRAIN.workerRegionType;
-		var regionNeuronas = [[], [], [], []];
+		var regionNeurons = [[], [], [], []];
 		for (var i = 0; i < neuronCount; i++) {
-			regionNeuronas[regionType[i]].push(i);
+			regionNeurons[regionType[i]].push(i);
 		}
 
 		var wrap = canvas.parentElement;
@@ -276,7 +276,7 @@
 		var H = Math.floor(wrapRect.height) || 140;
 		var W = Math.floor(wrapRect.width) || 800;
 
-		var regionCounts = [regionNeuronas[0].length, regionNeuronas[1].length, regionNeuronas[2].length, regionNeuronas[3].length];
+		var regionCounts = [regionNeurons[0].length, regionNeurons[1].length, regionNeurons[2].length, regionNeurons[3].length];
 		var layout = computeSectionLayout(regionCounts, W, H, POINT_SIZE, MIN_SECTION_W, MAX_SMALL_PS, SECTION_GAP, PAD);
 
 		neuronPositions = new Float32Array(neuronCount * 2);
@@ -286,7 +286,7 @@
 		sectionBounds = [];
 
 		for (var r = 0; r < 4; r++) {
-			var neurons = regionNeuronas[r];
+			var neurons = regionNeurons[r];
 			var sec = layout.sections[r];
 
 			if (neurons.length === 0) {
@@ -419,7 +419,7 @@
 		/* Interpolated brightness: fired neurons snap to 1.0, others decay
 		 * smoothly toward 0. At 10Hz ticks and ~60fps rendering, decay over
 		 * ~6 frames provides a visible but short trail between ticks. */
-		var fire = BRAIN.latestFireEstado;
+		var fire = BRAIN.latestFireState;
 		if (fire && fire.length >= neuronCount) {
 			for (var i = 0; i < neuronCount; i++) {
 				if (fire[i]) {

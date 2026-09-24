@@ -4,22 +4,22 @@
   var RECONNECT_DELAY = 3000;
   var ws = null, stateTimer = null, reconnectTimer = null, connected = false;
 
-  function getEstado() {
+  function getState() {
     return {
-      Impulsos: { hunger: BRAIN.Impulsos.hunger, fear: BRAIN.Impulsos.fear,
-        fatigue: BRAIN.Impulsos.fatigue, curiosity: BRAIN.Impulsos.curiosity, groom: BRAIN.Impulsos.groom },
+      drives: { hunger: BRAIN.drives.hunger, fear: BRAIN.drives.fear,
+        fatigue: BRAIN.drives.fatigue, curiosity: BRAIN.drives.curiosity, groom: BRAIN.drives.groom },
       behavior: { current: behavior.current, enterTime: behavior.enterTime,
         groomLocation: behavior.groomLocation },
       position: { x: fly.x, y: fly.y, facingDir: facingDir, speed: speed },
-      firingStats: { firedNeuronas: BRAIN.workerFiredNeuronas || 0 },
+      firingStats: { firedNeurons: BRAIN.workerFiredNeurons || 0 },
       food: food.map(function(f) { return { x: f.x, y: f.y, radius: f.radius, eaten: f.eaten }; }),
-      environment: { lightLevel: lightEstadoIndex, temperature: tempEstadoIndex }
+      environment: { lightLevel: lightStateIndex, temperature: tempStateIndex }
     };
   }
 
-  function sendEstado() {
-    if (ws === null || ws.readyEstado !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'state', data: getEstado() }));
+  function sendState() {
+    if (ws === null || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'state', data: getState() }));
   }
 
   function executeCommand(raw) {
@@ -41,31 +41,31 @@
       case 'set_light':
         if (lightMap.hasOwnProperty(params.level)) {
           var li = lightMap[params.level];
-          lightEstadoIndex = li;
-          BRAIN.stimulate.lightLevel = lightEstados[li];
-          document.getElementById('lightBtn').textContent = 'Luz: ' + lightLabels[li];
+          lightStateIndex = li;
+          BRAIN.stimulate.lightLevel = lightStates[li];
+          document.getElementById('lightBtn').textContent = 'Light: ' + lightLabels[li];
         } else if (typeof params.level === 'number' && params.level >= 0 && params.level <= 2) {
           var li2 = params.level;
-          lightEstadoIndex = li2;
-          BRAIN.stimulate.lightLevel = lightEstados[li2];
-          document.getElementById('lightBtn').textContent = 'Luz: ' + lightLabels[li2];
+          lightStateIndex = li2;
+          BRAIN.stimulate.lightLevel = lightStates[li2];
+          document.getElementById('lightBtn').textContent = 'Light: ' + lightLabels[li2];
         }
         break;
       case 'set_temp':
         if (tempMap.hasOwnProperty(params.level)) {
           var ti = tempMap[params.level];
-          tempEstadoIndex = ti;
-          BRAIN.stimulate.temperature = tempEstados[ti];
+          tempStateIndex = ti;
+          BRAIN.stimulate.temperature = tempStates[ti];
           document.getElementById('tempBtn').textContent = 'Temp: ' + tempLabels[ti];
         } else if (typeof params.level === 'number' && params.level >= 0 && params.level <= 2) {
           var ti2 = params.level;
-          tempEstadoIndex = ti2;
-          BRAIN.stimulate.temperature = tempEstados[ti2];
+          tempStateIndex = ti2;
+          BRAIN.stimulate.temperature = tempStates[ti2];
           document.getElementById('tempBtn').textContent = 'Temp: ' + tempLabels[ti2];
         }
         break;
       case 'touch':
-        applyTocarTool(params.x !== undefined ? params.x : fly.x, params.y !== undefined ? params.y : fly.y);
+        applyTouchTool(params.x !== undefined ? params.x : fly.x, params.y !== undefined ? params.y : fly.y);
         break;
       case 'blow_wind':
         BRAIN.stimulate.wind = true;
@@ -96,8 +96,8 @@
       var statusEl = document.getElementById('claudeStatus');
       if (statusEl) statusEl.style.display = '';
       console.log('[caretaker] Connected to ' + WS_URL);
-      stateTimer = setInterval(sendEstado, STATE_INTERVAL);
-      sendEstado();
+      stateTimer = setInterval(sendState, STATE_INTERVAL);
+      sendState();
     };
     ws.onmessage = function(event) {
       var msg;
@@ -131,11 +131,11 @@
       console.log('[caretaker] Skipping WebSocket connection in file:// context (iOS/local)');
       return;
     }
-    if (typeof BRAIN !== 'undefined' && BRAIN.Impulsos) { connect(); return; }
+    if (typeof BRAIN !== 'undefined' && BRAIN.drives) { connect(); return; }
     setTimeout(init, 500);
   }
 
   init();
-  window.caretakerBridge = { getEstado: getEstado, connect: connect,
+  window.caretakerBridge = { getState: getState, connect: connect,
     isConnected: function() { return connected; } };
 })();

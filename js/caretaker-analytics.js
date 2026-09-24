@@ -23,10 +23,10 @@
     var isCollapsed = analyticsContent.classList.contains('collapsed');
     if (isCollapsed) {
       analyticsContent.classList.remove('collapsed');
-      analyticsToggle.textContent = 'Ocultar';
+      analyticsToggle.textContent = 'Hide';
     } else {
       analyticsContent.classList.add('collapsed');
-      analyticsToggle.textContent = 'Mostrar';
+      analyticsToggle.textContent = 'Show';
     }
   }
 
@@ -45,10 +45,10 @@
     if (analyticsContent === null) return;
     var html = '';
     html += renderScoreGauge(summary.composite_score);
-    html += renderHambreSparkline(timeline.observations, timeline.feedMarkers);
-    html += renderMetricRow('Miedo Incidents', summary.fear_incidents !== null ? summary.fear_incidents : 0, '/today', 'error');
+    html += renderHungerSparkline(timeline.observations, timeline.feedMarkers);
+    html += renderMetricRow('Fear Incidents', summary.fear_incidents !== null ? summary.fear_incidents : 0, '/today', 'error');
     html += renderMetricRow('Avg Response', summary.avg_response_time !== null ? summary.avg_response_time.toFixed(1) + 's' : 'N/A', '', null);
-    html += renderMetricRow('Comida Rate', summary.feeds_per_hour !== null ? summary.feeds_per_hour.toFixed(1) : '0', '/hr', null);
+    html += renderMetricRow('Feed Rate', summary.feeds_per_hour !== null ? summary.feeds_per_hour.toFixed(1) : '0', '/hr', null);
     html += renderMetricRow('Active Time', summary.connected_hours !== null ? summary.connected_hours.toFixed(1) : '0', 'hrs', null);
     analyticsContent.innerHTML = html;
   }
@@ -71,9 +71,9 @@
     return '<div class="analytics-metric analytics-score"><div class="analytics-score-value" style="color:' + color + '">' + displayScore + '</div><div class="analytics-metric-label">Puntuación del Cuidador</div></div>';
   }
 
-  function renderHambreSparkline(observations, feedMarkers) {
+  function renderHungerSparkline(observations, feedMarkers) {
     if (observations === null || observations === undefined || observations.length === 0) {
-      return '<div class="analytics-metric"><div class="analytics-metric-label">Hambre Timeline</div><div class="analytics-sparkline-empty">No data yet</div></div>';
+      return '<div class="analytics-metric"><div class="analytics-metric-label">Hunger Timeline</div><div class="analytics-sparkline-empty">No data yet</div></div>';
     }
     var W = 240, H = 40;
     var startTime = new Date(observations[0].timestamp).getTime();
@@ -107,7 +107,7 @@
       thresholdLine + feedMarkerLines +
       '<polyline points="' + pointsStr + '" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
 
-    return '<div class="analytics-metric"><div class="analytics-metric-label">Hambre Timeline <span class="analytics-legend"><span class="analytics-legend-marker" style="background:var(--success)"></span>fed <span class="analytics-legend-marker" style="background:var(--warning)"></span>0.7</span></div><div class="analytics-sparkline-container">' + svg + '</div></div>';
+    return '<div class="analytics-metric"><div class="analytics-metric-label">Hunger Timeline <span class="analytics-legend"><span class="analytics-legend-marker" style="background:var(--success)"></span>fed <span class="analytics-legend-marker" style="background:var(--warning)"></span>0.7</span></div><div class="analytics-sparkline-container">' + svg + '</div></div>';
   }
 
   function renderMetricRow(label, value, unit, colorKey) {
