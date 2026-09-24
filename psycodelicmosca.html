@@ -1,3 +1,1054 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PsycodelicMosca</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #1a1a2e; font-family: system-ui, sans-serif; }
+        #canvas { display: block; touch-action: none; }
+        #toolbar { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: 8px; background: rgba(22,33,62,0.95); border-bottom: 1px solid #2a3a5c; z-index: 10; }
+        .toolbar-left { display: flex; gap: 4px; flex-wrap: wrap; }
+        .tool-btn { padding: 6px 10px; background: #2a3a5c; border: none; color: #e8e8e8; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .tool-btn:hover { background: #3a4a6c; }
+        .tool-btn.active { background: #e3734b; color: white; }
+        #status { position: fixed; bottom: 10px; left: 10px; font-size: 11px; color: #8892a4; }
+        #info { position: fixed; top: 50px; right: 10px; background: rgba(22,33,62,0.9); padding: 12px; border-radius: 8px; font-size: 11px; color: #e8e8e8; }
+        #info h3 { color: #e3734b; margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="toolbar">
+        <div class="toolbar-left">
+            <button class="tool-btn active" id="btnFeed" onclick="setTool('feed')">Comida</button>
+            <button class="tool-btn" id="btnTouch" onclick="setTool('touch')">Tocar</button>
+            <button class="tool-btn" id="btnAir" onclick="setTool('air')">Viento</button>
+            <button class="tool-btn" id="btnLight" onclick="cycleLight()">Luz: Brillante</button>
+            <button class="tool-btn" id="btnTemp" onclick="cycleTemp()">Temp: Neutral</button>
+        </div>
+    </div>
+    <div id="info">
+        <h3>PsycodelicMosca</h3>
+        <p>59 grupos de neuronas</p>
+        <p>Versión autónoma</p>
+    </div>
+    <div id="status">Estado: inactivo</div>
+    <script>
+/* Drosophila melanogaster Functional Connectome
+ * Simplified from FlyWire connectome data into ~70 functional neuron groups.
+ *
+ * Neuron naming convention:
+ *   Sensory:  VIS_*, OLF_*, GUS_*, MECH_*, THERMO
+ *   Central:  MB_*, LH_*, CX_*, SEZ_*, DN_*, GNG_*, ANTENNAL_*
+ *   Drives:   DRIVE_*
+ *   Motor:    MN_*
+ *
+ * Weight magnitudes:
+ *   Strong excitatory:   8-15  (escape, startle)
+ *   Moderate excitatory: 4-7   (standard pathways)
+ *   Weak excitatory:     1-3   (modulatory, background)
+ *   Inhibitory:          -3 to -10
+ *
+ * Based on: Dorkenwald et al. 2024, FlyWire whole-brain connectome;
+ * Hulse et al. 2021, central complex; Aso et al. 2014, mushroom body.
+ */
+
+var weights = {
+
+	// ============================================================
+	// SENSORY INPUT NEURONS
+	// ============================================================
+
+	// --- Visual ---
+
+	// R1-R6 motion-detecting photoreceptors (outer photoreceptors)
+	VIS_R1R6: {
+		VIS_ME: 8,           // primary target: medulla
+		VIS_LPTC: 4,        // direct optic flow path
+		DRIVE_CURIOSITY: 2, // visual novelty
+	},
+
+	// R7/R8 color photoreceptors (inner photoreceptors)
+	VIS_R7R8: {
+		VIS_ME: 6,           // medulla processing
+		LH_APP: 4,          // innate color attraction (UV, blue-green)
+		MB_KC: 3,           // learned color associations
+	},
+
+	// Medulla (intermediate visual processing, columnar neurons)
+	VIS_ME: {
+		VIS_LO: 7,          // forward to lobula for pattern recognition
+		VIS_LPTC: 6,        // motion -> optic flow
+		VIS_LC: 5,          // looming detection layer
+		CX_EPG: 3,          // visual heading input
+	},
+
+	// Lobula (visual pattern recognition, object detection)
+	VIS_LO: {
+		VIS_LC: 5,          // object -> looming channel
+		MB_KC: 4,           // visual learning via mushroom body
+		CX_EPG: 3,          // visual landmarks for compass
+		LH_APP: 2,          // some innate visual attraction
+	},
+
+	// Lobula columnar neurons (looming / collision detection)
+	VIS_LC: {
+		DN_STARTLE: 12,     // strong: looming triggers escape
+		DRIVE_FEAR: 6,      // looming elevates fear
+		DN_FLIGHT: 5,       // triggers flight initiation
+		GNG_DESC: 3,        // general alert
+	},
+
+	// Lobula plate tangential cells (optic flow / self-motion estimation)
+	VIS_LPTC: {
+		CX_EPG: 6,          // updates heading estimate
+		CX_HDELTA: 5,       // heading correction from optic flow
+		CX_PFN: 4,          // path integration input
+		DN_TURN: 3,         // compensatory turning
+	},
+
+	// --- Olfactory ---
+
+	// Olfactory receptor neurons -- food odors
+	OLF_ORN_FOOD: {
+		OLF_PN: 10,         // strong projection to PN
+		OLF_LN: 5,          // lateral interneurons for contrast
+		MB_KC: 2,           // weak direct-to-KC path
+	},
+
+	// Olfactory receptor neurons -- danger/noxious odors (NOTE: weights defined but no user interaction currently sets dangerOdor stimulus)
+	OLF_ORN_DANGER: {
+		OLF_PN: 10,         // strong projection to PN
+		OLF_LN: 5,          // lateral interneurons for contrast
+		DRIVE_FEAR: 3,      // noxious odor raises fear
+	},
+
+	// Olfactory local interneurons (lateral inhibition in antennal lobe)
+	OLF_LN: {
+		OLF_PN: 4,           // sharpened odor signal to projection neurons
+		OLF_ORN_FOOD: -2,    // lateral inhibition (contrast enhancement)
+		OLF_ORN_DANGER: -2,  // lateral inhibition
+	},
+
+	// Olfactory projection neurons (relay from antenna lobe to MB and LH)
+	OLF_PN: {
+		MB_KC: 8,           // primary input to mushroom body
+		LH_APP: 5,          // innate appetitive pathway
+		LH_AV: 5,           // innate aversive pathway
+	},
+
+	// --- Gustatory ---
+
+	// Sweet taste receptors
+	GUS_GRN_SWEET: {
+		SEZ_FEED: 10,       // strong: sugar triggers feeding
+		MB_DAN_REW: 7,      // reward signal to mushroom body
+		MB_MBON_APP: 4,     // reinforces appetitive memory
+		DRIVE_HUNGER: -5,   // eating reduces hunger signal
+	},
+
+	// Bitter taste receptors (NOTE: weights defined but not yet wired to any user interaction)
+	GUS_GRN_BITTER: {
+		SEZ_FEED: -8,       // suppress feeding
+		MB_DAN_PUN: 7,      // punishment signal
+		DRIVE_FEAR: 4,      // bitter triggers mild alarm
+		MB_MBON_AV: 5,      // aversive memory formation
+		LH_AV: 4,           // innate aversion
+	},
+
+	// Water taste receptors (NOTE: weights defined but not yet wired to any user interaction)
+	GUS_GRN_WATER: {
+		SEZ_WATER: 8,       // primary water-drinking trigger
+		SEZ_FEED: 3,        // some overlap with feeding
+		MB_DAN_REW: 3,      // mild reward
+	},
+
+	// --- Mechanosensory ---
+
+	// Bristle neurons (touch)
+	MECH_BRISTLE: {
+		SEZ_GROOM: 6,       // touch triggers grooming
+		DRIVE_GROOM: 4,     // raises grooming urge
+		DRIVE_FEAR: 5,      // touch startles
+		DN_STARTLE: 7,      // strong touch triggers startle
+		GNG_DESC: 3,        // general arousal
+		ANTENNAL_MECH: 2,   // some cross-talk
+	},
+
+	// Johnston's organ (wind, gravity, sound via antennae)
+	MECH_JO: {
+		ANTENNAL_MECH: 10,  // primary target
+		CX_HDELTA: 4,       // wind direction -> heading change
+		DN_STARTLE: 3,      // wind can startle
+		DRIVE_FEAR: 2,      // moderate wind raises alertness
+	},
+
+	// Chordotonal organs (proprioception, body position)
+	MECH_CHORD: {
+		CX_PFN: 5,          // path integration (proprioceptive feedback)
+		CX_FC: 3,           // locomotion coordination
+		DN_WALK: 2,         // walking feedback loop
+	},
+
+	// --- Thermosensory ---
+
+	// Warm-sensing thermosensory neurons (activated by high temperature)
+	THERMO_WARM: {
+		CX_HDELTA: 4,       // orient away from heat
+		LH_AV: 3,           // innate avoidance of warmth
+		DRIVE_FEAR: 2,      // heat aversion
+		THERMO_COOL: -2,    // mutual inhibition
+	},
+
+	// Cool-sensing thermosensory neurons (activated by low temperature)
+	THERMO_COOL: {
+		CX_HDELTA: 3,       // orient toward warmth
+		LH_APP: 2,          // cool-seeking can be appetitive
+		DRIVE_CURIOSITY: 2, // moderate cool promotes exploration
+		THERMO_WARM: -2,    // mutual inhibition
+	},
+
+	// Nociceptive neurons (pain/tissue damage, multimodal)
+	NOCI: {
+		DN_STARTLE: 10,     // pain triggers escape
+		DRIVE_FEAR: 8,      // pain strongly elevates fear
+		DN_FLIGHT: 6,       // pain promotes flight
+		SEZ_GROOM: 4,       // pain can trigger grooming (wound cleaning)
+		SEZ_FEED: -5,       // pain suppresses feeding
+	},
+
+
+	// ============================================================
+	// CENTRAL PROCESSING NEURONS
+	// ============================================================
+
+	// --- Mushroom Body (learning and memory) ---
+
+	// Kenyon cells (sparse odor code)
+	MB_KC: {
+		MB_MBON_APP: 6,     // appetitive output
+		MB_MBON_AV: 6,      // aversive output
+		MB_APL: 4,          // feedback to inhibitory neuron (sparse coding)
+	},
+
+	// MB output neurons -- appetitive/approach
+	MB_MBON_APP: {
+		LH_APP: 5,          // reinforces approach
+		SEZ_FEED: 4,        // learned food association -> feeding
+		DN_WALK: 3,         // approach behavior
+		CX_FC: 3,           // locomotion toward target
+		MB_MBON_AV: -4,     // mutual inhibition with aversive
+	},
+
+	// MB output neurons -- aversive/avoidance
+	MB_MBON_AV: {
+		LH_AV: 5,           // reinforces avoidance
+		DRIVE_FEAR: 4,      // learned danger raises fear
+		DN_STARTLE: 3,      // triggers avoidance
+		MB_MBON_APP: -4,    // mutual inhibition with appetitive
+		SEZ_FEED: -3,       // suppress feeding for aversive stimuli
+	},
+
+	// Anterior paired lateral neuron (global inhibition in mushroom body)
+	MB_APL: {
+		MB_KC: -5,           // sparse coding: suppresses weakly active KCs
+		MB_MBON_APP: -2,     // slight inhibition of output
+		MB_MBON_AV: -2,      // slight inhibition of output
+	},
+
+	// Dopaminergic reward neurons
+	MB_DAN_REW: {
+		MB_MBON_APP: 7,     // strengthen appetitive output
+		MB_KC: 3,           // reward-gated plasticity
+		DRIVE_CURIOSITY: 2, // reward encourages exploration
+	},
+
+	// Dopaminergic punishment neurons
+	MB_DAN_PUN: {
+		MB_MBON_AV: 7,      // strengthen aversive output
+		MB_KC: 3,           // punishment-gated plasticity
+		DRIVE_FEAR: 3,      // punishment elevates fear
+	},
+
+	// --- Lateral Horn (innate odor responses) ---
+
+	// Lateral horn appetitive pathway
+	LH_APP: {
+		DN_WALK: 6,          // approach: walk toward source
+		CX_FC: 4,           // locomotion command
+		SEZ_FEED: 3,        // bias toward feeding
+		DN_TURN: 3,         // orient toward attractive stimulus
+		LH_AV: -3,          // mutual inhibition
+	},
+
+	// Lateral horn aversive pathway
+	LH_AV: {
+		DN_STARTLE: 6,       // avoid: startle/flee
+		DRIVE_FEAR: 5,       // raise fear
+		DN_FLIGHT: 4,        // trigger flight
+		DN_TURN: 4,          // turn away
+		LH_APP: -3,          // mutual inhibition
+		SEZ_FEED: -5,        // suppress feeding
+	},
+
+	// --- Central Complex (navigation, orientation, locomotion) ---
+
+	// Compass neurons (heading representation)
+	CX_EPG: {
+		CX_PFN: 7,          // heading -> path integration
+		CX_FC: 6,           // heading -> locomotion
+		CX_HDELTA: 4,       // heading feedback
+		CX_EPG: 3,          // recurrent: heading ring attractor
+	},
+
+	// Path integration neurons
+	CX_PFN: {
+		CX_FC: 6,            // path integration -> locomotion command
+		CX_EPG: 3,           // feedback to compass
+		CX_HDELTA: 3,        // heading correction
+	},
+
+	// Fan-shaped body (locomotion command center)
+	CX_FC: {
+		DN_WALK: 8,          // primary walk command
+		DN_TURN: 5,          // turning command
+		CX_EPG: 2,           // feedback to compass
+		CX_FC: 3,            // recurrent: tonic locomotion activity
+		DN_FLIGHT: -2,       // walking suppresses flight
+	},
+
+	// Heading change neurons
+	CX_HDELTA: {
+		CX_EPG: 5,           // update heading
+		DN_TURN: 6,          // execute turn
+		CX_FC: 3,            // influence locomotion
+	},
+
+	// --- Subesophageal Zone (feeding and grooming command) ---
+
+	// Feeding command center
+	SEZ_FEED: {
+		MN_PROBOSCIS: 14,    // extend proboscis
+		MN_HEAD: 4,          // lower head toward food
+		DN_WALK: -6,         // suppress walking while feeding
+		DN_FLIGHT: -5,       // suppress flight while feeding
+		SEZ_GROOM: -4,       // suppress grooming while feeding
+		DRIVE_HUNGER: -3,    // feeding reduces hunger
+	},
+
+	// Grooming command center
+	SEZ_GROOM: {
+		MN_LEG_L1: 10,       // front left leg (grooming effector)
+		MN_LEG_R1: 10,       // front right leg (grooming effector)
+		MN_ABDOMEN: 5,       // abdomen grooming
+		MN_HEAD: 4,          // head positioning for grooming
+		DN_WALK: -5,          // suppress walking while grooming
+		DN_FLIGHT: -4,        // suppress flight while grooming
+		SEZ_FEED: -3,         // suppress feeding while grooming
+	},
+
+	// --- Antennal mechanosensory center ---
+
+	ANTENNAL_MECH: {
+		DN_STARTLE: 5,        // strong wind -> startle
+		CX_HDELTA: 4,         // wind orientation
+		DRIVE_FEAR: 3,        // wind raises alertness
+		DN_TURN: 3,           // orient to wind
+	},
+
+	// --- Gnathal ganglia descending neurons ---
+
+	GNG_DESC: {
+		DN_WALK: 4,           // general arousal -> walk
+		SEZ_FEED: 2,          // arousal can trigger feeding search
+		CX_FC: 4,             // locomotion activation
+		GNG_DESC: 2,          // recurrent: self-sustaining arousal
+	},
+
+	// --- Descending Neurons (brain to VNC commands) ---
+
+	// Walking command
+	DN_WALK: {
+		VNC_CPG: 8,           // activates central pattern generator
+		MN_LEG_L1: 4,        // direct motor activation (supplementing CPG)
+		MN_LEG_R1: 4,        // front right
+		MN_LEG_L2: 5,        // middle left (primary drivers)
+		MN_LEG_R2: 5,        // middle right
+		MN_LEG_L3: 3,        // rear left
+		MN_LEG_R3: 3,        // rear right
+		CX_FC: 2,            // feedback: walking activity sustains locomotion command
+		DN_FLIGHT: -3,        // walking suppresses flight
+	},
+
+	// Flight initiation
+	DN_FLIGHT: {
+		MN_WING_L: 10,       // left wing
+		MN_WING_R: 10,       // right wing
+		MN_LEG_L1: -3,       // suppress leg movement during flight
+		MN_LEG_R1: -3,
+		MN_LEG_L2: -3,
+		MN_LEG_R2: -3,
+		MN_LEG_L3: -3,
+		MN_LEG_R3: -3,
+		DN_WALK: -5,          // flight suppresses walking
+	},
+
+	// Turning command
+	DN_TURN: {
+		MN_LEG_L1: 4,        // asymmetric: more left = turn right
+		MN_LEG_L2: 5,
+		MN_LEG_L3: 3,
+		MN_LEG_R1: -3,       // slow right side
+		MN_LEG_R2: -4,
+		MN_LEG_R3: -2,
+		MN_HEAD: 4,           // head turns
+	},
+
+	// Backward walking command
+	DN_BACKUP: {
+		MN_LEG_L3: 5,         // rear legs push forward (reversed)
+		MN_LEG_R3: 5,
+		MN_LEG_L2: 3,
+		MN_LEG_R2: 3,
+		MN_LEG_L1: -2,        // front legs retract
+		MN_LEG_R1: -2,
+		DN_WALK: -4,           // backward walking suppresses forward walking
+	},
+
+	// Startle/escape command
+	DN_STARTLE: {
+		DN_FLIGHT: 10,        // startle -> flight
+		MN_WING_L: 8,         // immediate wing activation
+		MN_WING_R: 8,
+		MN_LEG_L2: 5,         // jump: middle legs extend
+		MN_LEG_R2: 5,
+		MN_LEG_L3: 6,         // jump: hind legs extend
+		MN_LEG_R3: 6,
+		DN_BACKUP: 5,          // startle can trigger backward jump
+		DRIVE_FEAR: 4,         // startle raises fear
+		DN_WALK: -4,           // suppress normal walking
+		SEZ_FEED: -6,          // suppress feeding
+		SEZ_GROOM: -5,         // suppress grooming
+	},
+
+	// Ventral nerve cord central pattern generator (walking rhythm)
+	VNC_CPG: {
+		MN_LEG_L1: 3,         // rhythmic activation of all legs
+		MN_LEG_R1: 3,
+		MN_LEG_L2: 4,         // middle legs slightly stronger (primary drivers)
+		MN_LEG_R2: 4,
+		MN_LEG_L3: 3,
+		MN_LEG_R3: 3,
+		VNC_CPG: 2,           // self-sustaining oscillation
+	},
+
+	// Circadian clock neurons (pacemaker, modulates activity levels)
+	CLOCK_DN: {
+		DRIVE_FATIGUE: 2,      // clock influences tiredness
+		DRIVE_CURIOSITY: 2,    // clock influences activity
+		CX_FC: 2,             // modulates locomotion
+		GNG_DESC: 2,          // general arousal modulation
+	},
+
+	// Subesophageal zone water intake command
+	SEZ_WATER: {
+		MN_PROBOSCIS: 6,      // extend proboscis for water
+		MN_HEAD: 3,           // lower head
+		DN_WALK: -3,           // suppress walking while drinking
+		SEZ_FEED: -2,          // mild suppression of food feeding
+	},
+
+
+	// ============================================================
+	// INTERNAL DRIVE NEURONS
+	// ============================================================
+
+	// Hunger drive
+	DRIVE_HUNGER: {
+		OLF_PN: 5,            // hunger sensitizes olfactory processing
+		LH_APP: 6,            // hunger biases toward appetitive approach
+		SEZ_FEED: 4,          // hunger lowers feeding threshold
+		MB_MBON_APP: 4,       // hungry fly more responsive to food cues
+		DN_WALK: 3,           // hunger motivates locomotion (food search)
+		CX_FC: 3,             // hunger activates locomotion center
+		DRIVE_CURIOSITY: 3,   // hunger promotes exploration
+		DRIVE_FATIGUE: -2,    // hunger opposes rest
+	},
+
+	// Fear/threat drive
+	DRIVE_FEAR: {
+		DN_STARTLE: 5,        // fear lowers startle threshold
+		DN_FLIGHT: 4,         // fear promotes flight
+		LH_AV: 3,             // fear biases aversive pathway
+		SEZ_FEED: -6,         // fear strongly suppresses feeding
+		SEZ_GROOM: -4,        // fear suppresses grooming
+		DN_WALK: 2,           // fear promotes movement (but not feeding)
+		DRIVE_CURIOSITY: -3,  // fear suppresses exploration
+		DRIVE_FATIGUE: -2,    // fear overrides tiredness
+	},
+
+	// Fatigue drive
+	DRIVE_FATIGUE: {
+		DN_WALK: -6,           // fatigue suppresses walking
+		DN_FLIGHT: -5,         // fatigue suppresses flight
+		CX_FC: -4,            // fatigue reduces locomotion commands
+		DRIVE_CURIOSITY: -3,  // fatigue reduces exploration
+		DN_STARTLE: -2,       // fatigue slightly raises startle threshold
+	},
+
+	// Curiosity/exploration drive
+	DRIVE_CURIOSITY: {
+		CX_FC: 6,             // curiosity promotes locomotion
+		DN_WALK: 4,           // curiosity promotes walking
+		CX_HDELTA: 5,         // curiosity promotes direction changes
+		DN_TURN: 4,           // curiosity promotes turning
+		CX_EPG: 3,            // curiosity activates compass
+		DRIVE_FATIGUE: 1,     // exploration slightly tiring
+	},
+
+	// Grooming urge
+	DRIVE_GROOM: {
+		SEZ_GROOM: 8,         // grooming drive triggers grooming command
+		DN_WALK: -3,           // grooming suppresses walking
+		DN_FLIGHT: -2,         // grooming suppresses flight
+	},
+
+
+	// ============================================================
+	// MOTOR OUTPUT NEURONS
+	// ============================================================
+	// Motor neurons are the final output layer. They do NOT project
+	// back into the central brain (no re-entrant connections from
+	// motor neurons). They only appear as postSynaptic targets.
+	// We include empty entries so they appear in the weights object
+	// and get initialized in postSynaptic state.
+
+	MN_LEG_L1: {},
+	MN_LEG_R1: {},
+	MN_LEG_L2: {},
+	MN_LEG_R2: {},
+	MN_LEG_L3: {},
+	MN_LEG_R3: {},
+	MN_WING_L: {},
+	MN_WING_R: {},
+	MN_PROBOSCIS: {},
+	MN_HEAD: {},
+	MN_ABDOMEN: {},
+};
+
+/* Drosophila melanogaster Functional Connectome -- Javascript
+ * Adapted from C. elegans worm-sim (Busbice, Garrett, Churchill / zrispo)
+ * Rewired for fruit fly brain with ~70 functional neuron groups.
+ *
+ * Core mechanics (dendriteAccumulate, runconnectome, fireNeuron) are
+ * the same propagation engine. The neuron names, motor outputs, sensory
+ * inputs, and drive system are Drosophila-specific.
+ */
+
+var BRAIN = {};
+
+// Import weights from constants.js (loaded before this script)
+BRAIN.weights = weights;
+
+// ============================================================
+// CORE SIGNAL PROPAGATION (unchanged from worm-sim)
+// ============================================================
+
+/**
+ * Propagates weighted signal from a preSynaptic neuron to all its
+ * postSynaptic targets. This is the fundamental operation.
+ */
+BRAIN.dendriteAccumulate = function (preSynaptic) {
+	if (!BRAIN.weights[preSynaptic]) return;
+	for (var postSynaptic in BRAIN.weights[preSynaptic]) {
+		if (!BRAIN.postSynaptic[postSynaptic]) continue;
+		BRAIN.postSynaptic[postSynaptic][BRAIN.nextState] +=
+			BRAIN.weights[preSynaptic][postSynaptic];
+	}
+};
+
+/**
+ * Propagates weighted signal scaled by a multiplier (for drive-proportional stimulation).
+ */
+BRAIN.dendriteAccumulateScaled = function (preSynaptic, scale) {
+	if (!BRAIN.weights[preSynaptic]) return;
+	for (var postSynaptic in BRAIN.weights[preSynaptic]) {
+		if (!BRAIN.postSynaptic[postSynaptic]) continue;
+		BRAIN.postSynaptic[postSynaptic][BRAIN.nextState] +=
+			Math.round(BRAIN.weights[preSynaptic][postSynaptic] * scale);
+	}
+};
+
+// State double-buffering
+BRAIN.thisState = 0;
+BRAIN.nextState = 1;
+
+// Threshold for neuron firing (lower than worm-sim's 30 because fly has
+// fewer neurons and needs faster signal propagation for responsiveness)
+BRAIN.fireThreshold = 22;
+
+// ============================================================
+// MOTOR NEURON GROUPS
+// ============================================================
+
+BRAIN.motorGroups = {
+	walk: ['MN_LEG_L1', 'MN_LEG_R1', 'MN_LEG_L2', 'MN_LEG_R2', 'MN_LEG_L3', 'MN_LEG_R3'],
+	walkLeft: ['MN_LEG_L1', 'MN_LEG_L2', 'MN_LEG_L3'],
+	walkRight: ['MN_LEG_R1', 'MN_LEG_R2', 'MN_LEG_R3'],
+	flight: ['MN_WING_L', 'MN_WING_R'],
+	feed: ['MN_PROBOSCIS'],
+	groom: ['MN_LEG_L1', 'MN_LEG_R1', 'MN_ABDOMEN'],
+	orient: ['MN_HEAD'],
+};
+
+// All motor neurons (these cannot re-fire into the brain)
+BRAIN.motorNeurons = [
+	'MN_LEG_L1', 'MN_LEG_R1',
+	'MN_LEG_L2', 'MN_LEG_R2',
+	'MN_LEG_L3', 'MN_LEG_R3',
+	'MN_WING_L', 'MN_WING_R',
+	'MN_PROBOSCIS',
+	'MN_HEAD',
+	'MN_ABDOMEN',
+];
+
+// Motor neuron prefixes for the muscle-cannot-fire check
+BRAIN.motorPrefixes = ['MN_'];
+
+// ============================================================
+// BEHAVIOR ACCUMULATORS
+// ============================================================
+
+BRAIN.accumWalkLeft = 0;
+BRAIN.accumWalkRight = 0;
+BRAIN.accumFlight = 0;
+BRAIN.accumFeed = 0;
+BRAIN.accumGroom = 0;
+BRAIN.accumStartle = 0;
+BRAIN.accumHead = 0;
+
+// Backward-compatible left/right accumulators (computed from walk)
+BRAIN.accumleft = 0;
+BRAIN.accumright = 0;
+
+// ============================================================
+// NEURON REGION CLASSIFICATION (for UI visualization)
+// ============================================================
+
+BRAIN.neuronRegions = {
+	sensory: [
+		'VIS_R1R6', 'VIS_R7R8', 'VIS_ME', 'VIS_LO', 'VIS_LC', 'VIS_LPTC',
+		'OLF_ORN_FOOD', 'OLF_ORN_DANGER', 'OLF_LN', 'OLF_PN',
+		'MECH_BRISTLE', 'MECH_JO', 'MECH_CHORD', 'ANTENNAL_MECH',
+		'THERMO_WARM', 'THERMO_COOL',
+		'NOCI',
+	],
+	central: [
+		'MB_KC', 'MB_APL', 'MB_MBON_APP', 'MB_MBON_AV', 'MB_DAN_REW', 'MB_DAN_PUN',
+		'LH_APP', 'LH_AV',
+		'CX_EPG', 'CX_PFN', 'CX_FC', 'CX_HDELTA',
+		'SEZ_FEED', 'SEZ_GROOM', 'SEZ_WATER',
+		'GUS_GRN_SWEET', 'GUS_GRN_BITTER', 'GUS_GRN_WATER',
+		'GNG_DESC', 'CLOCK_DN',
+	],
+	drives: [
+		'DRIVE_HUNGER', 'DRIVE_FEAR', 'DRIVE_FATIGUE',
+		'DRIVE_CURIOSITY', 'DRIVE_GROOM',
+	],
+	motor: [
+		'DN_WALK', 'DN_FLIGHT', 'DN_TURN', 'DN_BACKUP', 'DN_STARTLE',
+		'VNC_CPG',
+		'MN_LEG_L1', 'MN_LEG_R1', 'MN_LEG_L2', 'MN_LEG_R2',
+		'MN_LEG_L3', 'MN_LEG_R3',
+		'MN_WING_L', 'MN_WING_R',
+		'MN_PROBOSCIS', 'MN_HEAD', 'MN_ABDOMEN',
+	],
+};
+
+// ============================================================
+// SENSORY STIMULATION INPUT
+// ============================================================
+
+BRAIN.stimulate = {
+	touch: false,
+	touchLocation: null,   // 'cabeza', 'torax', 'abdomen', 'pata'
+	foodNearby: false,
+	foodContact: false,
+	dangerOdor: false,
+	wind: false,
+	windStrength: 0,       // 0-1
+	windDirection: 0,      // radians, wind travel direction (drag vector; 0=right, PI/2=up). Wind SOURCE = windDirection + PI.
+	lightLevel: 1,         // 0-1 (0=dark, 1=bright)
+	nociception: false,   // pain response (triggered by rapid repeated touch)
+	temperature: 0.5,      // 0-1 (0=cold, 1=hot), 0.5 = preferred
+};
+
+// ============================================================
+// INTERNAL DRIVES
+// ============================================================
+
+BRAIN.drives = {
+	hunger: 0.3,
+	fear: 0.0,
+	fatigue: 0.0,
+	curiosity: 0.5,
+	groom: 0.1,
+};
+
+// Track whether the fly is currently performing certain behaviors
+// (used for drive updates)
+BRAIN._isMoving = false;
+BRAIN._isFeeding = false;
+BRAIN._isGrooming = false;
+
+/**
+ * Update internal drives each brain tick.
+ * Drives are floats clamped to [0, 1] that change over time
+ * and in response to events.
+ */
+BRAIN.updateDrives = function () {
+	var d = BRAIN.drives;
+
+	// Hunger: increases over time, decreases when fed
+	d.hunger += 0.005;
+	if (BRAIN._isFeeding) {
+		d.hunger -= 0.3;
+	}
+
+	// Fear: spikes on touch/wind, decays exponentially
+	if (BRAIN.stimulate.touch) {
+		d.fear += 0.3;
+	}
+	if (BRAIN.stimulate.wind && BRAIN.stimulate.windStrength > 0.5) {
+		d.fear += 0.2 * BRAIN.stimulate.windStrength;
+	}
+	if (BRAIN.stimulate.dangerOdor) {
+		d.fear += 0.25;
+	}
+	d.fear *= 0.85; // exponential decay
+
+	// Fatigue: increases when moving, decreases when resting
+	// In low light (< 0.3), fatigue accumulates faster (fly winds down in darkness)
+	if (BRAIN._isMoving) {
+		var fatigueGain = BRAIN.stimulate.lightLevel < 0.3 ? 0.006 : 0.003;
+		d.fatigue += fatigueGain;
+	} else {
+		d.fatigue -= 0.01;
+	}
+
+	// Curiosity: random walk (reduced range in low light -- less exploratory in darkness)
+	var curiosityRange = BRAIN.stimulate.lightLevel < 0.3 ? 0.02 : 0.06;
+	d.curiosity += (Math.random() - 0.5) * curiosityRange;
+
+	// Grooming urge: accumulates over time, spikes on touch, drops when grooming
+	d.groom += 0.008;
+	if (BRAIN.stimulate.touch) {
+		d.groom += 0.2;
+	}
+	if (BRAIN._isGrooming) {
+		d.groom -= 0.5;
+	}
+
+	// Clamp all drives to [0, 1]
+	for (var key in d) {
+		if (d[key] < 0) d[key] = 0;
+		if (d[key] > 1) d[key] = 1;
+	}
+};
+
+// ============================================================
+// RANDOM INITIAL EXCITATION
+// ============================================================
+
+BRAIN.randExcite = function () {
+	var keys = Object.keys(BRAIN.connectome);
+	for (var i = 0; i < 40; i++) {
+		var idx = Math.floor(Math.random() * keys.length);
+		BRAIN.dendriteAccumulate(keys[idx]);
+	}
+};
+
+// ============================================================
+// SETUP -- Initialize all state
+// ============================================================
+
+BRAIN.setup = function () {
+	BRAIN.postSynaptic = {};
+	BRAIN.connectome = {};
+
+	// Build connectome functions from weights
+	for (var preSynaptic in BRAIN.weights) {
+		// Closure to capture preSynaptic name correctly
+		(function (name) {
+			BRAIN.connectome[name] = function () {
+				BRAIN.dendriteAccumulate(name);
+			};
+		})(preSynaptic);
+	}
+
+	// Also ensure every postSynaptic target mentioned in weights is initialized,
+	// even if it does not appear as a preSynaptic key
+	var allNeurons = {};
+	for (var pre in BRAIN.weights) {
+		allNeurons[pre] = true;
+		for (var post in BRAIN.weights[pre]) {
+			allNeurons[post] = true;
+		}
+	}
+
+	for (var neuron in allNeurons) {
+		BRAIN.postSynaptic[neuron] = [0, 0];
+	}
+};
+
+// ============================================================
+// BRAIN UPDATE -- Main tick (called from main.js via setInterval)
+// ============================================================
+
+BRAIN.update = function () {
+	// --- Update internal drives ---
+	BRAIN.updateDrives();
+
+	// --- Stimulate drive neurons proportionally ---
+	// Drives pulse multiple times per tick to sustain activity.
+	// The pulse count scales with drive intensity (1-3 pulses).
+	var d = BRAIN.drives;
+
+	if (d.hunger > 0.2) {
+		var pulses = d.hunger > 0.6 ? 3 : (d.hunger > 0.4 ? 2 : 1);
+		for (var p = 0; p < pulses; p++) {
+			BRAIN.dendriteAccumulateScaled('DRIVE_HUNGER', d.hunger);
+		}
+	}
+	if (d.fear > 0.05) {
+		var pulses = d.fear > 0.5 ? 3 : (d.fear > 0.2 ? 2 : 1);
+		for (var p = 0; p < pulses; p++) {
+			BRAIN.dendriteAccumulateScaled('DRIVE_FEAR', d.fear);
+		}
+	}
+	if (d.fatigue > 0.3) {
+		BRAIN.dendriteAccumulateScaled('DRIVE_FATIGUE', d.fatigue);
+	}
+	if (d.curiosity > 0.2) {
+		var pulses = d.curiosity > 0.5 ? 2 : 1;
+		for (var p = 0; p < pulses; p++) {
+			BRAIN.dendriteAccumulateScaled('DRIVE_CURIOSITY', d.curiosity);
+		}
+	}
+	if (d.groom > 0.3) {
+		BRAIN.dendriteAccumulateScaled('DRIVE_GROOM', d.groom);
+	}
+
+	// --- Stimulate sensory neurons based on input ---
+
+	// Touch / mechanosensory
+	if (BRAIN.stimulate.touch) {
+		BRAIN.dendriteAccumulate('MECH_BRISTLE');
+		// Location-specific: stronger grooming for head/thorax touch
+		if (BRAIN.stimulate.touchLocation === 'cabeza' || BRAIN.stimulate.touchLocation === 'torax') {
+			BRAIN.dendriteAccumulate('MECH_BRISTLE'); // double dose
+		}
+	}
+
+	// Food nearby (olfactory)
+	if (BRAIN.stimulate.foodNearby) {
+		BRAIN.dendriteAccumulate('OLF_ORN_FOOD');
+	}
+
+	// Food contact (gustatory)
+	if (BRAIN.stimulate.foodContact) {
+		BRAIN.dendriteAccumulate('GUS_GRN_SWEET');
+	}
+
+	// Danger odor (NOTE: connectome weights are wired but no user interaction currently sets BRAIN.stimulate.dangerOdor)
+	if (BRAIN.stimulate.dangerOdor) {
+		BRAIN.dendriteAccumulate('OLF_ORN_DANGER');
+	}
+
+	// Wind
+	if (BRAIN.stimulate.wind) {
+		var windScale = BRAIN.stimulate.windStrength;
+		BRAIN.dendriteAccumulateScaled('MECH_JO', windScale);
+	}
+
+	// Light -- photoreceptor activation scales with light level
+	if (BRAIN.stimulate.lightLevel > 0.2) {
+		BRAIN.dendriteAccumulateScaled('VIS_R1R6', BRAIN.stimulate.lightLevel);
+		BRAIN.dendriteAccumulateScaled('VIS_R7R8', BRAIN.stimulate.lightLevel * 0.7);
+	}
+
+	// Temperature -- extreme temps activate thermosensory
+	if (BRAIN.stimulate.temperature > 0.65) {
+		// Warm stimulus
+		var warmIntensity = (BRAIN.stimulate.temperature - 0.5) * 2;
+		BRAIN.dendriteAccumulateScaled('THERMO_WARM', warmIntensity);
+	} else if (BRAIN.stimulate.temperature < 0.35) {
+		// Cool stimulus
+		var coolIntensity = (0.5 - BRAIN.stimulate.temperature) * 2;
+		BRAIN.dendriteAccumulateScaled('THERMO_COOL', coolIntensity);
+	}
+
+	// Nociception (pain response from repeated rapid touch)
+	if (BRAIN.stimulate.nociception) {
+		BRAIN.dendriteAccumulate('NOCI');
+		BRAIN.stimulate.nociception = false; // single-tick: fire once then auto-clear
+	}
+
+	// Proprioceptive feedback (always-on when moving)
+	if (BRAIN._isMoving) {
+		BRAIN.dendriteAccumulate('MECH_CHORD');
+	}
+
+	// Baseline visual input (ambient, unless dark)
+	if (BRAIN.stimulate.lightLevel > 0.1) {
+		// Subtle background optic flow when moving
+		if (BRAIN._isMoving) {
+			BRAIN.dendriteAccumulateScaled('VIS_LPTC', 0.3);
+		}
+	}
+
+	// --- Tonic background activity ---
+	// Real fly brains have persistent tonic activity in central circuits.
+	// With only ~50 neuron groups (vs 302 in C. elegans or 130K in a real
+	// fly brain), signals decay too fast. Inject tonic excitation
+	// into central processing nodes to maintain reverberant activity.
+	var tonicTargets = ['CX_FC', 'CX_EPG', 'CX_PFN'];
+	var tonicLevel = BRAIN.stimulate.lightLevel === 0 ? 4 : 8;
+	for (var t = 0; t < tonicTargets.length; t++) {
+		if (BRAIN.postSynaptic[tonicTargets[t]]) {
+			BRAIN.postSynaptic[tonicTargets[t]][BRAIN.nextState] += tonicLevel;
+		}
+	}
+
+	// Always run the connectome after stimulation
+	BRAIN.runconnectome();
+
+};
+
+// ============================================================
+// RUN CONNECTOME -- Fire neurons above threshold, run motor control
+// ============================================================
+
+BRAIN.runconnectome = function () {
+	for (var ps in BRAIN.postSynaptic) {
+		// Motor neurons cannot fire (they are output-only)
+		var isMotor = false;
+		for (var p = 0; p < BRAIN.motorPrefixes.length; p++) {
+			if (ps.indexOf(BRAIN.motorPrefixes[p]) === 0) {
+				isMotor = true;
+				break;
+			}
+		}
+
+		if (!isMotor && BRAIN.postSynaptic[ps][BRAIN.thisState] > BRAIN.fireThreshold) {
+			BRAIN.fireNeuron(ps);
+		}
+	}
+
+	BRAIN.motorcontrol();
+
+	// Swap states: copy nextState into thisState, then swap indices
+	for (var ps in BRAIN.postSynaptic) {
+		BRAIN.postSynaptic[ps][BRAIN.thisState] =
+			BRAIN.postSynaptic[ps][BRAIN.nextState];
+	}
+
+	var temp = BRAIN.thisState;
+	BRAIN.thisState = BRAIN.nextState;
+	BRAIN.nextState = temp;
+};
+
+// ============================================================
+// FIRE NEURON -- Cascade signal when threshold exceeded
+// ============================================================
+
+BRAIN.fireNeuron = function (fneuron) {
+	BRAIN.dendriteAccumulate(fneuron);
+	BRAIN.postSynaptic[fneuron][BRAIN.nextState] = 0;
+};
+
+// ============================================================
+// MOTOR CONTROL -- Compute behavior accumulators from motor neuron states
+// ============================================================
+
+BRAIN.motorcontrol = function () {
+	// Reset all accumulators
+	BRAIN.accumWalkLeft = 0;
+	BRAIN.accumWalkRight = 0;
+	BRAIN.accumFlight = 0;
+	BRAIN.accumFeed = 0;
+	BRAIN.accumGroom = 0;
+	BRAIN.accumStartle = 0;
+	BRAIN.accumHead = 0;
+
+	// Helper to read and drain a motor neuron
+	var readMotor = function (name) {
+		if (!BRAIN.postSynaptic[name]) return 0;
+		var val = BRAIN.postSynaptic[name][BRAIN.nextState];
+		BRAIN.postSynaptic[name][BRAIN.nextState] = 0;
+		return val;
+	};
+
+	// Walk left legs
+	var legL1 = readMotor('MN_LEG_L1');
+	var legL2 = readMotor('MN_LEG_L2');
+	var legL3 = readMotor('MN_LEG_L3');
+	BRAIN.accumWalkLeft = legL1 + legL2 + legL3;
+
+	// Walk right legs
+	var legR1 = readMotor('MN_LEG_R1');
+	var legR2 = readMotor('MN_LEG_R2');
+	var legR3 = readMotor('MN_LEG_R3');
+	BRAIN.accumWalkRight = legR1 + legR2 + legR3;
+
+	// Flight (wings)
+	var wingL = readMotor('MN_WING_L');
+	var wingR = readMotor('MN_WING_R');
+	BRAIN.accumFlight = wingL + wingR;
+
+	// Feeding (proboscis)
+	BRAIN.accumFeed = readMotor('MN_PROBOSCIS');
+
+	// Grooming (front legs + abdomen when both active)
+	// Grooming is detected when front legs are active AND abdomen is active,
+	// or when SEZ_GROOM was the dominant command
+	var abdomen = readMotor('MN_ABDOMEN');
+	var head = readMotor('MN_HEAD');
+	BRAIN.accumHead = head;
+	BRAIN.accumGroom = abdomen + (abdomen > 0 ? head : 0) + Math.min(legL1, legR1);
+
+	// Startle is derived from DN_STARTLE neuron state (not a motor neuron per se,
+	// but we track its activation level for behavior selection)
+	if (BRAIN.postSynaptic['DN_STARTLE']) {
+		BRAIN.accumStartle = BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextState];
+	}
+
+	// Floor all accumulators at 0 (negative motor output has no physical meaning)
+	BRAIN.accumWalkLeft = Math.max(0, BRAIN.accumWalkLeft);
+	BRAIN.accumWalkRight = Math.max(0, BRAIN.accumWalkRight);
+	BRAIN.accumFlight = Math.max(0, BRAIN.accumFlight);
+	BRAIN.accumFeed = Math.max(0, BRAIN.accumFeed);
+	BRAIN.accumGroom = Math.max(0, BRAIN.accumGroom);
+	BRAIN.accumStartle = Math.max(0, BRAIN.accumStartle);
+	BRAIN.accumHead = Math.max(0, BRAIN.accumHead);
+
+	// --- Backward compatibility: accumleft / accumright ---
+	// These are what main.js reads to compute direction and speed.
+	// Map walk accumulators to the old left/right system.
+	BRAIN.accumleft = BRAIN.accumWalkLeft;
+	BRAIN.accumright = BRAIN.accumWalkRight;
+
+	// If flying, add wing activation to both sides (forward thrust)
+	if (BRAIN.accumFlight > 10) {
+		BRAIN.accumleft += BRAIN.accumFlight * 0.5;
+		BRAIN.accumright += BRAIN.accumFlight * 0.5;
+	}
+};
+
+
+// === Drawing Functions ===
 /**
  * @file Script principal de la simulación PsycodelicMosca.
  * @description Renderiza una Drosophila 2D vista desde arriba, impulsada por el conectoma BRAIN.
@@ -1807,7 +2858,10 @@ function drawLegs(state, dtScale) {
 	}
 	for (var j = 0; j < 6; j++) anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
 	
+	// Tripod gait groups
 	var groupA = [0, 3, 4];
+	
+	// Leg segment lengths
 	var L1 = BODY.legSeg1;
 	var L2 = BODY.legSeg2;
 	var L3 = BODY.legSeg3;
@@ -1817,70 +2871,65 @@ function drawLegs(state, dtScale) {
 		var side = (legIdx % 2 === 0) ? -1 : 1;
 		var attach = BODY.legAttach[pairIdx];
 		
-		// Hip position - attach to thorax, mirror for right side
+		// Hip position
 		var hipX = attach.x * side;
 		var hipY = attach.y;
 		
-		// Calculate leg angles based on state
-		var angle1, angle2, angle3;
+		// Base angle from hip to knee (absolute canvas angle)
+		// Fly faces UP (-Y), so front legs point up, rear legs point down
+		var baseAngle;
+		if (pairIdx === 0) {
+			// Front legs: point up and slightly outward
+			baseAngle = -Math.PI / 2 + (0.3 * side);
+		} else if (pairIdx === 1) {
+			// Middle legs: point straight out to sides
+			baseAngle = (side === -1) ? Math.PI : 0;
+		} else {
+			// Rear legs: point down and slightly outward
+			baseAngle = Math.PI / 2 + (0.3 * side);
+		}
+		
+		var angle1 = baseAngle; // Hip to knee
+		var angle2 = baseAngle + (0.4 * side); // Knee to tibia
+		var angle3 = baseAngle + (0.6 * side); // Tibia to tarsus
 		
 		if (isWalking) {
-			// Tripod gait
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var phase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
-			var swing = Math.sin(phase) * 0.4;
-			
-			if (pairIdx === 0) {
-				// Front legs: point forward (-Y) with swing
-				angle1 = -Math.PI / 2 + swing + (0.2 * side);
-			} else if (pairIdx === 1) {
-				// Middle legs: point sideways
-				angle1 = (side === -1 ? Math.PI : 0) + swing;
-			} else {
-				// Rear legs: point backward (+Y) with swing
-				angle1 = Math.PI / 2 + swing + (0.2 * side);
-			}
-			angle2 = angle1 + (0.5 * side);
-			angle3 = angle2 + (0.3 * side);
-		} else if (isFaceWashing && pairIdx === 0) {
-			// Front legs rub face rapidly
-			var phase = anim.groomPhase * 4;
-			angle1 = -Math.PI / 2 + Math.sin(phase) * 0.8;
-			angle2 = angle1 + 0.8;
-			angle3 = angle2 + 0.5;
+			var swing = Math.sin(phase) * 0.5;
+			angle1 += swing;
 		} else if (isFaceWashing) {
-			// Other legs tuck
-			angle1 = (side === -1) ? Math.PI * 0.8 : Math.PI * 0.2;
-			angle2 = angle1;
-			angle3 = angle1;
-		} else if (isAbdomenGrooming && pairIdx === 2) {
-			// Rear legs reach back
+			var phase = anim.groomPhase * 3;
+			if (pairIdx === 0) {
+				// Front legs rub face
+				angle1 = -Math.PI / 2 + Math.sin(phase) * 0.6;
+				angle2 = angle1 + 0.8;
+				angle3 = angle2 + 0.5;
+			} else {
+				angle1 = (side === -1) ? Math.PI : 0;
+				angle2 = angle1;
+				angle3 = angle1;
+			}
+		} else if (isAbdomenGrooming) {
 			var phase = anim.groomPhase * 2;
-			angle1 = Math.PI / 2 + Math.sin(phase) * 0.5;
-			angle2 = angle1 + 0.7;
-			angle3 = angle2 + 0.3;
+			if (pairIdx === 2) {
+				angle1 = Math.PI / 2 + Math.sin(phase) * 0.4;
+				angle2 = angle1 + 0.6;
+				angle3 = angle2 + 0.3;
+			}
 		} else if (isFlying) {
-			// Tuck legs
-			angle1 = (side === -1) ? Math.PI * 0.75 : Math.PI * 0.25;
+			angle1 = (side === -1) ? Math.PI * 0.7 : Math.PI * 0.3;
 			angle2 = angle1;
 			angle3 = angle1;
 		} else if (isResting) {
-			// Tucked
-			angle1 = (side === -1) ? Math.PI * 0.6 : Math.PI * 0.4;
+			angle1 = baseAngle * 0.5;
 			angle2 = angle1;
 			angle3 = angle1;
 		} else {
-			// Idle - natural stance
-			if (pairIdx === 0) {
-				angle1 = -Math.PI / 2 + (0.3 * side);
-			} else if (pairIdx === 1) {
-				angle1 = (side === -1) ? Math.PI : 0;
-			} else {
-				angle1 = Math.PI / 2 + (0.3 * side);
-			}
-			angle1 += anim.legJitter[legIdx] * 0.2;
-			angle2 = angle1 + (0.5 * side);
-			angle3 = angle2 + (0.3 * side);
+			// Idle jitter
+			angle1 = baseAngle + anim.legJitter[legIdx] * 0.3;
+			angle2 = angle1 + (0.4 * side);
+			angle3 = angle2 + (0.2 * side);
 		}
 		
 		// Calculate positions
@@ -1905,7 +2954,7 @@ function drawLegs(state, dtScale) {
 		ctx.lineCap = 'round';
 		ctx.stroke();
 		
-		// Joint dot
+		// Joint
 		ctx.beginPath();
 		ctx.arc(kneeX, kneeY, 0.4, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.legJoint;
@@ -2167,3 +3216,7 @@ function loop(timestamp) {
 	requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
