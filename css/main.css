@@ -74,7 +74,7 @@ body {
 
 canvas {
     display: block;
-    background-color: transparent;
+    background-color: #222;
     transition: background-color 0.5s ease;
     touch-action: none;
 }

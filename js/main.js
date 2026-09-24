@@ -1791,110 +1791,150 @@ function drawProboscis(extend) {
 function drawLegs(state, dtScale) {
 	ctx.globalAlpha = 1.0;
 	var t = Date.now() / 1000;
-	
 	var isWalking = (state === 'walk' || state === 'explore' || state === 'phototaxis');
 	var isGrooming = (state === 'groom');
 	var isFlying = (state === 'fly');
+	var isStartleBurst = (state === 'startle' && behavior.startlePhase === 'burst');
+	var isStartleFreeze = (state === 'startle' && behavior.startlePhase === 'freeze');
 	var isResting = (state === 'rest');
-	
+	var isBracing = (state === 'brace');
+
+	// Update idle jitter targets periodically
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
 		anim.legJitterTimer = t;
 		anim.legJitterNextInterval = 1.5 + Math.random() * 2.0;
-		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.1;
+		for (var j = 0; j < 6; j++) {
+			anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.15;
+		}
 	}
-	for (var j = 0; j < 6; j++) anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
-	
+	for (var j = 0; j < 6; j++) {
+		anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
+	}
+
+	// Update wing micro-movement
+	if (t - anim.wingMicroTimer > anim.wingMicroNextInterval) {
+		anim.wingMicroTimer = t;
+		anim.wingMicroNextInterval = 2.0 + Math.random() * 3.0;
+		anim.wingMicroTarget = (Math.random() - 0.5) * 2;
+	}
+	anim.wingMicro += (anim.wingMicroTarget - anim.wingMicro) * (1 - Math.pow(0.97, dtScale));
+
+	// Tripod groups
 	var groupA = [0, 3, 4];
-	var L1 = 14, L2 = 16, L3 = 12;
-	
+	var groupB = [1, 2, 5];
+
 	for (var legIdx = 0; legIdx < 6; legIdx++) {
 		var pairIdx = Math.floor(legIdx / 2); // 0=front, 1=mid, 2=rear
-		var side = (legIdx % 2 === 0) ? -1 : 1;
-		
-		var hipX, hipY;
-		// Head at Y≈-24, Thorax from Y≈-18 to Y≈+2, Abdomen from Y≈+4 to Y≈+28
-		switch(legIdx) {
-			case 0: hipX = -9;  hipY = -20; break; // Front-Left (head-thorax)
-			case 1: hipX = 9;   hipY = -20; break; // Front-Right
-			case 2: hipX = -12; hipY = -10; break; // Mid-Left (thorax)
-			case 3: hipX = 12;  hipY = -10; break; // Mid-Right
-			case 4: hipX = -10; hipY = 4;   break; // Rear-Left (abdomen)
-			case 5: hipX = 10;  hipY = 4;   break; // Rear-Right
-		}
-		
-		var a1, a2, a3;
-		if (pairIdx === 0) {
-			// Front legs: point UP (-PI/2) in a wide V
-			a1 = -Math.PI/2 + (side * 0.6);
-			a2 = a1 + (side * 0.6);
-			a3 = a2 + (side * 0.3);
-		} else if (pairIdx === 1) {
-			// Mid legs: point SIDEWAYS
-			a1 = (side === -1) ? Math.PI : 0;
-			a2 = a1 + (side * 0.5);
-			a3 = a2 + (side * 0.3);
-		} else {
-			// Rear legs: point DOWN (PI/2) in a wide V
-			a1 = Math.PI/2 + (side * 0.6);
-			a2 = a1 + (side * 0.6);
-			a3 = a2 + (side * 0.3);
-		}
-		
+		var side = (legIdx % 2 === 0) ? -1 : 1; // even=left(-1), odd=right(+1)
+		var attach = BODY.legAttach[pairIdx];
+		var restAngles = BODY.legRestAngles[pairIdx];
+
+		var hipMod = restAngles.hip;
+		var kneeMod = restAngles.knee;
+		var walkOffset = 0;
+		var jitter = 0;
+
 		if (isWalking) {
+			// Tripod gait animation
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
-			var phase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
-			var swing = Math.sin(phase) * 0.3;
-			a1 += swing;
-			a2 += swing * 0.5;
-		} else if (isGrooming && behavior.groomLocation === 'head' && pairIdx === 0) {
-			var phase = anim.groomPhase * 4;
-			a1 = -Math.PI/2 + (side * 0.1) + Math.sin(phase) * 0.6;
-			a2 = a1 + (side * 1.0);
-			a3 = a2 + (side * 0.5);
-		} else if (isGrooming && behavior.groomLocation === 'abdomen' && pairIdx === 2) {
-			var phase = anim.groomPhase * 2;
-			a1 = Math.PI/2 + (side * 0.1) + Math.sin(phase) * 0.4;
-			a2 = a1 + (side * 0.8);
-			a3 = a2 + (side * 0.4);
+			var legPhase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
+			walkOffset = Math.sin(legPhase) * 0.35;
+		} else if (isGrooming) {
+			var groomLoc = behavior.groomLocation || 'thorax';
+			if (groomLoc === 'head' && pairIdx === 0) {
+				// Front legs rub the head area: swing forward and inward
+				hipMod = -0.9 + Math.sin(anim.groomPhase) * 0.4;
+				kneeMod = -0.8 + Math.sin(anim.groomPhase * 1.5) * 0.25;
+			} else if (groomLoc === 'abdomen' && pairIdx === 2) {
+				// Rear legs reach back to abdomen: swing backward
+				hipMod = 1.0 + Math.sin(anim.groomPhase * 0.8) * 0.3;
+				kneeMod = 0.5 + Math.sin(anim.groomPhase * 1.2) * 0.2;
+			} else if (groomLoc === 'thorax' && pairIdx === 0) {
+				// Full bilateral front-leg grooming: wide symmetric rub
+				hipMod = -0.2 + Math.sin(anim.groomPhase) * 0.5;
+				kneeMod = -0.6 + Math.sin(anim.groomPhase * 1.3) * 0.2;
+			} else if (groomLoc === 'leg') {
+				// Targeted single-leg cleaning: only the leg on the touched side moves
+				// Use side-based targeting: left legs clean when side=-1 touch
+				if (pairIdx === 1) {
+					// Middle legs do the cleaning motion
+					hipMod = 0.1 + Math.sin(anim.groomPhase * 1.1) * 0.4;
+					kneeMod = 0.3 + Math.sin(anim.groomPhase * 1.4) * 0.3;
+				}
+			}
 		} else if (isFlying) {
-			a1 = (side === -1) ? Math.PI * 0.6 : Math.PI * 0.4;
-			a2 = a1; a3 = a1;
+			// Tucked legs during flight
+			hipMod *= 0.4;
+			kneeMod *= 0.3;
+		} else if (isStartleBurst && pairIdx >= 1) {
+			// Middle and rear legs extend for jump
+			hipMod *= 1.5;
+			kneeMod *= 0.5;
+		} else if (isStartleFreeze) {
+			// Legs frozen in current position -- no jitter, no walk
+			// Use rest angles as-is (no modification)
 		} else if (isResting) {
-			a1 = (pairIdx === 0) ? -Math.PI/2 + (side * 0.3) : 
-				 (pairIdx === 1) ? (side === -1 ? Math.PI * 0.85 : Math.PI * 0.15) :
-								   Math.PI/2 + (side * 0.3);
-			a2 = a1 + (side * 0.4);
-			a3 = a2 + (side * 0.2);
+			// Slightly tucked with slow jitter
+			hipMod *= 0.7;
+			jitter = anim.legJitter[legIdx] * 0.3;
+		} else if (isBracing) {
+			// Widened stance with suppressed jitter to show bracing
+			hipMod *= 1.1;
+			jitter = anim.legJitter[legIdx] * 0.1;
 		} else {
-			a1 += anim.legJitter[legIdx] * 0.1;
+			// idle / feed / default: normal idle jitter (reduced 50% in complete darkness)
+			jitter = anim.legJitter[legIdx] * (BRAIN.stimulate.lightLevel === 0 ? 0.5 : 1.0);
 		}
-		
-		var kneeX = hipX + Math.cos(a1) * L1;
-		var kneeY = hipY + Math.sin(a1) * L1;
-		var tibiaX = kneeX + Math.cos(a2) * L2;
-		var tibiaY = kneeY + Math.sin(a2) * L2;
-		var footX = tibiaX + Math.cos(a3) * L3;
-		var footY = tibiaY + Math.sin(a3) * L3;
-		
+
+		// Compute hip and knee angles
+		var hipAngle = (hipMod + walkOffset + jitter) * side;
+		var kneeAngle = kneeMod * side;
+
+		// Attachment point on body
+		var ax = attach.x * side;
+		var ay = attach.y;
+
+		// First segment (coxa/femur)
+		var baseAngle = (side === -1 ? Math.PI : 0) + hipAngle;
+		var seg1EndX = ax + Math.cos(baseAngle) * BODY.legSeg1;
+		var seg1EndY = ay + Math.sin(baseAngle) * BODY.legSeg1;
+
+		// Second segment (tibia) -- bends at knee
+		var kneeAngleAbs = baseAngle + kneeAngle + side * 0.5;
+		var seg2EndX = seg1EndX + Math.cos(kneeAngleAbs) * BODY.legSeg2;
+		var seg2EndY = seg1EndY + Math.sin(kneeAngleAbs) * BODY.legSeg2;
+
+		// Third segment (tarsus) -- slight hook
+		var tarsusAngle = kneeAngleAbs + side * 0.3;
+		var seg3EndX = seg2EndX + Math.cos(tarsusAngle) * BODY.legSeg3;
+		var seg3EndY = seg2EndY + Math.sin(tarsusAngle) * BODY.legSeg3;
+
+		// Draw leg segments (thinner, more realistic insect legs)
 		ctx.beginPath();
-		ctx.moveTo(hipX, hipY);
-		ctx.lineTo(kneeX, kneeY);
-		ctx.lineTo(tibiaX, tibiaY);
-		ctx.lineTo(footX, footY);
+		ctx.moveTo(ax, ay);
+		ctx.lineTo(seg1EndX, seg1EndY);
+		ctx.lineTo(seg2EndX, seg2EndY);
+		ctx.lineTo(seg3EndX, seg3EndY);
 		ctx.strokeStyle = COLORS.leg;
-		ctx.lineWidth = 2.5;
+		ctx.lineWidth = 0.9;
 		ctx.lineJoin = 'round';
 		ctx.lineCap = 'round';
 		ctx.stroke();
-		
+
+		// Joint dots
 		ctx.beginPath();
-		ctx.arc(kneeX, kneeY, 1.0, 0, Math.PI * 2);
+		ctx.arc(seg1EndX, seg1EndY, 0.7, 0, Math.PI * 2);
+		ctx.fillStyle = COLORS.legJoint;
+		ctx.fill();
+
+		ctx.beginPath();
+		ctx.arc(seg2EndX, seg2EndY, 0.5, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
 	}
 }
 
-
+// --- Movement update (same interface as worm-sim) ---
 function update(dt) {
 	var dtScale = dt / (1000 / 60);
 	currentDtScale = dtScale;

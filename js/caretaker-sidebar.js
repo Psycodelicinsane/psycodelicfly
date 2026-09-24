@@ -201,31 +201,44 @@
     chatEnviarBtn.disabled = true;
     var loadingEl = document.createElement('div');
     loadingEl.className = 'chat-loading';
-    loadingEl.textContent = 'Cargando...';
+    loadingEl.textContent = 'Thinking';
     chatHistory.appendChild(loadingEl);
     chatHistory.scrollTop = chatHistory.scrollHeight;
-    
-    // Simulated local chatbot (no external server needed)
-    setTimeout(function() {
-      if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
-      var responses = [
-        'La mosca está activa y respondiendo a estímulos.',
-        'Puedes alimentarla con el botón Comida, tocarla con Tocar, o soplar con Viento.',
-        'La mosca tiene 59 grupos de neuronas modelando ~139,000 neuronas reales de Drosophila.',
-        'Prueba a cambiar la Luz o la Temperatura para ver cómo reacciona.',
-        'Las alas se vuelven más visibles cuando la mosca está asustada o volando.'
-      ];
-      var response = responses[Math.floor(Math.random() * responses.length)];
-      appendChatMessage('assistant', response, new Date().toISOString(), false);
-      chatLoading = false;
-      chatEnviarBtn.disabled = false;
-      chatInput.focus();
-    }, 500 + Math.random() * 1000);
+    var body = JSON.stringify({ message: msg, context: null });
+    fetch(CHAT_API_URL + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
+        if (data.error) {
+          appendChatMessage('assistant', data.error, new Date().toISOString(), true);
+        } else {
+          appendChatMessage('assistant', data.message, data.timestamp, false);
+        }
+        chatLoading = false;
+        chatEnviarBtn.disabled = false;
+        chatInput.focus();
+      })
+      .catch(function(err) {
+        if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
+        appendChatMessage('assistant', 'Error de conexión: ' + err.message, new Date().toISOString(), true);
+        chatLoading = false;
+        chatEnviarBtn.disabled = false;
+      });
   }
 
   function loadChatHistory() {
     if (chatHistory === null) return;
-    // No external server needed - start with empty history
+    fetch(CHAT_API_URL + '/chat/history')
+      .then(function(res) { return res.json(); })
+      .then(function(messages) {
+        chatHistory.innerHTML = '';
+        for (var i = 0; i < messages.length; i++) {
+          appendChatMessage(messages[i].role, messages[i].message, messages[i].timestamp, false);
+        }
+      })
+      .catch(function(err) {
+        console.warn('[chat] Failed to load history:', err.message);
+      });
   }
 
   init();
