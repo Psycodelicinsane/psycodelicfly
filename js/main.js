@@ -25,7 +25,7 @@ document.getElementById('zoomOut').onclick = function () { setZoom(zoomLevel / 1
 // --- State ---
 var facingDir = 0;
 var targetDir = 0;
-var speed = 0;
+var speed = 0.5;
 var targetSpeed = 0;
 var speedChangeInterval = 0;
 var food = [];
@@ -1088,7 +1088,7 @@ function computeMovementForBehavior() {
 		targetSpeed = ((Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5)) * 2.5;
 		if (targetSpeed < 1.5) targetSpeed = 1.5;
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 0.5);
-	} else if (state === 'startle') {
+	} else if (state === 'asustada') {
 		if (behavior.startlePhase === 'freeze') {
 			targetSpeed = 0;
 			speedChangeInterval = -speed * 0.5;
@@ -1118,13 +1118,13 @@ function computeMovementForBehavior() {
 		var braceDiff = normalizeAngle(braceDir - targetDir);
 		targetDir += braceDiff * 0.8;
 		targetDir = normalizeAngle(targetDir);
-	} else if (state === 'groom' || state === 'rest') {
+	} else if (state === 'aseándose' || state === 'descansando') {
 		targetSpeed = 0;
 		speedChangeInterval = -speed * 0.1;
 	} else {
-		// idle
-		targetSpeed = 0;
-		speedChangeInterval = -speed * 0.05;
+		// inactivo - small drift
+		targetSpeed = 0.3;
+		speedChangeInterval = (targetSpeed - speed) / 30;
 	}
 }
 
@@ -1134,7 +1134,7 @@ function computeMovementForBehavior() {
  * and speed clamping for stationary behaviors.
  */
 function applyBehaviorMovement(dtScale) {
-	if (behavior.current === 'startle') {
+	if (behavior.current === 'asustada') {
 		var now = Date.now();
 		if (behavior.startlePhase === 'freeze') {
 			speed = 0;
@@ -1151,9 +1151,9 @@ function applyBehaviorMovement(dtScale) {
 		}
 	}
 
-	if (behavior.current === 'groom' ||
-		behavior.current === 'rest' || behavior.current === 'idle' ||
-		behavior.current === 'brace') {
+	if (behavior.current === 'aseándose' ||
+		behavior.current === 'descansando' || behavior.current === 'inactivo' ||
+		behavior.current === 'en guardia') {
 		if (speed > 0.05) {
 			speed *= Math.pow(0.92, dtScale);
 		} else {
@@ -1186,7 +1186,7 @@ function updateAnimForBehavior(dtScale) {
 
 	// Wing spread target (exponential interpolation for frame-rate independence)
 	var targetWingSpread = 0;
-	if (state === 'fly' || (state === 'startle' && behavior.startlePhase === 'burst')) {
+	if (state === 'fly' || (state === 'asustada' && behavior.startlePhase === 'burst')) {
 		targetWingSpread = 1;
 	}
 	anim.wingSpread += (targetWingSpread - anim.wingSpread) * (1 - Math.pow(0.85, dtScale));
@@ -1791,15 +1791,18 @@ function drawProboscis(extend) {
 function drawLegs(state, dtScale) {
 	ctx.globalAlpha = 1.0;
 	var t = Date.now() / 1000;
+	
+	// State detection with Spanish names
 	var isWalking = (state === 'walk' || state === 'explore' || state === 'phototaxis');
-	var isGrooming = (state === 'groom');
-	var isFlying = (state === 'fly');
-	var isStartleBurst = (state === 'startle' && behavior.startlePhase === 'burst');
-	var isStartleFreeze = (state === 'startle' && behavior.startlePhase === 'freeze');
-	var isResting = (state === 'rest');
-	var isBracing = (state === 'brace');
-
-	// Update idle jitter targets periodically
+	var isGrooming = (state === 'aseándose');
+	var isFaceWashing = isGrooming && (behavior.groomLocation === 'head');
+	var isFlying = (state === 'volando');
+	var isStartleBurst = (state === 'asustada' && behavior.startlePhase === 'burst');
+	var isStartleFreeze = (state === 'asustada' && behavior.startlePhase === 'freeze');
+	var isResting = (state === 'descansando');
+	var isBracing = (state === 'en guardia');
+	
+	// Idle jitter for subtle movement
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
 		anim.legJitterTimer = t;
 		anim.legJitterNextInterval = 1.5 + Math.random() * 2.0;
@@ -1810,126 +1813,129 @@ function drawLegs(state, dtScale) {
 	for (var j = 0; j < 6; j++) {
 		anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
 	}
-
-	// Update wing micro-movement
-	if (t - anim.wingMicroTimer > anim.wingMicroNextInterval) {
-		anim.wingMicroTimer = t;
-		anim.wingMicroNextInterval = 2.0 + Math.random() * 3.0;
-		anim.wingMicroTarget = (Math.random() - 0.5) * 2;
-	}
-	anim.wingMicro += (anim.wingMicroTarget - anim.wingMicro) * (1 - Math.pow(0.97, dtScale));
-
-	// Tripod groups
-	var groupA = [0, 3, 4];
-	var groupB = [1, 2, 5];
-
+	
+	// Tripod gait groups
+	var groupA = [0, 3, 4]; // front-left, mid-right, rear-left
+	var groupB = [1, 2, 5]; // front-right, mid-left, rear-right
+	
 	for (var legIdx = 0; legIdx < 6; legIdx++) {
 		var pairIdx = Math.floor(legIdx / 2); // 0=front, 1=mid, 2=rear
-		var side = (legIdx % 2 === 0) ? -1 : 1; // even=left(-1), odd=right(+1)
+		var side = (legIdx % 2 === 0) ? -1 : 1; // even=left, odd=right
 		var attach = BODY.legAttach[pairIdx];
-		var restAngles = BODY.legRestAngles[pairIdx];
-
-		var hipMod = restAngles.hip;
-		var kneeMod = restAngles.knee;
+		
+		// Default rest angles for Drosophila-like posture
+		// Front legs point forward, mid legs sideways, rear legs backward
+		var restHipAngles = [
+			{ hip: -0.6, knee: 0.3 },   // front: angled forward-outward
+			{ hip: 0.0, knee: 0.2 },    // middle: straight out sideways
+			{ hip: 0.6, knee: 0.3 }     // rear: angled backward-outward
+		];
+		
+		var hipMod = restHipAngles[pairIdx].hip;
+		var kneeMod = restHipAngles[pairIdx].knee;
 		var walkOffset = 0;
 		var jitter = 0;
-
+		
 		if (isWalking) {
-			// Tripod gait animation
+			// Tripod gait: alternate between group A and B
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var legPhase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
-			walkOffset = Math.sin(legPhase) * 0.35;
+			walkOffset = Math.sin(legPhase) * 0.4;
+		} else if (isFaceWashing) {
+			// Face-washing: front legs rub together and sweep across head
+			var groomPhase = anim.groomPhase;
+			if (pairIdx === 0) {
+				// Front legs sweep forward and inward to rub face
+				hipMod = -0.3 + Math.sin(groomPhase) * 0.5;
+				kneeMod = -0.6 + Math.sin(groomPhase * 2) * 0.3;
+			} else {
+				// Other legs stay still or tuck slightly
+				hipMod *= 0.3;
+				kneeMod *= 0.5;
+			}
 		} else if (isGrooming) {
+			var groomPhase = anim.groomPhase;
 			var groomLoc = behavior.groomLocation || 'thorax';
-			if (groomLoc === 'head' && pairIdx === 0) {
-				// Front legs rub the head area: swing forward and inward
-				hipMod = -0.9 + Math.sin(anim.groomPhase) * 0.4;
-				kneeMod = -0.8 + Math.sin(anim.groomPhase * 1.5) * 0.25;
-			} else if (groomLoc === 'abdomen' && pairIdx === 2) {
-				// Rear legs reach back to abdomen: swing backward
-				hipMod = 1.0 + Math.sin(anim.groomPhase * 0.8) * 0.3;
-				kneeMod = 0.5 + Math.sin(anim.groomPhase * 1.2) * 0.2;
+			if (groomLoc === 'abdomen' && pairIdx === 2) {
+				// Rear legs reach back to abdomen
+				hipMod = 0.9 + Math.sin(groomPhase * 0.8) * 0.3;
+				kneeMod = 0.6 + Math.sin(groomPhase * 1.2) * 0.2;
 			} else if (groomLoc === 'thorax' && pairIdx === 0) {
-				// Full bilateral front-leg grooming: wide symmetric rub
-				hipMod = -0.2 + Math.sin(anim.groomPhase) * 0.5;
-				kneeMod = -0.6 + Math.sin(anim.groomPhase * 1.3) * 0.2;
-			} else if (groomLoc === 'leg') {
-				// Targeted single-leg cleaning: only the leg on the touched side moves
-				// Use side-based targeting: left legs clean when side=-1 touch
-				if (pairIdx === 1) {
-					// Middle legs do the cleaning motion
-					hipMod = 0.1 + Math.sin(anim.groomPhase * 1.1) * 0.4;
-					kneeMod = 0.3 + Math.sin(anim.groomPhase * 1.4) * 0.3;
-				}
+				// Front legs rub thorax
+				hipMod = -0.1 + Math.sin(groomPhase) * 0.4;
+				kneeMod = -0.5 + Math.sin(groomPhase * 1.3) * 0.2;
+			} else if (groomLoc === 'leg' && pairIdx === 1) {
+				// Middle legs clean other legs
+				hipMod = 0.2 + Math.sin(groomPhase * 1.1) * 0.4;
+				kneeMod = 0.3 + Math.sin(groomPhase * 1.4) * 0.3;
 			}
 		} else if (isFlying) {
-			// Tucked legs during flight
-			hipMod *= 0.4;
-			kneeMod *= 0.3;
+			hipMod *= 0.3;
+			kneeMod *= 0.4;
 		} else if (isStartleBurst && pairIdx >= 1) {
-			// Middle and rear legs extend for jump
-			hipMod *= 1.5;
-			kneeMod *= 0.5;
-		} else if (isStartleFreeze) {
-			// Legs frozen in current position -- no jitter, no walk
-			// Use rest angles as-is (no modification)
+			hipMod *= 1.4;
+			kneeMod *= 0.4;
 		} else if (isResting) {
-			// Slightly tucked with slow jitter
-			hipMod *= 0.7;
+			hipMod *= 0.6;
 			jitter = anim.legJitter[legIdx] * 0.3;
 		} else if (isBracing) {
-			// Widened stance with suppressed jitter to show bracing
-			hipMod *= 1.1;
+			hipMod *= 1.2;
 			jitter = anim.legJitter[legIdx] * 0.1;
 		} else {
-			// idle / feed / default: normal idle jitter (reduced 50% in complete darkness)
+			// idle/feed: subtle jitter
 			jitter = anim.legJitter[legIdx] * (BRAIN.stimulate.lightLevel === 0 ? 0.5 : 1.0);
 		}
-
-		// Compute hip and knee angles
+		
+		// Compute final angles
 		var hipAngle = (hipMod + walkOffset + jitter) * side;
 		var kneeAngle = kneeMod * side;
-
-		// Attachment point on body
+		
+		// Attachment point on thorax
 		var ax = attach.x * side;
 		var ay = attach.y;
-
-		// First segment (coxa/femur)
+		
+		// Leg segments: coxa(femur) + tibia + tarsus
+		// Real fly legs have longer tibia and segmented tarsus
+		var coxaLen = BODY.legSeg1;
+		var tibiaLen = BODY.legSeg2;
+		var tarsusLen = BODY.legSeg3;
+		
+		// First segment (coxa/femur) - from thorax to knee
 		var baseAngle = (side === -1 ? Math.PI : 0) + hipAngle;
-		var seg1EndX = ax + Math.cos(baseAngle) * BODY.legSeg1;
-		var seg1EndY = ay + Math.sin(baseAngle) * BODY.legSeg1;
-
-		// Second segment (tibia) -- bends at knee
-		var kneeAngleAbs = baseAngle + kneeAngle + side * 0.5;
-		var seg2EndX = seg1EndX + Math.cos(kneeAngleAbs) * BODY.legSeg2;
-		var seg2EndY = seg1EndY + Math.sin(kneeAngleAbs) * BODY.legSeg2;
-
-		// Third segment (tarsus) -- slight hook
-		var tarsusAngle = kneeAngleAbs + side * 0.3;
-		var seg3EndX = seg2EndX + Math.cos(tarsusAngle) * BODY.legSeg3;
-		var seg3EndY = seg2EndY + Math.sin(tarsusAngle) * BODY.legSeg3;
-
-		// Draw leg segments (thinner, more realistic insect legs)
+		var kneeX = ax + Math.cos(baseAngle) * coxaLen;
+		var kneeY = ay + Math.sin(baseAngle) * coxaLen;
+		
+		// Second segment (tibia) - from knee to tarsus base
+		// Knee bends backward (opposite direction of movement)
+		var kneeBend = baseAngle + kneeAngle + side * 0.3;
+		var tibiaX = kneeX + Math.cos(kneeBend) * tibiaLen;
+		var tibiaY = kneeY + Math.sin(kneeBend) * tibiaLen;
+		
+		// Third segment (tarsus) - foot, angles slightly downward
+		var tarsusAngle = kneeBend - side * 0.2;
+		var footX = tibiaX + Math.cos(tarsusAngle) * tarsusLen;
+		var footY = tibiaY + Math.sin(tarsusAngle) * tarsusLen;
+		
+		// Draw leg with proper joint highlighting
 		ctx.beginPath();
 		ctx.moveTo(ax, ay);
-		ctx.lineTo(seg1EndX, seg1EndY);
-		ctx.lineTo(seg2EndX, seg2EndY);
-		ctx.lineTo(seg3EndX, seg3EndY);
+		ctx.lineTo(kneeX, kneeY);
+		ctx.lineTo(tibiaX, tibiaY);
+		ctx.lineTo(footX, footY);
 		ctx.strokeStyle = COLORS.leg;
 		ctx.lineWidth = 0.9;
 		ctx.lineJoin = 'round';
 		ctx.lineCap = 'round';
 		ctx.stroke();
-
-		// Joint dots
+		
+		// Joint dots (smaller for realism)
 		ctx.beginPath();
-		ctx.arc(seg1EndX, seg1EndY, 0.7, 0, Math.PI * 2);
+		ctx.arc(kneeX, kneeY, 0.5, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
-
+		
 		ctx.beginPath();
-		ctx.arc(seg2EndX, seg2EndY, 0.5, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.legJoint;
+		ctx.arc(tibiaX, tibiaY, 0.3, 0, Math.PI * 2);
 		ctx.fill();
 	}
 }
@@ -1942,6 +1948,7 @@ function update(dt) {
 
 	speed += speedChangeInterval * dtScale;
 	if (speed < 0) speed = 0;
+	if (speed < 0.1 && behavior.current === 'inactivo') speed = 0.3;
 
 	// Edge avoidance: bias targetDir away from screen edges when within 50px
 	var edgeMargin = 50;
@@ -1980,9 +1987,9 @@ function update(dt) {
 	// gentle turns look natural. At dtScale=1 (60fps): 0.3 closes 70% of the gap
 	// per frame (~3 frames to 97%), 0.9 closes 10% per frame (~22 frames to 90%).
 	var turnRetention;
-	if (behavior.current === 'startle' && behavior.startlePhase === 'burst') {
+	if (behavior.current === 'asustada' && behavior.startlePhase === 'burst') {
 		turnRetention = 0.3;
-	} else if (behavior.current === 'fly') {
+	} else if (behavior.current === 'volando') {
 		turnRetention = 0.4;
 	} else {
 		turnRetention = 0.9;
