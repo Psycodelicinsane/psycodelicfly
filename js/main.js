@@ -1803,86 +1803,91 @@ function drawLegs(state, dtScale) {
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
 		anim.legJitterTimer = t;
 		anim.legJitterNextInterval = 1.5 + Math.random() * 2.0;
-		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.1;
+		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.08;
 	}
 	for (var j = 0; j < 6; j++) anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
 	
 	var groupA = [0, 3, 4];
-	var L1 = BODY.legSeg1;
-	var L2 = BODY.legSeg2;
-	var L3 = BODY.legSeg3;
 	
-	// Top-down fly anatomy:
-	// Fly faces UP (-Y).
-	// Left legs (even indices: 0=front-left, 2=mid-left, 4=rear-left) attach on left (-X) and reach OUT to the left (angles around PI to 3*PI/2)
-	// Right legs (odd indices: 1=front-right, 3=mid-right, 5=rear-right) attach on right (+X) and reach OUT to the right (angles around 0 to PI/2)
+	// Precise attachment points for Drosophila melanogaster (top-down view)
+	// Head is at Y = -24, Thorax spans from Y = -20 to Y = 0, Abdomen spans from Y = 0 to Y = 28
+	var attachments = [
+		{ x: 6, y: -16 }, // 0: Front-Left
+		{ x: 6, y: -16 }, // 1: Front-Right
+		{ x: 9, y: -8  }, // 2: Mid-Left
+		{ x: 9, y: -8  }, // 3: Mid-Right
+		{ x: 7, y: -2  }, // 4: Rear-Left
+		{ x: 7, y: -2  }  // 5: Rear-Right
+	];
+	
+	// Segment lengths
+	var L1 = 9;  // femur
+	var L2 = 11; // tibia
+	var L3 = 7;  // tarsus
 	
 	for (var legIdx = 0; legIdx < 6; legIdx++) {
 		var pairIdx = Math.floor(legIdx / 2); // 0=front, 1=mid, 2=rear
 		var side = (legIdx % 2 === 0) ? -1 : 1; // -1 = left, 1 = right
-		var attach = BODY.legAttach[pairIdx];
+		var attach = attachments[legIdx];
 		
 		var hipX = attach.x * side;
 		var hipY = attach.y;
 		
-		// Base resting angles for top-down view
-		// Front legs point forward-outward (-Y and towards side)
-		// Mid legs point straight out to sides
-		// Rear legs point backward-outward (+Y and towards side)
-		var baseHipAngle;
+		// Resting base angles (pointing forward/out for front, sideways for mid, backward/out for rear)
+		var baseAngle;
 		if (pairIdx === 0) {
-			// Front: points forward and out (-PI/2 is straight up, + side * 0.5 points outward)
-			baseHipAngle = -Math.PI/2 + (side * 0.7);
+			// Front legs point forward (-PI/2) and outward toward the head
+			baseAngle = -Math.PI / 2 + (side * 0.9);
 		} else if (pairIdx === 1) {
-			// Mid: points straight out to sides
-			baseHipAngle = (side === -1) ? Math.PI : 0;
+			// Mid legs point directly sideways
+			baseAngle = (side === -1) ? Math.PI * 0.85 : Math.PI * 0.15;
 		} else {
-			// Rear: points backward and out
-			baseHipAngle = Math.PI/2 + (side * 0.7);
+			// Rear legs point backward (PI/2) and outward
+			baseAngle = Math.PI / 2 + (side * 0.7);
 		}
 		
-		var angle1 = baseHipAngle;
-		var angle2 = baseHipAngle + (side * 0.6);
+		var angle1 = baseAngle;
+		var angle2 = baseAngle + (side * 0.7);
 		var angle3 = angle2 + (side * 0.3);
 		
 		if (isWalking) {
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var phase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
-			var swing = Math.sin(phase) * 0.4;
+			var swing = Math.sin(phase) * 0.35;
 			angle1 += swing;
-			angle2 += swing * 0.8;
+			angle2 += swing * 0.5;
 		} else if (isFaceWashing && pairIdx === 0) {
-			// Front legs sweep inward toward head (-Y)
+			// Front legs sweep forward and inward toward head (-Y, X near 0)
 			var phase = anim.groomPhase * 4;
-			angle1 = -Math.PI/2 + (side * 0.2) + Math.sin(phase) * 0.5;
-			angle2 = angle1 + (side * 0.8);
+			angle1 = -Math.PI / 2 + (side * 0.2) + Math.sin(phase) * 0.6;
+			angle2 = angle1 + (side * 0.9);
 			angle3 = angle2 + (side * 0.4);
 		} else if (isFaceWashing) {
-			// Other legs tuck close to body
-			angle1 = baseHipAngle * 0.5;
-			angle2 = angle1 + (side * 0.3);
+			// Other legs tuck close during grooming
+			angle1 = baseAngle * 0.6;
+			angle2 = angle1 + (side * 0.4);
 			angle3 = angle2 + (side * 0.2);
 		} else if (isAbdomenGrooming && pairIdx === 2) {
-			// Rear legs reach toward abdomen (+Y)
+			// Rear legs reach back toward abdomen (+Y)
 			var phase = anim.groomPhase * 2;
-			angle1 = Math.PI/2 + (side * 0.3) + Math.sin(phase) * 0.4;
-			angle2 = angle1 + (side * 0.6);
+			angle1 = Math.PI / 2 + (side * 0.2) + Math.sin(phase) * 0.4;
+			angle2 = angle1 + (side * 0.7);
 			angle3 = angle2 + (side * 0.3);
 		} else if (isFlying) {
-			// Tuck legs neatly under body during flight (pointing slightly backward)
-			angle1 = (side === -1) ? Math.PI * 0.75 : Math.PI * 0.25;
+			// Tuck legs neatly along the body during flight
+			angle1 = (side === -1) ? Math.PI * 0.7 : Math.PI * 0.3;
 			angle2 = angle1 + (side * 0.3);
 			angle3 = angle2 + (side * 0.2);
 		} else if (isResting) {
-			angle1 = baseHipAngle * 0.7;
-			angle2 = angle1 + (side * 0.4);
+			angle1 = baseAngle * 0.8;
+			angle2 = angle1 + (side * 0.5);
 			angle3 = angle2 + (side * 0.2);
 		} else {
 			// Idle jitter
 			angle1 += anim.legJitter[legIdx] * 0.2;
 		}
 		
-		// Calculate segment positions
+		// Calculate joints
 		var kneeX = hipX + Math.cos(angle1) * L1;
 		var kneeY = hipY + Math.sin(angle1) * L1;
 		
@@ -1892,21 +1897,21 @@ function drawLegs(state, dtScale) {
 		var footX = tibiaX + Math.cos(angle3) * L3;
 		var footY = tibiaY + Math.sin(angle3) * L3;
 		
-		// Draw leg
+		// Draw leg segments
 		ctx.beginPath();
 		ctx.moveTo(hipX, hipY);
 		ctx.lineTo(kneeX, kneeY);
 		ctx.lineTo(tibiaX, tibiaY);
 		ctx.lineTo(footX, footY);
 		ctx.strokeStyle = COLORS.leg;
-		ctx.lineWidth = 1.0;
+		ctx.lineWidth = 1.2;
 		ctx.lineJoin = 'round';
 		ctx.lineCap = 'round';
 		ctx.stroke();
 		
-		// Joint dot
+		// Knee joint dot
 		ctx.beginPath();
-		ctx.arc(kneeX, kneeY, 0.4, 0, Math.PI * 2);
+		ctx.arc(kneeX, kneeY, 0.5, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
 	}
