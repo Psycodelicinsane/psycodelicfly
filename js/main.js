@@ -1386,9 +1386,9 @@ var BODY = {
 	// Leg attachment points on thorax (x, y relative to center)
 	// front, middle, rear -- left side (mirrored for right)
 	legAttach: [
-		{ x: 7, y: -18 },  // front (near head)
-		{ x: 9, y: -8 },   // middle (thorax sides)
-		{ x: 7, y: 6 },    // rear (near abdomen)
+		{ x: 7, y: -16 },  // front
+		{ x: 9, y: -10 },  // middle
+		{ x: 8, y: -3 },   // rear
 	],
 	// Leg segment lengths
 	legSeg1: 8,
@@ -1430,33 +1430,33 @@ var COLORS = {
 function drawFlyBody(dtScale) {
 	var t = Date.now() / 1000;
 	var state = behavior.current;
-	
-	// --- Abdomen (back) ---
+
+	// --- Legs (behind body) ---
+	drawLegs(state, dtScale);
+
+	// --- Abdomen ---
 	drawAbdomen();
-	
-	// --- Thorax (middle) ---
+
+	// --- Wings (over abdomen, behind thorax) ---
+	drawWing(-1); // left
+	drawWing(1);  // right
+
+	// --- Thorax ---
 	drawThorax();
-	
-	// --- Head (front) ---
+
+	// --- Head ---
 	drawHead();
-	
+
 	// --- Eyes ---
 	drawEyes();
-	
+
 	// --- Antennae ---
 	drawAntennae(t, dtScale);
-	
-	// --- Proboscis ---
+
+	// --- Proboscis (shown when extending) ---
 	if (anim.proboscisExtend > 0.01) {
 		drawProboscis(anim.proboscisExtend);
 	}
-	
-	// --- Legs (ON TOP of body so they're visible) ---
-	drawLegs(state, dtScale);
-	
-	// --- Wings (topmost) ---
-	drawWing(-1); // left
-	drawWing(1);  // right
 }
 
 /**
@@ -1794,15 +1794,13 @@ function drawLegs(state, dtScale) {
 	
 	var isWalking = (state === 'walk' || state === 'explore' || state === 'phototaxis');
 	var isGrooming = (state === 'groom');
-	var isFaceWashing = isGrooming && (behavior.groomLocation === 'head');
-	var isAbdomenGrooming = isGrooming && (behavior.groomLocation === 'abdomen');
 	var isFlying = (state === 'fly');
 	var isResting = (state === 'rest');
 	
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
 		anim.legJitterTimer = t;
 		anim.legJitterNextInterval = 1.5 + Math.random() * 2.0;
-		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.05;
+		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.1;
 	}
 	for (var j = 0; j < 6; j++) anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
 	
@@ -1810,36 +1808,35 @@ function drawLegs(state, dtScale) {
 	var L1 = 14, L2 = 16, L3 = 12;
 	
 	for (var legIdx = 0; legIdx < 6; legIdx++) {
-		var pairIdx = Math.floor(legIdx / 2);
+		var pairIdx = Math.floor(legIdx / 2); // 0=front, 1=mid, 2=rear
 		var side = (legIdx % 2 === 0) ? -1 : 1;
 		
 		var hipX, hipY;
+		// Head at Y≈-24, Thorax from Y≈-18 to Y≈+2, Abdomen from Y≈+4 to Y≈+28
 		switch(legIdx) {
-			case 0: hipX = -9;  hipY = -26; break;
-			case 1: hipX = 9;   hipY = -26; break;
-			case 2: hipX = -13; hipY = -14; break;
-			case 3: hipX = 13;  hipY = -14; break;
-			case 4: hipX = -11; hipY = 4;   break;
-			case 5: hipX = 11;  hipY = 4;   break;
+			case 0: hipX = -9;  hipY = -20; break; // Front-Left (head-thorax)
+			case 1: hipX = 9;   hipY = -20; break; // Front-Right
+			case 2: hipX = -12; hipY = -10; break; // Mid-Left (thorax)
+			case 3: hipX = 12;  hipY = -10; break; // Mid-Right
+			case 4: hipX = -10; hipY = 4;   break; // Rear-Left (abdomen)
+			case 5: hipX = 10;  hipY = 4;   break; // Rear-Right
 		}
 		
 		var a1, a2, a3;
 		if (pairIdx === 0) {
-			// Front: point UP (-PI/2) and slightly outward
-			// Left: -PI/2 - 0.4 (up and left), Right: -PI/2 + 0.4 (up and right)
-			a1 = -Math.PI/2 + (side * 0.4);
-			a2 = a1 + (side * 0.5);
-			a3 = a2 + (side * 0.3);
-		} else if (pairIdx === 1) {
-			// Mid: point sideways
-			a1 = (side === -1) ? Math.PI : 0;
+			// Front legs: point UP (-PI/2) in a wide V
+			a1 = -Math.PI/2 + (side * 0.6);
 			a2 = a1 + (side * 0.6);
 			a3 = a2 + (side * 0.3);
-		} else {
-			// Rear: point DOWN (PI/2) and slightly outward
-			// Left: PI/2 + 0.4 (down and left), Right: PI/2 - 0.4 (down and right)
-			a1 = Math.PI/2 + (side * 0.4);
+		} else if (pairIdx === 1) {
+			// Mid legs: point SIDEWAYS
+			a1 = (side === -1) ? Math.PI : 0;
 			a2 = a1 + (side * 0.5);
+			a3 = a2 + (side * 0.3);
+		} else {
+			// Rear legs: point DOWN (PI/2) in a wide V
+			a1 = Math.PI/2 + (side * 0.6);
+			a2 = a1 + (side * 0.6);
 			a3 = a2 + (side * 0.3);
 		}
 		
@@ -1849,17 +1846,14 @@ function drawLegs(state, dtScale) {
 			var swing = Math.sin(phase) * 0.3;
 			a1 += swing;
 			a2 += swing * 0.5;
-		} else if (isFaceWashing && pairIdx === 0) {
+		} else if (isGrooming && behavior.groomLocation === 'head' && pairIdx === 0) {
 			var phase = anim.groomPhase * 4;
 			a1 = -Math.PI/2 + (side * 0.1) + Math.sin(phase) * 0.6;
 			a2 = a1 + (side * 1.0);
 			a3 = a2 + (side * 0.5);
-		} else if (isFaceWashing) {
-			a1 = (side === -1) ? Math.PI * 0.7 : Math.PI * 0.3;
-			a2 = a1; a3 = a1;
-		} else if (isAbdomenGrooming && pairIdx === 2) {
+		} else if (isGrooming && behavior.groomLocation === 'abdomen' && pairIdx === 2) {
 			var phase = anim.groomPhase * 2;
-			a1 = Math.PI/2 + (side * 0.2) + Math.sin(phase) * 0.4;
+			a1 = Math.PI/2 + (side * 0.1) + Math.sin(phase) * 0.4;
 			a2 = a1 + (side * 0.8);
 			a3 = a2 + (side * 0.4);
 		} else if (isFlying) {
