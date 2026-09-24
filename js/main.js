@@ -1386,9 +1386,9 @@ var BODY = {
 	// Leg attachment points on thorax (x, y relative to center)
 	// front, middle, rear -- left side (mirrored for right)
 	legAttach: [
-		{ x: 7, y: -16 },  // front
-		{ x: 9, y: -10 },  // middle
-		{ x: 8, y: -3 },   // rear
+		{ x: 7, y: -18 },  // front (near head)
+		{ x: 9, y: -8 },   // middle (thorax sides)
+		{ x: 7, y: 6 },    // rear (near abdomen)
 	],
 	// Leg segment lengths
 	legSeg1: 8,
