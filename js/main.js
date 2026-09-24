@@ -1799,112 +1799,102 @@ function drawLegs(state, dtScale) {
 	var isFlying = (state === 'fly');
 	var isResting = (state === 'rest');
 	
-	// Idle jitter
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
 		anim.legJitterTimer = t;
 		anim.legJitterNextInterval = 1.5 + Math.random() * 2.0;
-		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.06;
+		for (var j = 0; j < 6; j++) anim.legJitterTarget[j] = (Math.random() - 0.5) * 0.05;
 	}
 	for (var j = 0; j < 6; j++) anim.legJitter[j] += (anim.legJitterTarget[j] - anim.legJitter[j]) * (1 - Math.pow(0.95, dtScale));
 	
 	var groupA = [0, 3, 4];
-	
-	// Longer leg segments to ensure they extend well beyond body
-	var L1 = 11; // femur
-	var L2 = 13; // tibia  
-	var L3 = 8;  // tarsus
+	var L1 = 14, L2 = 16, L3 = 12;
 	
 	for (var legIdx = 0; legIdx < 6; legIdx++) {
-		var pairIdx = Math.floor(legIdx / 2); // 0=front, 1=mid, 2=rear
-		var side = (legIdx % 2 === 0) ? -1 : 1; // -1 = left, 1 = right
+		var pairIdx = Math.floor(legIdx / 2);
+		var side = (legIdx % 2 === 0) ? -1 : 1;
 		
-		// Explicit attachment coordinates for each leg (absolute, not mirrored)
-		// Head at Y=-30, Thorax from Y=-22 to Y=0, Abdomen from Y=0 to Y=28
 		var hipX, hipY;
-		if (legIdx === 0) { hipX = -7; hipY = -18; }      // Front-Left
-		else if (legIdx === 1) { hipX = 7; hipY = -18; }  // Front-Right
-		else if (legIdx === 2) { hipX = -10; hipY = -9; } // Mid-Left
-		else if (legIdx === 3) { hipX = 10; hipY = -9; }  // Mid-Right
-		else if (legIdx === 4) { hipX = -8; hipY = -2; }  // Rear-Left
-		else { hipX = 8; hipY = -2; }                     // Rear-Right
-		
-		// Base angles: front legs point UP and OUT, mid legs point SIDE, rear legs point DOWN and OUT
-		var baseAngle;
-		if (pairIdx === 0) {
-			// Front legs: point forward (-Y) and outward
-			baseAngle = (side === -1) ? -Math.PI/2 - 0.8 : -Math.PI/2 + 0.8;
-		} else if (pairIdx === 1) {
-			// Mid legs: point straight out to sides
-			baseAngle = (side === -1) ? Math.PI * 0.9 : Math.PI * 0.1;
-		} else {
-			// Rear legs: point backward (+Y) and outward
-			baseAngle = (side === -1) ? Math.PI/2 - 0.8 : Math.PI/2 + 0.8;
+		switch(legIdx) {
+			case 0: hipX = -9;  hipY = -26; break;
+			case 1: hipX = 9;   hipY = -26; break;
+			case 2: hipX = -13; hipY = -14; break;
+			case 3: hipX = 13;  hipY = -14; break;
+			case 4: hipX = -11; hipY = 4;   break;
+			case 5: hipX = 11;  hipY = 4;   break;
 		}
 		
-		var angle1 = baseAngle;
-		var angle2 = baseAngle + (side * 0.8);
-		var angle3 = angle2 + (side * 0.4);
+		var a1, a2, a3;
+		if (pairIdx === 0) {
+			// Front: point UP (-PI/2) and slightly outward
+			// Left: -PI/2 - 0.4 (up and left), Right: -PI/2 + 0.4 (up and right)
+			a1 = -Math.PI/2 + (side * 0.4);
+			a2 = a1 + (side * 0.5);
+			a3 = a2 + (side * 0.3);
+		} else if (pairIdx === 1) {
+			// Mid: point sideways
+			a1 = (side === -1) ? Math.PI : 0;
+			a2 = a1 + (side * 0.6);
+			a3 = a2 + (side * 0.3);
+		} else {
+			// Rear: point DOWN (PI/2) and slightly outward
+			// Left: PI/2 + 0.4 (down and left), Right: PI/2 - 0.4 (down and right)
+			a1 = Math.PI/2 + (side * 0.4);
+			a2 = a1 + (side * 0.5);
+			a3 = a2 + (side * 0.3);
+		}
 		
 		if (isWalking) {
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var phase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
 			var swing = Math.sin(phase) * 0.3;
-			angle1 += swing;
-			angle2 += swing * 0.6;
+			a1 += swing;
+			a2 += swing * 0.5;
 		} else if (isFaceWashing && pairIdx === 0) {
-			// Front legs sweep forward and inward toward head
 			var phase = anim.groomPhase * 4;
-			angle1 = (side === -1) ? -Math.PI/2 - 0.2 : -Math.PI/2 + 0.2;
-			angle1 += Math.sin(phase) * 0.5;
-			angle2 = angle1 + (side * 1.0);
-			angle3 = angle2 + (side * 0.5);
+			a1 = -Math.PI/2 + (side * 0.1) + Math.sin(phase) * 0.6;
+			a2 = a1 + (side * 1.0);
+			a3 = a2 + (side * 0.5);
 		} else if (isFaceWashing) {
-			angle1 = baseAngle * 0.5;
-			angle2 = angle1 + (side * 0.4);
-			angle3 = angle2 + (side * 0.2);
+			a1 = (side === -1) ? Math.PI * 0.7 : Math.PI * 0.3;
+			a2 = a1; a3 = a1;
 		} else if (isAbdomenGrooming && pairIdx === 2) {
 			var phase = anim.groomPhase * 2;
-			angle1 = (side === -1) ? Math.PI/2 - 0.2 : Math.PI/2 + 0.2;
-			angle1 += Math.sin(phase) * 0.4;
-			angle2 = angle1 + (side * 0.8);
-			angle3 = angle2 + (side * 0.4);
+			a1 = Math.PI/2 + (side * 0.2) + Math.sin(phase) * 0.4;
+			a2 = a1 + (side * 0.8);
+			a3 = a2 + (side * 0.4);
 		} else if (isFlying) {
-			angle1 = (side === -1) ? Math.PI * 0.65 : Math.PI * 0.35;
-			angle2 = angle1 + (side * 0.4);
-			angle3 = angle2 + (side * 0.2);
+			a1 = (side === -1) ? Math.PI * 0.6 : Math.PI * 0.4;
+			a2 = a1; a3 = a1;
 		} else if (isResting) {
-			angle1 = baseAngle * 0.8;
-			angle2 = angle1 + (side * 0.5);
-			angle3 = angle2 + (side * 0.3);
+			a1 = (pairIdx === 0) ? -Math.PI/2 + (side * 0.3) : 
+				 (pairIdx === 1) ? (side === -1 ? Math.PI * 0.85 : Math.PI * 0.15) :
+								   Math.PI/2 + (side * 0.3);
+			a2 = a1 + (side * 0.4);
+			a3 = a2 + (side * 0.2);
 		} else {
-			angle1 += anim.legJitter[legIdx] * 0.15;
+			a1 += anim.legJitter[legIdx] * 0.1;
 		}
 		
-		// Calculate joint positions
-		var kneeX = hipX + Math.cos(angle1) * L1;
-		var kneeY = hipY + Math.sin(angle1) * L1;
+		var kneeX = hipX + Math.cos(a1) * L1;
+		var kneeY = hipY + Math.sin(a1) * L1;
+		var tibiaX = kneeX + Math.cos(a2) * L2;
+		var tibiaY = kneeY + Math.sin(a2) * L2;
+		var footX = tibiaX + Math.cos(a3) * L3;
+		var footY = tibiaY + Math.sin(a3) * L3;
 		
-		var tibiaX = kneeX + Math.cos(angle2) * L2;
-		var tibiaY = kneeY + Math.sin(angle2) * L2;
-		
-		var footX = tibiaX + Math.cos(angle3) * L3;
-		var footY = tibiaY + Math.sin(angle3) * L3;
-		
-		// Draw leg
 		ctx.beginPath();
 		ctx.moveTo(hipX, hipY);
 		ctx.lineTo(kneeX, kneeY);
 		ctx.lineTo(tibiaX, tibiaY);
 		ctx.lineTo(footX, footY);
 		ctx.strokeStyle = COLORS.leg;
-		ctx.lineWidth = 1.3;
+		ctx.lineWidth = 2.5;
 		ctx.lineJoin = 'round';
 		ctx.lineCap = 'round';
 		ctx.stroke();
 		
-		// Knee joint
 		ctx.beginPath();
-		ctx.arc(kneeX, kneeY, 0.6, 0, Math.PI * 2);
+		ctx.arc(kneeX, kneeY, 1.0, 0, Math.PI * 2);
 		ctx.fillStyle = COLORS.legJoint;
 		ctx.fill();
 	}
