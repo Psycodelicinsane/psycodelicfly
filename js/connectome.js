@@ -133,7 +133,7 @@ BRAIN.neuronRegions = {
 
 BRAIN.stimulate = {
 	touch: false,
-	touchLocation: null,   // 'cabeza', 'torax', 'abdomen', 'pata'
+	touchLocation: null,   // 'head', 'thorax', 'abdomen', 'leg'
 	foodNearby: false,
 	foodContact: false,
 	dangerOdor: false,
@@ -306,8 +306,11 @@ BRAIN.update = function () {
 	// Touch / mechanosensory
 	if (BRAIN.stimulate.touch) {
 		BRAIN.dendriteAccumulate('MECH_BRISTLE');
-		// Location-specific: stronger grooming for head/thorax touch
-		if (BRAIN.stimulate.touchLocation === 'cabeza' || BRAIN.stimulate.touchLocation === 'torax') {
+		// Location-specific: stronger grooming for head/thorax touch.
+		// Keep the old Spanish labels as aliases for external callers.
+		var touchLocation = BRAIN.stimulate.touchLocation;
+		if (touchLocation === 'head' || touchLocation === 'thorax' ||
+			touchLocation === 'cabeza' || touchLocation === 'torax') {
 			BRAIN.dendriteAccumulate('MECH_BRISTLE'); // double dose
 		}
 	}

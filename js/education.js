@@ -2,63 +2,63 @@
     var EDUCATION_REGIONS = [
         {
             id: 'optic-lobes',
-            name: 'Lóbulos Ópticos',
+            name: 'Lóbulos ópticos',
             neurons: ['VIS_R1R6', 'VIS_R7R8', 'VIS_ME', 'VIS_LO', 'VIS_LC', 'VIS_LPTC'],
             type: 'sensory',
-            explanation: 'Los lóbulos ópticos son los centros de procesamiento visual de la mosca, uno a cada lado del cerebro. Detectan movimiento, color, bordes y objetos que se acercan. Casi la mitad del cerebro de la mosca está dedicado a la visión.',
-            analogy: 'Como tu córtex visual — pero optimizado para detectar movimiento rápido y evitar matamoscas.',
-            interaction: 'Cambia la configuración de Luz de Brillante a Tenue o Oscuro y observa cómo responden los lóbulos ópticos.',
-            populationEstimate: '~60,000 neuronas en la mosca real'
+            explanation: 'Los lóbulos ópticos son los centros de procesamiento visual de la mosca, uno a cada lado del cerebro. Detectan movimiento, color, bordes y objetos que se acercan. Casi la mitad del cerebro de la mosca se dedica a la visión.',
+            analogy: 'Como tu córtex visual, pero optimizado para detectar movimiento rápido y evitar matamoscas.',
+            interaction: 'Cambia la luz entre brillante, tenue y oscura, y observa cómo responden los lóbulos ópticos.',
+            populationEstimate: '~60 000 neuronas en la mosca real'
         },
         {
             id: 'antennal-lobes',
-            name: 'Lóbulos Antennales',
+            name: 'Lóbulos antenales',
             neurons: ['OLF_ORN_FOOD', 'OLF_ORN_DANGER', 'OLF_LN', 'OLF_PN'],
             type: 'sensory',
-            explanation: 'Los lóbulos antenales procesan los olores detectados por las antenas. Diferentes olores activan diferentes glomérulos (agrupaciones), permitiendo a la mosca distinguir comida de peligro.',
-            analogy: 'Como tu bulbo olfativo — la primera parada para la información olfativa antes de que llegue a áreas cerebrales superiores.',
+            explanation: 'Los lóbulos antenales procesan los olores detectados por las antenas. Distintos olores activan diferentes glomérulos (agrupaciones), lo que permite a la mosca distinguir la comida del peligro.',
+            analogy: 'Como tu bulbo olfativo: la primera etapa del procesamiento de los olores antes de que llegue a otras áreas del cerebro.',
             interaction: 'Coloca comida en el lienzo y observa cómo se activan las neuronas olfativas cuando la mosca la detecta.',
-            populationEstimate: '~2,600 neuronas en ~50 glomérulos'
+            populationEstimate: '~2 600 neuronas en ~50 glomérulos'
         },
         {
             id: 'mushroom-bodies',
-            name: 'Cuerpos Hongos',
+            name: 'Cuerpos fungiformes',
             neurons: ['MB_KC', 'MB_APL', 'MB_MBON_APP', 'MB_MBON_AV', 'MB_DAN_REW', 'MB_DAN_PUN'],
             type: 'central',
-            explanation: 'Los cuerpos hongos son el centro de aprendizaje y memoria de la mosca. Asocian olores con recompensas o castigos, permitiendo a la mosca aprender qué olores significan comida y cuáles peligro.',
+            explanation: 'Los cuerpos fungiformes son centros de aprendizaje y memoria. Asocian olores con recompensas o castigos y ayudan a la mosca a aprender cuáles anuncian comida y cuáles, peligro.',
             analogy: 'Como el hipocampo de la mosca — forman y recuerdan memorias sobre olores.',
             interaction: 'Alimenta a la mosca repetidamente y observa cómo se activan las neuronas dopaminérgicas de recompensa (DAN) junto con las células de Kenyon.',
-            populationEstimate: '~2,000 células de Kenyon + ~400 neuronas de salida/dopamina'
+            populationEstimate: '~2 000 células de Kenyon + ~400 neuronas de salida y dopaminérgicas'
         },
         {
             id: 'central-complex',
-            name: 'Complejo Central',
+            name: 'Complejo central',
             neurons: ['CX_EPG', 'CX_PFN', 'CX_FC', 'CX_HDELTA', 'CLOCK_DN'],
             type: 'central',
             explanation: 'El complejo central es el centro de navegación de la mosca. Mantiene una brújula interna, rastrea la dirección de la mosca y coordina los patrones de locomoción.',
-            analogy: 'Como un GPS y un sistema de dirección combinados — sabe hacia dónde apunta la mosca y planifica a dónde ir.',
+            analogy: 'Como una brújula y un sistema de dirección combinados: indica hacia dónde apunta la mosca y ayuda a planificar su recorrido.',
             interaction: 'Observa las neuronas brújula (EPG) mientras la mosca camina y cambia de dirección.',
-            populationEstimate: '~3,000 neuronas en la mosca real'
+            populationEstimate: '~3 000 neuronas en la mosca real'
         },
         {
             id: 'lateral-horn',
-            name: 'Cuerno Lateral',
+            name: 'Cuerno lateral',
             neurons: ['LH_APP', 'LH_AV'],
             type: 'central',
-            explanation: 'El cuerno lateral maneja respuestas innatas (no aprendidas) a los olores. A diferencia de los cuerpos hongos que aprenden, el cuerno lateral desencadena comportamientos cableados de aproximación o evitación.',
-            analogy: 'Como un reflejo instintivo — retiras la mano de una estufa caliente antes de pensar en ello.',
+            explanation: 'El cuerno lateral maneja respuestas innatas (no aprendidas) a los olores. A diferencia de los cuerpos fungiformes, que participan en el aprendizaje, el cuerno lateral desencadena respuestas innatas de aproximación o evitación.',
+            analogy: 'Como un reflejo instintivo: retiras la mano de una superficie caliente antes de pensarlo.',
             interaction: 'Coloca comida cerca de la mosca y observa cómo se activa LH_APP (aproximación). El cuerno lateral responde incluso sin aprendizaje previo.',
-            populationEstimate: '~1,400 neuronas'
+            populationEstimate: '~1 400 neuronas'
         },
         {
             id: 'sez',
-            name: 'Zona Subesofágica',
+            name: 'Zona subesofágica',
             neurons: ['SEZ_FEED', 'SEZ_GROOM', 'SEZ_WATER', 'GUS_GRN_SWEET', 'GUS_GRN_BITTER', 'GUS_GRN_WATER', 'GNG_DESC'],
             type: 'central',
-            explanation: 'La zona subesofágica (SEZ) es el centro de mando para alimentación y aseo. Procesa la información del gusto y envía comandos motores para extender la proboscida o iniciar el aseo.',
-            analogy: 'Como un gerente de cafetería — decide si comer basándose en lo que reportan las papilas gustativas.',
+            explanation: 'La zona subesofágica (SEZ) es el centro de mando para alimentación y aseo. Procesa la información del gusto y envía comandos motores para extender la probóscide o iniciar el aseo.',
+            analogy: 'Como quien gestiona una cafetería: decide si comer según la información de las papilas gustativas.',
             interaction: 'Alimenta a la mosca y observa cómo se ilumina la SEZ. Toca la mosca para desencadenar los comandos de aseo.',
-            populationEstimate: '~7,000 neuronas'
+            populationEstimate: '~7 000 neuronas'
         },
         {
             id: 'vnc-motor',
@@ -66,10 +66,10 @@
             neurons: ['DN_WALK', 'DN_FLIGHT', 'DN_TURN', 'DN_BACKUP', 'DN_STARTLE', 'VNC_CPG'],
             type: 'motor',
             collectMNPrefix: true,
-            explanation: 'El cordón nervioso ventral (VNC) es el equivalente a la médula espinal de la mosca. Contiene neuronas motoras que controlan las patas, alas, proboscida y abdomen, además de generadores de patrones centrales que coordinan movimientos rítmicos como caminar.',
-            analogy: 'Como tu médula espinal — transmite comandos del cerebro a los músculos y coordina movimientos repetitivos como caminar.',
-            interaction: 'Observa cómo se activan las neuronas motoras durante cualquier comportamiento — caminar enciende los motores de las patas, volar enciende los motores de las alas.',
-            populationEstimate: '~15,000 neuronas incluyendo neuronas motoras e interneuronas'
+            explanation: 'El cordón nervioso ventral (VNC) es el equivalente a la médula espinal de la mosca. Contiene neuronas motoras que controlan las patas, alas, probóscide y abdomen, además de generadores de patrones centrales que coordinan movimientos rítmicos como caminar.',
+            analogy: 'Como tu médula espinal: transmite órdenes del cerebro a los músculos y coordina movimientos repetitivos, como caminar.',
+            interaction: 'Observa cómo se activan las neuronas motoras durante cualquier comportamiento: caminar enciende los motores de las patas, volar enciende los motores de las alas.',
+            populationEstimate: '~15 000 neuronas, incluidas motoras e interneuronas'
         },
         {
             id: 'thermosensory',
@@ -78,7 +78,7 @@
             type: 'sensory',
             explanation: 'Las neuronas termosensoriales detectan cambios de temperatura. Los sensores de calor y frío reportan al cerebro para que la mosca busque temperaturas confortables.',
             analogy: 'Como los sensores de temperatura en tu piel — le dicen al cerebro si hace demasiado calor o demasiado frío.',
-            interaction: 'Cambia la configuración de Temp a Cálido o Frío y observa cómo se activan las neuronas termosensoriales correspondientes.',
+            interaction: 'Cambia la temperatura a cálida o fría y observa cómo se activan las neuronas termosensoriales correspondientes.',
             populationEstimate: '~60 neuronas'
         },
         {
@@ -86,19 +86,19 @@
             name: 'Mecanosensorial',
             neurons: ['MECH_BRISTLE', 'MECH_JO', 'MECH_CHORD', 'ANTENNAL_MECH', 'NOCI'],
             type: 'sensory',
-            explanation: 'Las neuronas mecanosensoriales detectan tacto, viento, gravedad y posición corporal. Las neuronas cerdas responden al contacto físico, el órgano de Johnston detecta viento y gravedad a través de las antenas, y los órganos cordotonal rastrean las posiciones de las extremidades.',
-            analogy: 'Como tu sentido del tacto combinado con el sistema de equilibrio de tu oído interno.',
-            interaction: 'Toca la mosca para activar las neuronas cerdas. Sopla aire para activar el órgano de Johnston.',
-            populationEstimate: '~2,500 neuronas'
+            explanation: 'Las neuronas mecanosensoriales detectan tacto, viento, gravedad y posición corporal. Las neuronas cerdas responden al contacto físico, el órgano de Johnston detecta viento y gravedad a través de las antenas, y los órganos cordotonales registran las posiciones de las extremidades.',
+            analogy: 'Como la combinación de tu sentido del tacto y el sistema del equilibrio del oído interno.',
+            interaction: 'Toca la mosca para activar las neuronas sensoriales de las sedas. Sopla aire para activar el órgano de Johnston.',
+            populationEstimate: '~2 500 neuronas'
         },
         {
             id: 'drives',
             name: 'Impulsos',
             neurons: ['DRIVE_HUNGER', 'DRIVE_FEAR', 'DRIVE_FATIGUE', 'DRIVE_CURIOSITY', 'DRIVE_GROOM'],
             type: 'drives',
-            explanation: 'Las neuronas de impulso representan estados motivacionales internos. Fluctúan con el tiempo y sesgan el comportamiento de la mosca — una mosca hambrienta busca comida, una mosca asustada huye, una mosca cansada descansa.',
-            analogy: 'Como tus propios sentimientos de hambre, ansiedad o cansancio — estados internos invisibles que dan forma a lo que haces a continuación.',
-            interaction: 'Observa los metros de impulso en el panel inferior. El hambre aumenta con el tiempo; el miedo se dispara cuando tocas o soplas aire a la mosca.',
+            explanation: 'Las neuronas de impulso representan estados motivacionales internos. Fluctúan con el tiempo y sesgan el comportamiento de la mosca: una mosca hambrienta busca comida, una mosca asustada huye, una mosca cansada descansa.',
+            analogy: 'Como las sensaciones de hambre, ansiedad o cansancio: estados internos que influyen en lo que haces después.',
+            interaction: 'Observa los medidores de impulsos en el panel inferior. El hambre aumenta con el tiempo; el miedo se dispara cuando tocas o soplas aire a la mosca.',
             populationEstimate: 'Distribuidas — modeladas como 5 grupos funcionales'
         }
     ];
@@ -126,7 +126,7 @@
         _buildContent: function () {
             var html = '';
 
-            html += '<p class="edu-text" style="margin-bottom:1rem;">Un modelo funcional simplificado del cerebro de la mosca de la fruta. 59 grupos de neuronas modelan ~130,000 neuronas reales mapeadas por FlyWire (2024).</p>';
+            html += '<p class="edu-text" style="margin-bottom:1rem;">Un modelo funcional simplificado del cerebro de la mosca de la fruta. 59 grupos de neuronas modelan ~130 000 neuronas reales mapeadas por FlyWire (2024).</p>';
 
             var types = [
                 { key: 'sensory', label: 'Sensorial', color: '#3b82f6' },
@@ -153,7 +153,7 @@
 
             // Signal flow diagram
             html += '<div class="edu-section" style="margin-top:1rem;">';
-            html += '<h2 class="edu-section-title">Flujo de Señal</h2>';
+            html += '<h2 class="edu-section-title">Flujo de señales</h2>';
             html += '<svg class="edu-signal-flow" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">';
             html += '<defs>';
             html += '<marker id="edu-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8892a4"/></marker>';
@@ -178,10 +178,10 @@
             html += '<div class="edu-section">';
             html += '<h2 class="edu-section-title">¿Qué está simplificado?</h2>';
             html += '<ul class="edu-list">';
-            html += '<li>Cada grupo = cientos/miles de neuronas reales</li>';
+            html += '<li>Cada grupo = cientos o miles de neuronas reales</li>';
             html += '<li>Los pesos de conexión son estimaciones, no cantidades exactas</li>';
             html += '<li>Sin plasticidad sináptica (los pesos son fijos)</li>';
-            html += '<li>Sin difusión de neuromoduladores ni uniones gap</li>';
+            html += '<li>Sin difusión de neuromoduladores ni uniones comunicantes</li>';
             html += '</ul>';
             html += '</div>';
 
@@ -217,7 +217,8 @@
             var detail = document.getElementById('edu-detail');
             if (!detail) return;
             var html = '<div class="edu-section">';
-            html += '<h2 class="edu-section-title"><span class="edu-region-link" data-region="' + region.name + '">' + region.name + '</span><span class="edu-type-badge edu-type-' + region.type + '">' + region.type + '</span></h2>';
+            var regionTypeLabels = { sensory: 'Sensorial', central: 'Central', drives: 'Impulsos', motor: 'Motor' };
+            html += '<h2 class="edu-section-title"><span class="edu-region-link" data-region="' + region.name + '">' + region.name + '</span><span class="edu-type-badge edu-type-' + region.type + '">' + (regionTypeLabels[region.type] || region.type) + '</span></h2>';
             html += '<p class="edu-text">' + region.explanation + '</p>';
             html += '<p class="edu-analogy"><strong>Analogía:</strong> ' + region.analogy + '</p>';
             html += '<p class="edu-interaction"><strong>Pruébalo:</strong> ' + region.interaction + '</p>';

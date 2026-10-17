@@ -23,10 +23,10 @@
     var isCollapsed = analyticsContent.classList.contains('collapsed');
     if (isCollapsed) {
       analyticsContent.classList.remove('collapsed');
-      analyticsToggle.textContent = 'Hide';
+      analyticsToggle.textContent = 'Ocultar';
     } else {
       analyticsContent.classList.add('collapsed');
-      analyticsToggle.textContent = 'Show';
+      analyticsToggle.textContent = 'Mostrar';
     }
   }
 
@@ -46,10 +46,10 @@
     var html = '';
     html += renderScoreGauge(summary.composite_score);
     html += renderHungerSparkline(timeline.observations, timeline.feedMarkers);
-    html += renderMetricRow('Fear Incidents', summary.fear_incidents !== null ? summary.fear_incidents : 0, '/today', 'error');
-    html += renderMetricRow('Avg Response', summary.avg_response_time !== null ? summary.avg_response_time.toFixed(1) + 's' : 'N/A', '', null);
-    html += renderMetricRow('Feed Rate', summary.feeds_per_hour !== null ? summary.feeds_per_hour.toFixed(1) : '0', '/hr', null);
-    html += renderMetricRow('Active Time', summary.connected_hours !== null ? summary.connected_hours.toFixed(1) : '0', 'hrs', null);
+    html += renderMetricRow('Incidentes de miedo', summary.fear_incidents !== null ? summary.fear_incidents : 0, '/hoy', 'error');
+    html += renderMetricRow('Tiempo medio de respuesta', summary.avg_response_time !== null ? summary.avg_response_time.toLocaleString('es-ES', {minimumFractionDigits: 1, maximumFractionDigits: 1}) : 'N/D', 's', null);
+    html += renderMetricRow('Comidas por hora', summary.feeds_per_hour !== null ? summary.feeds_per_hour.toLocaleString('es-ES', {minimumFractionDigits: 1, maximumFractionDigits: 1}) : '0', '/h', null);
+    html += renderMetricRow('Tiempo activo', summary.connected_hours !== null ? summary.connected_hours.toLocaleString('es-ES', {minimumFractionDigits: 1, maximumFractionDigits: 1}) : '0', 'h', null);
     analyticsContent.innerHTML = html;
   }
 
@@ -68,12 +68,12 @@
         color = 'var(--error)';
       }
     }
-    return '<div class="analytics-metric analytics-score"><div class="analytics-score-value" style="color:' + color + '">' + displayScore + '</div><div class="analytics-metric-label">Puntuación del Cuidador</div></div>';
+    return '<div class="analytics-metric analytics-score"><div class="analytics-score-value" style="color:' + color + '">' + displayScore + '</div><div class="analytics-metric-label">Índice de cuidado</div></div>';
   }
 
   function renderHungerSparkline(observations, feedMarkers) {
     if (observations === null || observations === undefined || observations.length === 0) {
-      return '<div class="analytics-metric"><div class="analytics-metric-label">Hunger Timeline</div><div class="analytics-sparkline-empty">No data yet</div></div>';
+      return '<div class="analytics-metric"><div class="analytics-metric-label">Evolución del hambre</div><div class="analytics-sparkline-empty">Aún no hay datos</div></div>';
     }
     var W = 240, H = 40;
     var startTime = new Date(observations[0].timestamp).getTime();
@@ -107,7 +107,7 @@
       thresholdLine + feedMarkerLines +
       '<polyline points="' + pointsStr + '" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
 
-    return '<div class="analytics-metric"><div class="analytics-metric-label">Hunger Timeline <span class="analytics-legend"><span class="analytics-legend-marker" style="background:var(--success)"></span>fed <span class="analytics-legend-marker" style="background:var(--warning)"></span>0.7</span></div><div class="analytics-sparkline-container">' + svg + '</div></div>';
+    return '<div class="analytics-metric"><div class="analytics-metric-label">Evolución del hambre <span class="analytics-legend"><span class="analytics-legend-marker" style="background:var(--success)"></span>comidas <span class="analytics-legend-marker" style="background:var(--warning)"></span>umbral 0,7</span></div><div class="analytics-sparkline-container">' + svg + '</div></div>';
   }
 
   function renderMetricRow(label, value, unit, colorKey) {

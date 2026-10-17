@@ -6,7 +6,7 @@ The fly is not scripted. Behavior emerges from signal propagation through weight
 
 ## Usage
 
-Open `index.html` in a browser (or visit the hosted version). The fly loads the full connectome and begins exploring. Use the toolbar to interact:
+From the repository root, serve the app over HTTP (for example, run `python3 -m http.server 8000` and open `http://localhost:8000/`), or visit the hosted version. Do not open `index.html` via `file://`: the Web Worker and connectome fetch require an HTTP origin. The fly loads the full connectome and begins exploring. Use the toolbar to interact:
 
 - **Feed** -- click to place food. The fly seeks and eats it when hungry.
 - **Touch** -- click on the fly. Head, thorax, abdomen, and legs trigger different responses.
@@ -16,13 +16,17 @@ Open `index.html` in a browser (or visit the hosted version). The fly loads the 
 
 The bottom panel shows all 139K neurons firing in real time (WebGL), grouped by region: Sensory, Central, Drives, Motor.
 
+## Visual Model
+
+The fly uses transparent, photorealistic dorsal cutouts for its body and venated wings (`assets/drosophila-body.png` and `assets/drosophila-wing.png`). Position, orientation, wing spread, six articulated legs and antennae continue to use the existing canvas rig. The dark-chitin legs taper from thicker femurs to fine tarsi and stay behind the body during every behavior, including grooming; face and abdomen cleaning retain the original angle-driven motion. Antennae use slender, branched aristae rather than bright bulb tips. No separate leg overlay or custom solver is used. The wings remain translucent but are less transparent, and the photo cuticle stays intentionally darker while responding to the light control. A subtle world-anchored 50 px floor grid with 250 px reference marks helps track movement without obscuring the scene. The slim proboscis peeks out beneath the front of the head when the fly deliberately approaches nearby food, extends farther when it can reach the food, and retracts smoothly after feeding. Keep the `assets/` directory alongside the app when hosting or packaging it; the iOS build copies it into the app bundle.
+
 ## Data Source
 
 Connectome data from the FlyWire Whole-Brain Connectome:
 
 > Dorkenwald, S., Matsliah, A., Sterling, A.R. *et al.* Neuronal wiring diagram of an adult brain. *Nature* **634**, 124--138 (2024). https://doi.org/10.1038/s41586-024-07558-y
 
-The binary connectome file (`data/neuron_meta.bin.gz`) is derived from the [FlyWire Codex](https://codex.flywire.ai) public dataset (FAFB v783). Neurons are classified into functional groups (sensory, central, drives, motor) based on FlyWire cell type annotations.
+The binary connectome (`data/connectome.bin.gz`) and neuron metadata (`data/neuron_meta.json`) are derived from the [FlyWire Codex](https://codex.flywire.ai) public dataset (FAFB v783). Neurons are classified into functional groups (sensory, central, drives, motor) based on FlyWire cell type annotations.
 
 ## Origin
 

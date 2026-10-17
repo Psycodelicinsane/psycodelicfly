@@ -114,7 +114,7 @@
 			})
 			.then(function (buffer) {
 				if (subtitle) {
-					subtitle.textContent = 'Parsing connectome...';
+					subtitle.textContent = 'Analizando el conectoma...';
 				}
 				worker = new Worker('js/sim-worker.js');
 				worker.onmessage = handleWorkerMessage;
@@ -122,10 +122,10 @@
 				worker.postMessage({type: 'init', buffer: buffer}, [buffer]);
 			})
 			.catch(function (err) {
-				console.warn('connectome.bin.gz load failed, using 59-group BRAIN.update():', err);
+				console.warn('No se pudo cargar el conectoma completo; se usará la aproximación de 59 grupos.', err);
 				BRAIN.update = legacyUpdate;
 				if (subtitle) {
-					subtitle.textContent = '59 neuron groups \u2014 FlyWire approximation (fallback)';
+					subtitle.textContent = '59 grupos neuronales — aproximación de FlyWire (modo simplificado)';
 					subtitle.classList.remove('loading');
 				}
 			});
@@ -162,20 +162,20 @@
 			// Switch to worker-driven update
 			BRAIN.update = workerUpdate;
 			worker.postMessage({type: 'start'});
-			console.log('Connectome worker ready: ' + neuronCount + ' neurons, ' +
-				e.data.edgeCount + ' edges');
+			console.log('Trabajador del conectoma listo: ' + neuronCount + ' neuronas, ' +
+				e.data.edgeCount + ' conexiones');
 			// Update subtitle with actual counts
 			var subtitle = document.getElementById('connectomeSubtitle');
 			if (subtitle) {
-				subtitle.textContent = neuronCount.toLocaleString() + ' neurons / ' +
-					e.data.edgeCount.toLocaleString() + ' connections \u2014 FlyWire FAFB v783';
+				subtitle.textContent = neuronCount.toLocaleString('es-ES') + ' neuronas / '
+					e.data.edgeCount.toLocaleString('es-ES') + ' conexiones — FlyWire FAFB v783';
 				subtitle.classList.remove('loading');
 			}
 			// Update header scale indicator
 			var scaleEl = document.getElementById('scaleIndicator');
 			if (scaleEl) {
-				scaleEl.textContent = neuronCount.toLocaleString() + ' neurons / ' +
-					e.data.edgeCount.toLocaleString() + ' connections \u2014 FlyWire FAFB v783';
+				scaleEl.textContent = neuronCount.toLocaleString('es-ES') + ' neuronas / '
+					e.data.edgeCount.toLocaleString('es-ES') + ' conexiones — FlyWire FAFB v783';
 				scaleEl.style.display = '';
 			}
 			break;
@@ -198,16 +198,16 @@
 			if (statsSubtitle && !statsSubtitle.classList.contains('loading')) {
 				var firedPct = Math.round((e.data.firedNeurons || 0) / e.data.totalNeurons * 100);
 				var activePct = Math.round(e.data.activeNeurons / e.data.totalNeurons * 100);
-				statsSubtitle.textContent = neuronCount.toLocaleString() + ' neurons (' +
-					firedPct + '% firing, ' + activePct + '% active groups, ' +
-					e.data.avgTickMs.toFixed(1) + 'ms/tick) \u2014 FlyWire FAFB v783';
+				statsSubtitle.textContent = neuronCount.toLocaleString('es-ES') + ' neuronas (' +
+					firedPct + '% activas en este paso, ' + activePct + '% de grupos activos, ' +
+					e.data.avgTickMs.toLocaleString('es-ES', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + ' ms/paso) — FlyWire FAFB v783';
 			}
 			break;
 
 		case 'error':
-			console.warn('Worker error: ' + e.data.message);
+			console.warn('Error del trabajador del conectoma: ' + e.data.message);
 			if (workerReady) {
-				console.warn('Falling back to 59-group BRAIN.update()');
+				console.warn('Se vuelve a la aproximación del conectoma de 59 grupos.');
 				workerReady = false;
 				BRAIN.workerReady = false;
 				BRAIN.update = legacyUpdate;
@@ -217,13 +217,13 @@
 	}
 
 	function handleWorkerError(err) {
-		console.warn('Worker crashed, falling back to 59-group BRAIN.update():', err.message || err);
+		console.warn('El trabajador del conectoma se detuvo; se usará la aproximación de 59 grupos:', err.message || err);
 		workerReady = false;
 		BRAIN.workerReady = false;
 		BRAIN.update = legacyUpdate;
 		var subtitle = document.getElementById('connectomeSubtitle');
 		if (subtitle) {
-			subtitle.textContent = '59 neuron groups \u2014 FlyWire approximation (fallback)';
+			subtitle.textContent = '59 grupos neuronales — aproximación de FlyWire (modo simplificado)';
 			subtitle.classList.remove('loading');
 		}
 	}
@@ -449,8 +449,9 @@
 		// Sensory stimulation
 		if (BRAIN.stimulate.touch) {
 			segs.push({name: 'MECH_BRISTLE', intensity: STIM_INTENSITY});
-			if (BRAIN.stimulate.touchLocation === 'head' ||
-				BRAIN.stimulate.touchLocation === 'thorax') {
+			var touchLocation = BRAIN.stimulate.touchLocation;
+			if (touchLocation === 'head' || touchLocation === 'thorax' ||
+				touchLocation === 'cabeza' || touchLocation === 'torax') {
 				segs.push({name: 'MECH_BRISTLE', intensity: STIM_INTENSITY});
 			}
 		}

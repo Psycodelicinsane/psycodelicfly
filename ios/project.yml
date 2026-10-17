@@ -45,6 +45,10 @@ targets:
           mkdir -p "${DEST}/svg"
           rsync -a --delete "${WEB_ROOT}/svg/" "${DEST}/svg/"
 
+          # Copy photoreal fly textures
+          mkdir -p "${DEST}/assets"
+          rsync -a --delete "${WEB_ROOT}/assets/" "${DEST}/assets/"
+
           # Copy data/ (only connectome.bin.gz and neuron_meta.json -- exclude large CSVs)
           mkdir -p "${DEST}/data"
           cp "${WEB_ROOT}/data/connectome.bin.gz" "${DEST}/data/connectome.bin.gz"

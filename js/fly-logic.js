@@ -99,6 +99,21 @@ function evaluateBehaviorEntry() {
 
 var FEED_APPROACH_SPEED = 0.25;
 
+// Ignore tiny left/right motor imbalances from stochastic worker output; these
+// are gait noise, not a sustained steering command that should make the fly circle.
+var MOTOR_TURN_DEADZONE = 0.08;
+var MOTOR_TURN_MAX_OFFSET = 0.12;
+function computeMotorTurnOffset(leftOutput, rightOutput) {
+	var left = Math.max(0, Number(leftOutput) || 0);
+	var right = Math.max(0, Number(rightOutput) || 0);
+	var total = left + right;
+	if (total < 1) return 0;
+	var imbalance = (left - right) / total;
+	if (Math.abs(imbalance) <= MOTOR_TURN_DEADZONE) return 0;
+	return Math.max(-MOTOR_TURN_MAX_OFFSET,
+		Math.min(MOTOR_TURN_MAX_OFFSET, imbalance * 0.24));
+}
+
 /**
  * Pure extraction of food-seeking steering logic (main.js ~lines 859-862).
  * Returns the computed targetDir and seekStrength.
