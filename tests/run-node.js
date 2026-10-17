@@ -88,7 +88,7 @@ if (touchStart < 0 || touchEnd < 0 || mouthRangeStart < 0 || mouthRangeEnd < 0 |
 	foodRendererStart < 0 || foodRendererEnd < 0 || lightingStart < 0 || lightingEnd < 0) {
 	throw new Error('Could not find DOM-independent fly interaction helpers in main.js');
 }
-global.anim = { groomPhase: 0, groomFeedbackUntil: 0, groomFeedbackLocation: null };
+global.anim = { groomPhase: 0, groomBlend: 0, groomPoseLocation: null, groomFeedbackUntil: 0, groomFeedbackLocation: null };
 global.facingDir = Math.PI / 2;
 global.innerWidth = 800;
 global.innerHeight = 600;

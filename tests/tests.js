@@ -236,6 +236,8 @@ function test_touch_starts_visible_cleaning_feedback_for_head_and_abdomen() {
 
 function captureGroomingLegs(state, location, phase, touchFeedback) {
 	var originalCtx = globalThis.ctx;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
 	var calls = [];
 	var path = [];
 	var styles = {};
@@ -244,6 +246,8 @@ function captureGroomingLegs(state, location, phase, touchFeedback) {
 	behavior.groomLocation = location;
 	behavior.startlePhase = 'freeze';
 	anim.groomPhase = phase;
+	anim.groomBlend = 1;
+	anim.groomPoseLocation = location;
 	anim.groomFeedbackUntil = touchFeedback ? Date.now() + 1000 : 0;
 	anim.groomFeedbackLocation = location;
 	anim.legJitter = [0, 0, 0, 0, 0, 0];
@@ -275,6 +279,8 @@ function captureGroomingLegs(state, location, phase, touchFeedback) {
 		drawLegs(state, 1);
 	} finally {
 		globalThis.ctx = originalCtx;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
 	}
 	return calls;
 }
@@ -310,7 +316,18 @@ function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
 	var faceB = captureGroomingLegs('startle', 'head', 1.1, true);
 	assertTrue(Math.hypot(faceB[2].path[1][0] - faceA[2].path[1][0],
 		faceB[2].path[1][1] - faceA[2].path[1][1]) > 0.1,
-		'the original front legs keep their grooming motion');
+		'the front tarsi continue rubbing across the face');
+	var frontFemur = faceA[3];
+	var frontTibia = faceA[4];
+	var frontTarsus = faceA[5];
+	var upperAngle = Math.atan2(frontFemur.path[1][1] - frontFemur.path[0][1],
+		frontFemur.path[1][0] - frontFemur.path[0][0]);
+	var forearmAngle = Math.atan2(frontTibia.path[1][1] - frontTibia.path[0][1],
+		frontTibia.path[1][0] - frontTibia.path[0][0]);
+	assertTrue(Math.abs(normalizeAngle(forearmAngle - upperAngle)) > 1.8,
+		'the front tibia bends at the knee like an elbow instead of reaching straight down');
+	assertTrue(frontTarsus.path[1][1] < -25 && Math.abs(frontTarsus.path[1][0]) < 10,
+		'the fine front tarsus reaches the forehead and eye edge to wash the face');
 	var activeFaceGroom = captureGroomingLegs('groom', 'head', 0.35, false);
 	for (var segment = 0; segment < 18; segment++) {
 		for (var point = 0; point < 2; point++) {
@@ -323,6 +340,19 @@ function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
 
 	var abdomenA = captureGroomingLegs('startle', 'abdomen', 0.35, true);
 	assertOriginalLegSegmentLengths(abdomenA, 'abdomen cleaning');
+	var rearFemur = abdomenA[15];
+	var rearTibia = abdomenA[16];
+	var rearTarsus = abdomenA[17];
+	var rearUpperAngle = Math.atan2(rearFemur.path[1][1] - rearFemur.path[0][1],
+		rearFemur.path[1][0] - rearFemur.path[0][0]);
+	var rearForearmAngle = Math.atan2(rearTibia.path[1][1] - rearTibia.path[0][1],
+		rearTibia.path[1][0] - rearTibia.path[0][0]);
+	assertTrue(rearFemur.path[1][0] - rearFemur.path[0][0] > 5 &&
+		Math.abs(normalizeAngle(rearForearmAngle - rearUpperAngle)) > 1.0,
+		'the rear leg forms a visible bent elbow outside the abdomen');
+	assertTrue(rearTarsus.path[1][1] > 10 && rearTarsus.path[1][1] < 22 &&
+		rearTarsus.path[1][0] > 5 && rearTarsus.path[1][0] < 14,
+		'the rear tarsus reaches the abdomen edge for a readable belly-washing stroke');
 	var abdomenB = captureGroomingLegs('startle', 'abdomen', 2.7, true);
 	assertTrue(Math.hypot(abdomenB[14].path[1][0] - abdomenA[14].path[1][0],
 		abdomenB[14].path[1][1] - abdomenA[14].path[1][1]) > 0.1,
@@ -422,6 +452,8 @@ function test_proboscis_begins_during_feed_approach_and_extends_further_at_conta
 	var originalExtend = anim.proboscisExtend;
 	var originalWingSpread = anim.wingSpread;
 	var originalGroomPhase = anim.groomPhase;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
 	var originalGroomFeedback = anim.groomFeedbackUntil;
 	var originalBaseY = BODY.proboscisBaseY;
 	var originalLength = BODY.proboscisLength;
@@ -474,11 +506,114 @@ function test_proboscis_begins_during_feed_approach_and_extends_further_at_conta
 		anim.proboscisExtend = originalExtend;
 		anim.wingSpread = originalWingSpread;
 		anim.groomPhase = originalGroomPhase;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
 		anim.groomFeedbackUntil = originalGroomFeedback;
 		BODY.proboscisBaseY = originalBaseY;
 		BODY.proboscisLength = originalLength;
 	}
 }
+function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback() {
+	var originalCtx = globalThis.ctx;
+	var originalState = behavior.current;
+	var originalLocation = behavior.groomLocation;
+	var originalPhase = anim.groomPhase;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
+	var originalFeedbackUntil = anim.groomFeedbackUntil;
+	var originalFeedbackLocation = anim.groomFeedbackLocation;
+	var originalReady = globalThis.flyBodyAssetReady;
+	var originalAsset = globalThis.flyBodyAsset;
+	var rotations = [];
+	globalThis.flyBodyAssetReady = true;
+	globalThis.flyBodyAsset = { naturalWidth: 454, naturalHeight: 1284 };
+	globalThis.ctx = new Proxy({}, {
+		get: function (_target, name) {
+			if (name === 'rotate') return function (angle) { rotations.push(angle); };
+			return function () {};
+		},
+		set: function () { return true; }
+	});
+	try {
+		anim.groomPhase = Math.PI / 1.6;
+		anim.groomBlend = 1;
+		anim.groomPoseLocation = 'abdomen';
+		behavior.current = 'groom';
+		behavior.groomLocation = 'abdomen';
+		anim.groomFeedbackUntil = 0;
+		drawPhotorealBody();
+		assertClose(rotations[0], 0.042, 0.000001,
+			'connectome-driven abdomen grooming flexes the photo cutout enough to read');
+
+		rotations = [];
+		behavior.current = 'startle';
+		anim.groomFeedbackUntil = Date.now() + 1000;
+		anim.groomFeedbackLocation = 'abdomen';
+		drawPhotorealBody();
+		assertClose(rotations[0], 0.042, 0.000001,
+			'abdomen touch feedback also flexes the cutout while the brain is startled');
+	} finally {
+		globalThis.ctx = originalCtx;
+		behavior.current = originalState;
+		behavior.groomLocation = originalLocation;
+		anim.groomPhase = originalPhase;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
+		anim.groomFeedbackUntil = originalFeedbackUntil;
+		anim.groomFeedbackLocation = originalFeedbackLocation;
+		globalThis.flyBodyAssetReady = originalReady;
+		globalThis.flyBodyAsset = originalAsset;
+	}
+}
+
+function test_groom_pose_blends_in_and_out_without_snapping() {
+	var originalState = behavior.current;
+	var originalLocation = behavior.groomLocation;
+	var originalBlend = anim.groomBlend;
+	var originalPoseLocation = anim.groomPoseLocation;
+	var originalFeedbackUntil = anim.groomFeedbackUntil;
+	var originalFeedbackLocation = anim.groomFeedbackLocation;
+	var originalPhase = anim.groomPhase;
+	var originalWingSpread = anim.wingSpread;
+	var originalProboscisExtend = anim.proboscisExtend;
+	try {
+		behavior.current = 'groom';
+		behavior.groomLocation = 'head';
+		anim.groomFeedbackUntil = 0;
+		anim.groomBlend = 0;
+		updateAnimForBehavior(1);
+		assertClose(anim.groomBlend, 0.14, 0.000001,
+			'face washing eases the front-leg pose in over several frames');
+		assertEqual(anim.groomPoseLocation, 'head', 'the eased pose retains its face-cleaning target');
+
+		var blendedIn = anim.groomBlend;
+		behavior.current = 'idle';
+		updateAnimForBehavior(1);
+		assertTrue(anim.groomBlend > 0 && anim.groomBlend < blendedIn,
+			'leaving grooming eases the legs back to their resting pose');
+
+		behavior.current = 'startle';
+		anim.groomBlend = 0;
+		anim.groomFeedbackUntil = Date.now() + 1000;
+		anim.groomFeedbackLocation = 'abdomen';
+		updateAnimForBehavior(1);
+		assertClose(anim.groomBlend, 0.14, 0.000001,
+			'touch-triggered belly washing uses the same smooth pose transition');
+		assertEqual(anim.groomPoseLocation, 'abdomen',
+			'touch feedback keeps its selected belly-cleaning target while blending');
+	} finally {
+		behavior.current = originalState;
+		behavior.groomLocation = originalLocation;
+		anim.groomBlend = originalBlend;
+		anim.groomPoseLocation = originalPoseLocation;
+		anim.groomFeedbackUntil = originalFeedbackUntil;
+		anim.groomFeedbackLocation = originalFeedbackLocation;
+		anim.groomPhase = originalPhase;
+		anim.wingSpread = originalWingSpread;
+		anim.proboscisExtend = originalProboscisExtend;
+	}
+}
+
 function test_photoreal_body_and_proboscis_render_smoke() {
 	resetBrainState();
 	globalThis.flyBodyAssetReady = true;

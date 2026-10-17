@@ -1030,6 +1030,7 @@ function applyTouchTool(cx, cy) {
 	anim.groomPhase = 0;
 	anim.groomFeedbackUntil = Date.now() + 1100;
 	anim.groomFeedbackLocation = location;
+	anim.groomPoseLocation = location;
 	recordFlyActivity(
 		describeFlyBehavior('groom', location).replace(/\.$/, '') + ' tras el contacto.',
 		'grooming'
@@ -1396,6 +1397,16 @@ function updateAnimForBehavior(dtScale) {
 	}
 	anim.wingSpread += (targetWingSpread - anim.wingSpread) * (1 - Math.pow(0.85, dtScale));
 
+	// Ease the legs into and out of grooming so the elbow pose does not snap.
+	var touchCleaningActive = anim.groomFeedbackUntil > Date.now();
+	if (state === 'groom') {
+		anim.groomPoseLocation = behavior.groomLocation;
+	} else if (touchCleaningActive) {
+		anim.groomPoseLocation = anim.groomFeedbackLocation;
+	}
+	var targetGroomBlend = state === 'groom' || touchCleaningActive ? 1 : 0;
+	anim.groomBlend += (targetGroomBlend - anim.groomBlend) * (1 - Math.pow(0.86, dtScale));
+
 	// Show a short tasting extension while the fly is deliberately feeding and
 	// nearby food is within approach range; extend fully once the mouth can reach it.
 	var targetProboscis = 0;
@@ -1637,6 +1648,8 @@ var anim = {
 	wingMicroNextInterval: 2.0 + Math.random() * 3.0,
 	// Behavior animation state (T2.1)
 	groomPhase: 0,
+	groomBlend: 0,
+	groomPoseLocation: null,
 	groomFeedbackUntil: 0,
 	groomFeedbackLocation: null,
 	proboscisExtend: 0,
@@ -1821,18 +1834,21 @@ function drawPhotorealBody() {
 		x, y, width, splitY * scale
 	);
 
-	// Preserve the original abdomen response during thorax/abdomen grooming.
+	// Preserve and clarify the abdomen response during both connectome grooming
+	// and the brief touch-triggered cleaning feedback.
+	var abdomenGroomLocation = behavior.current === 'groom' ? behavior.groomLocation :
+		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenFlex = 0;
-	if (behavior.current === 'groom' &&
-		(behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax' ||
-			behavior.groomLocation === 'torax')) {
-		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 2;
+	if (abdomenGroomLocation === 'abdomen' || abdomenGroomLocation === 'thorax' ||
+		abdomenGroomLocation === 'torax') {
+		// Slightly larger flex makes belly grooming readable through the body cutout.
+		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	var lowerSourceY = Math.max(0, splitY - overlap);
 	ctx.save();
 	if (abdomenFlex) {
 		ctx.translate(0, splitCanvasY + abdomenFlex * 0.45);
-		ctx.rotate(abdomenFlex * 0.006);
+		ctx.rotate(abdomenFlex * 0.012);
 		ctx.translate(0, -splitCanvasY);
 	}
 	ctx.drawImage(
@@ -1966,10 +1982,13 @@ function drawAbdomen() {
 	var rx = BODY.abdomenRadiusX;
 	var ry = BODY.abdomenRadiusY;
 
-	// Abdomen curl during abdomen-specific grooming
+	// Abdomen curl during abdomen grooming, including touch feedback.
+	var abdomenGroomLocation = behavior.current === 'groom' ? behavior.groomLocation :
+		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenCurl = 0;
-	if (behavior.current === 'groom' && (behavior.groomLocation === 'abdomen' || behavior.groomLocation === 'thorax')) {
-		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 2;
+	if (abdomenGroomLocation === 'abdomen' || abdomenGroomLocation === 'thorax' ||
+		abdomenGroomLocation === 'torax') {
+		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	ay += abdomenCurl;
 
@@ -2368,8 +2387,11 @@ function drawLegs(state, dtScale) {
 	var isResting = (state === 'rest');
 	var isBracing = (state === 'brace');
 	var touchGroomFeedback = !isGrooming && anim.groomFeedbackUntil > Date.now();
+	var groomBlend = Math.max(0, Math.min(1, Number(anim.groomBlend) || 0));
+	var groomingPoseActive = isGrooming || touchGroomFeedback || groomBlend > 0.01;
 	var groomingLocation = isGrooming ? behavior.groomLocation :
-		(touchGroomFeedback ? anim.groomFeedbackLocation : null);
+		(touchGroomFeedback ? anim.groomFeedbackLocation :
+			(groomingPoseActive ? (anim.groomPoseLocation || behavior.groomLocation) : null));
 
 	// Update idle jitter targets periodically
 	if (t - anim.legJitterTimer > anim.legJitterNextInterval) {
@@ -2406,21 +2428,25 @@ function drawLegs(state, dtScale) {
 		var walkOffset = 0;
 		var jitter = 0;
 
-		if (isWalking) {
+		if (isWalking && !groomingPoseActive) {
 			// Tripod gait animation
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var legPhase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
 			walkOffset = Math.sin(legPhase) * 0.35;
-		} else if (isGrooming || touchGroomFeedback) {
+		} else if (groomingPoseActive) {
 			var groomLoc = groomingLocation || 'thorax';
+			var strokePhase = anim.groomPhase + (side > 0 ? Math.PI : 0);
 			if (groomLoc === 'head' && pairIdx === 0) {
-				// Front legs rub the head area: swing forward and inward
-				hipMod = -0.9 + Math.sin(anim.groomPhase) * 0.4;
-				kneeMod = -0.8 + Math.sin(anim.groomPhase * 1.5) * 0.25;
+				// Lift the foreleg outward, then fold the tibia sharply at the knee
+				// so the fine tarsus reaches the forehead/eye edge to rub the face.
+				// Opposite stroke phases make the two front legs alternate naturally.
+				hipMod = 0.04 + Math.sin(strokePhase) * 0.12;
+				kneeMod = -2.8 + Math.sin(strokePhase * 1.3 + 0.3) * 0.16;
 			} else if (groomLoc === 'abdomen' && pairIdx === 2) {
-				// Rear legs reach back to abdomen: swing backward
-				hipMod = 1.0 + Math.sin(anim.groomPhase * 0.8) * 0.3;
-				kneeMod = 0.5 + Math.sin(anim.groomPhase * 1.2) * 0.2;
+				// Hind legs form a visible elbow outside the abdomen, then sweep
+				// the tarsi inward along the belly edge in alternating strokes.
+				hipMod = 0.55 + Math.sin(strokePhase) * 0.1;
+				kneeMod = 0.9 + Math.sin(strokePhase * 1.3 + 0.6) * 0.16;
 			} else if (groomLoc === 'thorax' && pairIdx === 0) {
 				// Full bilateral front-leg grooming: wide symmetric rub
 				hipMod = -0.2 + Math.sin(anim.groomPhase) * 0.5;
@@ -2434,6 +2460,8 @@ function drawLegs(state, dtScale) {
 					kneeMod = 0.3 + Math.sin(anim.groomPhase * 1.4) * 0.3;
 				}
 			}
+			hipMod = restAngles.hip + (hipMod - restAngles.hip) * groomBlend;
+			kneeMod = restAngles.knee + (kneeMod - restAngles.knee) * groomBlend;
 		} else if (isFlying) {
 			// Tucked legs during flight
 			hipMod *= 0.4;
