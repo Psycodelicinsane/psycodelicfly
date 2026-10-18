@@ -513,22 +513,24 @@ for (var i = 0; i < toolButtons.length; i++) {
 	})(toolButtons[i]);
 }
 
-// --- Shared right panel: Registro and Cerebro are exclusive tab views. ---
-var rightPanel = document.getElementById('right-panel');
+// --- Shared left-side panel: Registro and Cerebro switch from the toolbar. ---
+var sidePanel = document.getElementById('side-panel');
+var sidePanelTitle = document.getElementById('sidePanelTitle');
 var caretakerSidebarEl = document.getElementById('caretaker-sidebar');
 var brainPanelEl = document.getElementById('brain3d-overlay');
 var brain3dBtn = document.getElementById('brain3dBtn');
 var activityToggle = document.getElementById('activityToggle');
-var activityTab = document.getElementById('activityTab');
-var brainTab = document.getElementById('brainTab');
-var rightPanelCloseBtn = document.getElementById('rightPanelCloseBtn');
-var rightPanelCurrent = null;
+var sidePanelCloseBtn = document.getElementById('sidePanelCloseBtn');
+var sidePanelCurrent = null;
 
-function updateRightPanelControls() {
-    var isOpen = !!(rightPanel && rightPanel.classList.contains('right-panel-open'));
-    var activityActive = isOpen && rightPanelCurrent === 'activity';
-    var brainActive = isOpen && rightPanelCurrent === 'brain';
-    if (rightPanel) rightPanel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+function updateSidePanelControls() {
+    var isOpen = !!(sidePanel && sidePanel.classList.contains('side-panel-open'));
+    var activityActive = isOpen && sidePanelCurrent === 'activity';
+    var brainActive = isOpen && sidePanelCurrent === 'brain';
+    if (sidePanel) sidePanel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    if (sidePanelTitle) {
+        sidePanelTitle.textContent = brainActive ? 'Cerebro 3D' : activityActive ? 'Registro' : 'Panel lateral';
+    }
     if (activityToggle) {
         activityToggle.classList.toggle('active', activityActive);
         activityToggle.setAttribute('aria-pressed', activityActive ? 'true' : 'false');
@@ -537,39 +539,29 @@ function updateRightPanelControls() {
         brain3dBtn.classList.toggle('active', brainActive);
         brain3dBtn.setAttribute('aria-pressed', brainActive ? 'true' : 'false');
     }
-    if (activityTab) {
-        activityTab.classList.toggle('active', activityActive);
-        activityTab.setAttribute('aria-selected', activityActive ? 'true' : 'false');
-        activityTab.tabIndex = activityActive ? 0 : -1;
-    }
-    if (brainTab) {
-        brainTab.classList.toggle('active', brainActive);
-        brainTab.setAttribute('aria-selected', brainActive ? 'true' : 'false');
-        brainTab.tabIndex = brainActive ? 0 : -1;
-    }
     if (caretakerSidebarEl) caretakerSidebarEl.setAttribute('aria-hidden', activityActive ? 'false' : 'true');
     if (brainPanelEl) brainPanelEl.setAttribute('aria-hidden', brainActive ? 'false' : 'true');
 }
 
-function closeRightPanel() {
-    var previousPanel = rightPanelCurrent;
+function closeSidePanel() {
+    var previousPanel = sidePanelCurrent;
     if (typeof Brain3D !== 'undefined') Brain3D.hide();
     if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.close();
-    rightPanelCurrent = null;
-    if (rightPanel) {
-        rightPanel.classList.remove('right-panel-open');
-        rightPanel.removeAttribute('data-active-panel');
+    sidePanelCurrent = null;
+    if (sidePanel) {
+        sidePanel.classList.remove('side-panel-open');
+        sidePanel.removeAttribute('data-active-panel');
     }
-    updateRightPanelControls();
+    updateSidePanelControls();
     var trigger = previousPanel === 'brain' ? brain3dBtn : activityToggle;
     if (trigger && typeof trigger.focus === 'function') trigger.focus();
 }
 
-function selectRightPanel(panel) {
-    if (!rightPanel || (panel !== 'activity' && panel !== 'brain')) return false;
-    rightPanelCurrent = panel;
-    rightPanel.setAttribute('data-active-panel', panel);
-    rightPanel.classList.add('right-panel-open');
+function selectSidePanel(panel) {
+    if (!sidePanel || (panel !== 'activity' && panel !== 'brain')) return false;
+    sidePanelCurrent = panel;
+    sidePanel.setAttribute('data-active-panel', panel);
+    sidePanel.classList.add('side-panel-open');
     if (panel === 'activity') {
         if (typeof Brain3D !== 'undefined') Brain3D.hide();
         if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.open();
@@ -577,58 +569,37 @@ function selectRightPanel(panel) {
         if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.close();
         if (typeof Brain3D !== 'undefined') Brain3D.show();
     }
-    updateRightPanelControls();
+    updateSidePanelControls();
     return true;
 }
 
-function toggleRightPanel(panel) {
-    if (rightPanel && rightPanel.classList.contains('right-panel-open') && rightPanelCurrent === panel) {
-        closeRightPanel();
+function toggleSidePanel(panel) {
+    if (sidePanel && sidePanel.classList.contains('side-panel-open') && sidePanelCurrent === panel) {
+        closeSidePanel();
         return false;
     }
-    return selectRightPanel(panel);
-}
-
-function handleRightPanelTabKeydown(event) {
-    var nextPanel = null;
-    if (event.key === 'ArrowRight') nextPanel = 'brain';
-    else if (event.key === 'ArrowLeft') nextPanel = 'activity';
-    else if (event.key === 'Home') nextPanel = 'activity';
-    else if (event.key === 'End') nextPanel = 'brain';
-    if (!nextPanel) return;
-    event.preventDefault();
-    selectRightPanel(nextPanel);
-    var nextTab = nextPanel === 'brain' ? brainTab : activityTab;
-    if (nextTab) nextTab.focus();
+    return selectSidePanel(panel);
 }
 
 if (brain3dBtn) {
     brain3dBtn.addEventListener('click', function (event) {
         event.stopPropagation();
-        toggleRightPanel('brain');
+        toggleSidePanel('brain');
     });
 }
 if (activityToggle) {
     activityToggle.addEventListener('click', function (event) {
         event.stopPropagation();
-        toggleRightPanel('activity');
+        toggleSidePanel('activity');
     });
 }
-if (activityTab) {
-    activityTab.addEventListener('click', function () { selectRightPanel('activity'); });
-    activityTab.addEventListener('keydown', handleRightPanelTabKeydown);
-}
-if (brainTab) {
-    brainTab.addEventListener('click', function () { selectRightPanel('brain'); });
-    brainTab.addEventListener('keydown', handleRightPanelTabKeydown);
-}
-if (rightPanelCloseBtn) rightPanelCloseBtn.addEventListener('click', closeRightPanel);
+if (sidePanelCloseBtn) sidePanelCloseBtn.addEventListener('click', closeSidePanel);
 document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && rightPanel && rightPanel.classList.contains('right-panel-open')) {
-        closeRightPanel();
+    if (event.key === 'Escape' && sidePanel && sidePanel.classList.contains('side-panel-open')) {
+        closeSidePanel();
     }
 });
-updateRightPanelControls();
+updateSidePanelControls();
 
 // --- Learn / Education panel toggle ---
 var learnBtn = document.getElementById('learnBtn');
@@ -709,8 +680,8 @@ if (sidebarToggle) {
 				openDrawer();
 			}
 		} else {
-			// On desktop, the hamburger opens Registro in the shared right dock.
-			toggleRightPanel('activity');
+			// On desktop, the hamburger opens Registro in the shared left panel.
+			toggleSidePanel('activity');
 		}
 	});
 }

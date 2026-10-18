@@ -22,9 +22,9 @@ The fly uses transparent, photorealistic dorsal cutouts for its body and venated
 
 The leg segment sequence and five-part tarsus follow adult *D. melanogaster* morphology described by [Natori & Kojima (2019)](https://doi.org/10.1508/cytologia.84.105); the distinction between proximal, muscle-bearing joints and distal tarsal joints is discussed by [Córdoba & Estella (2014)](https://doi.org/10.1371/journal.pgen.1004621). Front legs chiefly clean the head; thoracic grooming has been observed with back legs, although the dorsal notum may be cleaned by front or back legs depending on stimulus location ([Yoshikawa et al. (2024)](https://doi.org/10.1016/j.cub.2024.04.003)). This rig uses the hind pair for thorax and abdomen to avoid assigning the thoracic sweep to the middle pair. Flight steering now uses a smoothed, rate-limited heading, and a startle burst sets an escape target instead of instantly rotating the whole body. Since fruit-fly wingbeats are around 200 Hz ([Zhao et al. (2015)](https://doi.org/10.1371/journal.pone.0116813)), above the canvas frame rate, the flying wings use a weighted translucent stroke envelope rather than an aliased slow flap. The canvas rig is a simplified 2D rendering, not a biomechanical reconstruction.
 
-## Side Panel
+## Toolbar and Side Panel
 
-**Registro** and **Cerebro** share one dock on the right. The toolbar buttons open either view, the in-panel tabs switch between them, and only the selected view is rendered at a time. The same layout is used on mobile, with the dock filling the available space above the bottom controls.
+The toolbar groups interaction controls (**Comida**, **Tocar**, **Viento**) in teal, environment controls (**Luz**, **Temp.**) in amber, and panels/learning (**Cerebro**, **Registro**, **Aprender**) in violet. **Registro** and **Cerebro** share a drawer that opens from the left; switch between them using their toolbar buttons, with no duplicate tabs inside the drawer. Only one view is open at a time. On mobile, the drawer fills the available space above the bottom controls.
 
 ## Data Source
 
