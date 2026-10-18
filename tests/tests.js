@@ -42,6 +42,8 @@ function withMockedRandom(mockValue, fn) {
 // functions in fly-logic.js: evaluateBehaviorEntry, isCoolingDown, hasNearbyFood)
 var behavior = {
 	current: 'idle', enterTime: 0, cooldowns: {},
+	startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0,
+	touchEscapePending: false, groomLocation: null, burstDir: 0,
 	turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
 	locomotionSpeedCommand: 0
 };
@@ -86,6 +88,8 @@ function resetBrainState() {
 	};
 	behavior = {
 		current: 'idle', enterTime: 0, cooldowns: {},
+		startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0,
+		touchEscapePending: false, groomLocation: null, burstDir: 0,
 		turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
 		locomotionSpeedCommand: 0
 	};
@@ -240,6 +244,38 @@ function test_touch_starts_visible_cleaning_feedback_for_head_and_abdomen() {
 	assertEqual(BRAIN.stimulate.touchLocation, 'abdomen', 'click over abdomen remains a distinct interaction');
 	assertTrue(anim.groomFeedbackUntil > Date.now(), 'abdomen touch also schedules a visible cleaning gesture');
 	assertEqual(anim.groomFeedbackLocation, 'abdomen', 'abdomen cleaning selects the rear leg pair');
+}
+
+function test_repeated_touch_forces_fast_escape_out_of_grooming() {
+	resetBrainState();
+	var now = Date.now();
+	behavior.current = 'groom';
+	behavior.enterTime = now - 100;
+	behavior.cooldowns = {};
+	behavior.startlePhase = 'none';
+	behavior.startleBurstEnd = 0;
+	behavior.touchEscapePending = false;
+	anim.groomBlend = 0.8;
+	anim.groomFeedbackUntil = now + 1000;
+	anim.groomFeedbackLocation = 'abdomen';
+	anim.groomPoseLocation = 'abdomen';
+	touchTimestamps.length = 0;
+	touchResetTime = 0;
+
+	applyTouchTool(fly.x, fly.y);
+	applyTouchTool(fly.x, fly.y);
+	applyTouchTool(fly.x, fly.y);
+
+	assertTrue(BRAIN.stimulate.nociception, 'three quick taps still send the pain stimulus to the connectome');
+	assertEqual(behavior.current, 'startle', 'rapid taps interrupt the long grooming minimum immediately');
+	assertEqual(behavior.startlePhase, 'freeze', 'escape begins with only a brief startle pause');
+	assertTrue(behavior.startleFreezeEnd <= Date.now() + 100,
+		'the freeze does not hold the fly in a slow grooming response');
+	assertEqual(behavior.touchEscapePending, false, 'the urgent escape request is consumed once');
+	assertEqual(anim.groomFeedbackUntil, 0, 'rapid taps cancel the lingering cleaning animation');
+	assertEqual(anim.groomFeedbackLocation, null, 'the escape no longer targets a cleaning pose');
+	assertEqual(anim.groomBlend, 0, 'the legs leave the grooming pose for the escape');
+	assertEqual(touchTimestamps.length, 0, 'the rapid-tap window resets after triggering escape');
 }
 
 function captureGroomingLegs(state, location, phase, touchFeedback) {
@@ -637,8 +673,8 @@ function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback(
 		behavior.groomLocation = 'abdomen';
 		anim.groomFeedbackUntil = 0;
 		drawPhotorealBody();
-		assertClose(rotations[0], 0.042, 0.000001,
-			'connectome abdomen grooming produces a visible swing around the hinge');
+		assertClose(rotations[0], 0.0096, 0.000001,
+			'connectome abdomen grooming uses a subtle flex without hanging away from the thorax');
 		assertEqual(translations.length, 2, 'the abdomen rotates around the split without shifting the hinge');
 		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
 			'the abdomen hinge stays connected to the thorax');
@@ -657,8 +693,8 @@ function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback(
 		anim.groomFeedbackUntil = Date.now() + 1000;
 		anim.groomFeedbackLocation = 'abdomen';
 		drawPhotorealBody();
-		assertClose(rotations[0], 0.042, 0.000001,
-			'abdomen touch feedback uses the same visible, connected hinge');
+		assertClose(rotations[0], 0.0096, 0.000001,
+			'abdomen touch feedback uses the same subtle, connected hinge');
 		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
 			'touch-triggered belly cleaning does not pull the abdomen off the shell');
 
@@ -2299,8 +2335,8 @@ function test_heading_turn_rate_caps_flight_and_startle_without_angle_seam_jumps
 	assertClose(flightStep, 2.6 / 60, 0.000001,
 		'a large flight command is capped to the configured angular speed per 60 Hz frame');
 
-	var startleStep = computeHeadingStep(0, Math.PI, 0.3, 4.8, 1);
-	assertClose(startleStep, 4.8 / 60, 0.000001,
+	var startleStep = computeHeadingStep(0, Math.PI, 0.25, 10.5, 1);
+	assertClose(startleStep, 10.5 / 60, 0.000001,
 		'startle may turn faster but still cannot snap the body to its escape heading');
 
 	var smallCorrection = computeHeadingStep(0, 0.05, 0.9, 2.4, 1);
@@ -2314,10 +2350,11 @@ function test_heading_turn_rate_caps_flight_and_startle_without_angle_seam_jumps
 		'zero elapsed time cannot change the heading');
 }
 
-function test_startle_burst_changes_target_without_snapping_facing_heading() {
+function test_startle_burst_sprints_then_recovers_without_snapping_heading() {
 	var originalState = behavior.current;
 	var originalPhase = behavior.startlePhase;
 	var originalFreezeEnd = behavior.startleFreezeEnd;
+	var originalBurstEnd = behavior.startleBurstEnd;
 	var originalBurstDir = behavior.burstDir;
 	var originalFacing = facingDir;
 	var originalTargetDir = globalThis.targetDir;
@@ -2329,22 +2366,32 @@ function test_startle_burst_changes_target_without_snapping_facing_heading() {
 		behavior.current = 'startle';
 		behavior.startlePhase = 'freeze';
 		behavior.startleFreezeEnd = 0;
+		behavior.startleBurstEnd = 0;
 		facingDir = initialHeading;
 		globalThis.targetDir = initialHeading;
 		globalThis.speed = 0.7;
 		withMockedRandom(0.5, function () { applyBehaviorMovement(1); });
 
-		assertEqual(behavior.startlePhase, 'burst', 'the freeze phase still transitions into an escape burst');
+		assertEqual(behavior.startlePhase, 'burst', 'the brief freeze transitions into an escape sprint');
 		assertClose(facingDir, initialHeading, 0.000001,
 			'the escape direction is not assigned directly to the rendered body heading');
 		assertClose(normalizeAngle(globalThis.targetDir - (initialHeading + Math.PI)), 0, 0.000001,
-			'the burst direction is retained as a target for the rate-limited turn');
-		assertClose(globalThis.speed, 1.8, 0.000001,
-			'the escape begins with a controlled speed instead of an extreme one-frame kick');
+			'the burst direction remains a target for a fast, rate-limited turn');
+		assertClose(globalThis.speed, 3.0, 0.000001, 'the escape launches at brisk running speed');
+		assertClose(globalThis.targetSpeed, 3.0, 0.000001, 'the short sprint holds its fast target speed');
+		assertClose(globalThis.speedChangeInterval, 0, 0.000001, 'the sprint launch is not immediately damped');
+		assertTrue(behavior.startleBurstEnd > Date.now(), 'the sprint target stays active for a short burst');
+
+		behavior.startleBurstEnd = Date.now() - 1;
+		globalThis.speed = 3.0;
+		applyBehaviorMovement(1);
+		assertClose(globalThis.targetSpeed, 0.9, 0.000001, 'the sprint eases into a short recovery run');
+		assertTrue(globalThis.speedChangeInterval < 0, 'recovery decelerates gradually rather than cutting the run off');
 	} finally {
 		behavior.current = originalState;
 		behavior.startlePhase = originalPhase;
 		behavior.startleFreezeEnd = originalFreezeEnd;
+		behavior.startleBurstEnd = originalBurstEnd;
 		behavior.burstDir = originalBurstDir;
 		facingDir = originalFacing;
 		globalThis.targetDir = originalTargetDir;

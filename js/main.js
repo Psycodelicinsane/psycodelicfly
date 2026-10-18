@@ -156,6 +156,8 @@ var behavior = {
 	cooldowns: {},
 	startlePhase: 'none',
 	startleFreezeEnd: 0,
+	startleBurstEnd: 0,
+	touchEscapePending: false,
 	groomLocation: null,
 	burstDir: 0,
 	turnBiasBaseline: 0,
@@ -903,6 +905,8 @@ document.addEventListener('visibilitychange', function () {
 		// states from persisting after stimuli have been cleared
 		behavior.current = 'idle';
 		behavior.startlePhase = 'none';
+		behavior.startleBurstEnd = 0;
+		behavior.touchEscapePending = false;
 		behavior.enterTime = Date.now();
 		behavior.cooldowns = {};
 		behavior.burstDir = 0;
@@ -1072,31 +1076,44 @@ function applyTouchTool(cx, cy) {
 	BRAIN.stimulate.touch = true;
 	BRAIN.stimulate.touchLocation = location;
 
-	// A brief, purely visual cleaning response keeps all touched body parts
-	// legible even when the connectome prioritizes a startle response.
-	anim.groomPhase = 0;
-	anim.groomFeedbackUntil = Date.now() + 1100;
-	anim.groomFeedbackLocation = location;
-	anim.groomPoseLocation = location;
-	recordFlyActivity(
-		describeFlyBehavior('groom', location).replace(/\.$/, '') + ' tras el contacto.',
-		'grooming'
-	);
-
-	touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
-
-	// Track touch timestamps for nociception (rapid repeated touch = pain)
 	var now = Date.now();
+	touchResetTime = Math.max(touchResetTime, now + 2000);
+
+	// Three rapid taps are a pain/escape event, not another grooming cue.
+	// The neural stimulus is still sent, while the urgent behavior request keeps
+	// it responsive even if a minimum grooming duration is currently in effect.
 	touchTimestamps.push(now);
-	// Prune entries older than 4 seconds
 	var cutoff = now - 4000;
 	while (touchTimestamps.length > 0 && touchTimestamps[0] < cutoff) {
 		touchTimestamps.shift();
 	}
-	// 3+ touches within 4 seconds triggers nociception for one brain tick
-	if (touchTimestamps.length >= 3) {
+	var rapidTouchEscape = touchTimestamps.length >= 3;
+	if (rapidTouchEscape) {
 		BRAIN.stimulate.nociception = true;
-		touchTimestamps.length = 0; // reset to require fresh rapid touches
+		touchTimestamps.length = 0;
+		behavior.touchEscapePending = true;
+	}
+
+	if (rapidTouchEscape || behavior.current === 'startle') {
+		// Stop the repeated touch feedback from masking the escape run with a
+		// lingering leg-washing pose.
+		anim.groomFeedbackUntil = 0;
+		anim.groomFeedbackLocation = null;
+		anim.groomPoseLocation = null;
+		anim.groomBlend = 0;
+		if (rapidTouchEscape && typeof updateBehaviorState === 'function') {
+			updateBehaviorState();
+		}
+	} else {
+		// A single tap still gives a short, targeted cleaning response.
+		anim.groomPhase = 0;
+		anim.groomFeedbackUntil = now + 1100;
+		anim.groomFeedbackLocation = location;
+		anim.groomPoseLocation = location;
+		recordFlyActivity(
+			describeFlyBehavior('groom', location).replace(/\.$/, '') + ' tras el contacto.',
+			'grooming'
+		);
 	}
 }
 
@@ -1157,14 +1174,22 @@ function updateBehaviorState() {
 	var elapsed = now - behavior.enterTime;
 	var minDur = BEHAVIOR_MIN_DURATION[behavior.current] || 0;
 
-	// Do not transition if minimum duration has not elapsed
-	if (elapsed < minDur) {
+	var forceTouchEscape = behavior.touchEscapePending === true;
+	if (forceTouchEscape) {
+		behavior.touchEscapePending = false;
+		if (behavior.current === 'startle' || isCoolingDown('startle', now)) {
+			forceTouchEscape = false;
+		}
+	}
+
+	// Urgent pain/escape responses bypass a long grooming/feed minimum state.
+	if (elapsed < minDur && !forceTouchEscape) {
 		// Update BRAIN flags based on current state (for drive computation)
 		syncBrainFlags();
 		return;
 	}
 
-	var newState = evaluateBehaviorEntry();
+	var newState = forceTouchEscape ? 'startle' : evaluateBehaviorEntry();
 
 	if (newState !== behavior.current) {
 		// Set cooldown for the state being exited
@@ -1186,13 +1211,20 @@ function updateBehaviorState() {
 		// Startle: initialize freeze phase and drain DN_STARTLE
 		if (newState === 'startle') {
 			behavior.startlePhase = 'freeze';
-			behavior.startleFreezeEnd = now + 200;
+			behavior.startleFreezeEnd = now + 100;
+			behavior.startleBurstEnd = 0;
+			// Escape takes priority over any lingering single-touch grooming pose.
+			anim.groomBlend = 0;
+			anim.groomFeedbackUntil = 0;
+			anim.groomFeedbackLocation = null;
+			anim.groomPoseLocation = null;
 			if (BRAIN.postSynaptic['DN_STARTLE']) {
 				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.thisState] = 0;
 				BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextState] = 0;
 			}
 		} else {
 			behavior.startlePhase = 'none';
+			behavior.startleBurstEnd = 0;
 		}
 
 		// Groom: snapshot the touch location that triggered grooming.
@@ -1365,10 +1397,12 @@ function computeMovementForBehavior() {
 			targetSpeed = 0;
 			speedChangeInterval = -speed * 0.5;
 		} else {
-			// burst: use the pre-computed escape direction from applyBehaviorMovement freeze-to-burst transition
+			// A short, fast sprint makes a repeated touch read as an escape, then
+			// eases into a slower run instead of tapering off immediately.
 			targetDir = behavior.burstDir;
-			targetSpeed = 0.5;
-			speedChangeInterval = (targetSpeed - speed) / 30;
+			var sprinting = Date.now() < behavior.startleBurstEnd;
+			targetSpeed = sprinting ? 3.0 : 0.9;
+			speedChangeInterval = (targetSpeed - speed) / (sprinting ? 5 : 18);
 		}
 	} else if (state === 'feed') {
 		behavior.locomotionSpeedCommand = 0;
@@ -1425,14 +1459,20 @@ function applyBehaviorMovement(dtScale) {
 			speedChangeInterval = 0;
 			if (now >= behavior.startleFreezeEnd) {
 				behavior.startlePhase = 'burst';
-				// Launch with a brief but controlled acceleration; the heading
-				// itself turns toward burstDir under the shared angular-rate limit.
-				speed = 1.8;
+				behavior.startleBurstEnd = now + 420;
+				// Launch at the reference's brisk escape speed; keep heading changes
+				// smooth, but finish the turn quickly enough to read as a real dash.
+				speed = 3.0;
 				behavior.burstDir = normalizeAngle(facingDir + Math.PI + (Math.random() - 0.5) * 0.35);
 				targetDir = behavior.burstDir;
-				targetSpeed = 0.5;
-				speedChangeInterval = (targetSpeed - speed) / 30;
+				targetSpeed = 3.0;
+				speedChangeInterval = 0;
 			}
+		}
+		if (behavior.startlePhase === 'burst') {
+			var sprinting = now < behavior.startleBurstEnd;
+			targetSpeed = sprinting ? 3.0 : 0.9;
+			speedChangeInterval = (targetSpeed - speed) / (sprinting ? 5 : 18);
 		}
 	}
 
@@ -1919,19 +1959,19 @@ function drawPhotorealBody() {
 		x, y, width, splitY * scale
 	);
 
-	// Let the abdomen swing again, but hinge it in place so it cannot pull away
-	// from the thorax. The overlapping source strip masks fractional edge gaps.
+	// Allow only a subtle abdomen flex during belly grooming, keeping it aligned
+	// with the thorax. The overlap preserves a closed hinge at the joint.
 	var abdomenGroomLocation = behavior.current === 'groom' ? behavior.groomLocation :
 		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenFlex = 0;
 	if (abdomenGroomLocation === 'abdomen') {
-		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
+		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 1.2 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	var lowerSourceY = Math.max(0, splitY - overlap);
 	ctx.save();
 	if (abdomenFlex) {
 		ctx.translate(0, splitCanvasY);
-		ctx.rotate(abdomenFlex * 0.012);
+		ctx.rotate(abdomenFlex * 0.008);
 		ctx.translate(0, -splitCanvasY);
 	}
 	ctx.drawImage(
@@ -2081,7 +2121,7 @@ function drawAbdomen() {
 		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenCurl = 0;
 	if (abdomenGroomLocation === 'abdomen') {
-		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
+		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 1.2 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	ay += abdomenCurl;
 
@@ -2517,9 +2557,9 @@ function drawLegs(state, dtScale) {
 	var isStartleFreeze = (state === 'startle' && behavior.startlePhase === 'freeze');
 	var isResting = (state === 'rest');
 	var isBracing = (state === 'brace');
-	var touchGroomFeedback = !isGrooming && anim.groomFeedbackUntil > Date.now();
+	var touchGroomFeedback = !isGrooming && !isStartleBurst && anim.groomFeedbackUntil > Date.now();
 	var groomBlend = Math.max(0, Math.min(1, Number(anim.groomBlend) || 0));
-	var groomingPoseActive = isGrooming || touchGroomFeedback || groomBlend > 0.01;
+	var groomingPoseActive = !isStartleBurst && (isGrooming || touchGroomFeedback || groomBlend > 0.01);
 	var groomingLocation = isGrooming ? behavior.groomLocation :
 		(touchGroomFeedback ? anim.groomFeedbackLocation :
 			(groomingPoseActive ? (anim.groomPoseLocation || behavior.groomLocation) : null));
@@ -2739,8 +2779,8 @@ function update(dt) {
 	var turnRetention;
 	var maxTurnRate;
 	if (behavior.current === 'startle' && behavior.startlePhase === 'burst') {
-		turnRetention = 0.3;
-		maxTurnRate = 4.8;
+		turnRetention = 0.25;
+		maxTurnRate = 10.5;
 	} else if (behavior.current === 'fly') {
 		turnRetention = 0.65;
 		maxTurnRate = 2.6;

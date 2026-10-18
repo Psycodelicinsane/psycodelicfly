@@ -43,6 +43,10 @@ for (var i = 0; i < moreFiles.length; i++) {
 // Load DOM-independent touch and renderer helpers from main.js so tests can
 // verify under-shell grooming, feeding and the articulated Drosophila leg rig.
 var mainSource = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8');
+var behaviorConstantsStart = mainSource.indexOf('// Minimum time (ms) the fly must stay in a state before transitioning out');
+var behaviorConstantsEnd = mainSource.indexOf('// The behavior state object', behaviorConstantsStart);
+var behaviorStateStart = mainSource.indexOf('function updateBehaviorState() {');
+var behaviorStateEnd = mainSource.indexOf('\nfunction filterPersistentTurn', behaviorStateStart);
 var touchStart = mainSource.indexOf('function applyTouchTool(cx, cy) {');
 var touchEnd = mainSource.indexOf('\n/**\n * Returns the nearest food item', touchStart);
 var mouthRangeStart = mainSource.indexOf('function getFoodProboscisCoordinates(item) {');
@@ -77,7 +81,8 @@ var foodRendererStart = mainSource.indexOf('function drawFood() {');
 var foodRendererEnd = mainSource.indexOf('\n/**\n * Draws expanding ripple effects', foodRendererStart);
 var lightingStart = mainSource.indexOf('function getFlyLightingFilter()');
 var lightingEnd = mainSource.indexOf('/**\n * Draws the complete fly body', lightingStart);
-if (touchStart < 0 || touchEnd < 0 || mouthRangeStart < 0 || mouthRangeEnd < 0 ||
+if (behaviorConstantsStart < 0 || behaviorConstantsEnd < 0 || behaviorStateStart < 0 || behaviorStateEnd < 0 ||
+	touchStart < 0 || touchEnd < 0 || mouthRangeStart < 0 || mouthRangeEnd < 0 ||
 	animBehaviorStart < 0 || animBehaviorEnd < 0 || movementBehaviorStart < 0 || movementBehaviorEnd < 0 ||
 	cameraStart < 0 || cameraEnd < 0 ||
 	wingPoseStart < 0 || wingPoseEnd < 0 || behaviorDescriptionStart < 0 || behaviorDescriptionEnd < 0 ||
@@ -116,6 +121,9 @@ global.flyWingAsset = { naturalWidth: 765, naturalHeight: 1485 };
 global.honeyDropAssetReady = false;
 global.honeyDropAsset = null;
 global.recordFlyActivity = function () {};
+global.recordFlyBehavior = function () {};
+vm.runInThisContext(mainSource.slice(behaviorConstantsStart, behaviorConstantsEnd), { filename: 'js/main.js#behaviorConstants' });
+vm.runInThisContext(mainSource.slice(behaviorStateStart, behaviorStateEnd), { filename: 'js/main.js#behaviorState' });
 global.__canvasImageDrawCalls = 0;
 global.nearestFood = function () {
 	if (!global.food || !global.food.length) return null;
