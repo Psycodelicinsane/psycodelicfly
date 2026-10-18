@@ -2130,7 +2130,7 @@ function test_exploration_turn_noise_is_smoothed_to_avoid_c_shaped_reversals() {
 	}
 }
 
-function test_phototaxis_arrives_without_orbiting_or_atan2_flip() {
+function test_phototaxis_uses_global_light_without_point_target() {
 	var originalState = behavior.current;
 	var originalFacing = facingDir;
 	var originalTurnBias = behavior.turnBiasBaseline;
@@ -2141,6 +2141,9 @@ function test_phototaxis_arrives_without_orbiting_or_atan2_flip() {
 	var originalFlyY = fly.y;
 	var originalAccumLeft = BRAIN.accumleft;
 	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
 	var originalSpeed = globalThis.speed;
 	var originalTargetDir = globalThis.targetDir;
 	var originalTargetSpeed = globalThis.targetSpeed;
@@ -2151,74 +2154,64 @@ function test_phototaxis_arrives_without_orbiting_or_atan2_flip() {
 		behavior.foodSeekTurnSign = 0;
 		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
+		BRAIN.accumleft = 0;
+		BRAIN.accumright = 0;
+		BRAIN.accumWalkLeft = 0;
+		BRAIN.accumWalkRight = 0;
+		BRAIN.accumHead = 0;
 		facingDir = 0.4;
 		fly.x = globalThis.innerWidth / 2;
 		fly.y = globalThis.innerHeight / 2;
 		globalThis.speed = 0;
-		BRAIN.accumleft = 0;
-		BRAIN.accumright = 0;
 
-		withMockedRandom(0.75, function () { computeMovementForBehavior(); });
-		var turn = normalizeAngle(globalThis.targetDir - facingDir);
-		assertClose(turn, 0, 1e-9,
-			'at the light source, phototaxis holds the current heading instead of choosing atan2(0, 0)');
-		assertClose(globalThis.targetSpeed, 0, 1e-9,
-			'phototaxis removes its speed floor at the light so the fly can settle instead of orbiting');
-		for (var turnTick = 0; turnTick < 25; turnTick++) {
-			facingDir = globalThis.targetDir;
-			withMockedRandom(0.75, function () { computeMovementForBehavior(); });
-		}
-		assertClose(normalizeAngle(facingDir - 0.4), 0, 1e-9,
-			'repeated near-light updates hold heading rather than accumulating a circular path');
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		var centerTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		var centerSpeed = globalThis.targetSpeed;
+		assertClose(centerTurn, 0, 1e-9,
+			'uniform ambient light does not make the fly steer toward the canvas center');
+		assertTrue(centerSpeed > 0,
+			'a global light response preserves locomotion instead of stopping at an invented source');
 
 		behavior.turnBiasBaseline = 0;
 		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
-		facingDir = 0;
-		fly.x = globalThis.innerWidth / 2 + 39;
-		fly.y = globalThis.innerHeight / 2;
+		fly.x = globalThis.innerWidth / 2 + 150;
+		fly.y = globalThis.innerHeight / 2 - 80;
+		facingDir = 0.4;
 		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
-		var insideSpeed = globalThis.targetSpeed;
-		behavior.turnBiasBaseline = 0;
-		behavior.turnInputFiltered = 0;
-		behavior.locomotionSpeedCommand = 0;
-		facingDir = 0;
-		fly.x = globalThis.innerWidth / 2 + 41;
-		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
-		assertTrue(Math.abs(globalThis.targetSpeed - insideSpeed) < 0.01,
-			'phototaxis speed eases continuously across the near-light boundary');
-		assertTrue(Math.abs(normalizeAngle(globalThis.targetDir - facingDir)) <= 0.75,
-			'phototaxis bounds its turn instead of curving back sharply near the target');
+		assertClose(normalizeAngle(globalThis.targetDir - facingDir), 0, 1e-9,
+			'phototaxis heading is independent of the fly position because the light has no point location');
+		assertClose(globalThis.targetSpeed, centerSpeed, 1e-9,
+			'ambient-light locomotion speed does not depend on distance from the screen center');
 
 		behavior.turnBiasBaseline = 0;
 		behavior.turnInputFiltered = 0;
-		behavior.locomotionSpeedCommand = 0.5;
+		behavior.locomotionSpeedCommand = 0.25;
 		fly.x = globalThis.innerWidth / 2 + 50;
 		fly.y = globalThis.innerHeight / 2;
+		var startX = fly.x;
+		var startY = fly.y;
+		var startRadius = Math.hypot(startX - globalThis.innerWidth / 2, startY - globalThis.innerHeight / 2);
 		facingDir = Math.PI / 2;
-		globalThis.speed = 0.5;
+		globalThis.speed = 0.25;
 		globalThis.targetDir = facingDir;
-		globalThis.targetSpeed = 0.5;
+		globalThis.targetSpeed = 0.25;
 		globalThis.speedChangeInterval = 0;
-		var accumulatedOrbitAngle = 0;
-		var previousLightBearing = Math.atan2(-(fly.y - globalThis.innerHeight / 2), fly.x - globalThis.innerWidth / 2);
-		for (var approachTick = 0; approachTick < 20; approachTick++) {
-			computeMovementForBehavior();
+		for (var tick = 0; tick < 10; tick++) {
+			withMockedRandom(0.5, function () { computeMovementForBehavior(); });
 			for (var frame = 0; frame < 30; frame++) {
 				globalThis.speed += globalThis.speedChangeInterval;
 				if (globalThis.speed < 0) globalThis.speed = 0;
 				facingDir = normalizeAngle(facingDir + computeHeadingStep(facingDir, globalThis.targetDir, 0.82, 2.2, 1));
 				fly.x += Math.cos(facingDir) * globalThis.speed;
 				fly.y -= Math.sin(facingDir) * globalThis.speed;
-				var lightBearing = Math.atan2(-(fly.y - globalThis.innerHeight / 2), fly.x - globalThis.innerWidth / 2);
-				accumulatedOrbitAngle += normalizeAngle(lightBearing - previousLightBearing);
-				previousLightBearing = lightBearing;
 			}
 		}
-		assertTrue(Math.abs(accumulatedOrbitAngle) < Math.PI,
-			'the phototaxis approach does not complete a circle around the light');
-		assertTrue(Math.hypot(fly.x - globalThis.innerWidth / 2, fly.y - globalThis.innerHeight / 2) < 5 && globalThis.speed < 0.01,
-			'the fly reaches the light and settles instead of continuing to mill around it');
+		var endRadius = Math.hypot(fly.x - globalThis.innerWidth / 2, fly.y - globalThis.innerHeight / 2);
+		assertClose(fly.x, startX, 1e-9,
+			'a neutral heading stays straight instead of curving around a virtual light source');
+		assertTrue(fly.y < startY && endRadius > startRadius,
+			'uniform photoreceptor activation does not pull the fly toward the screen center');
 	} finally {
 		behavior.current = originalState;
 		behavior.turnBiasBaseline = originalTurnBias;
@@ -2230,6 +2223,9 @@ function test_phototaxis_arrives_without_orbiting_or_atan2_flip() {
 		fly.y = originalFlyY;
 		BRAIN.accumleft = originalAccumLeft;
 		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
 		globalThis.speed = originalSpeed;
 		globalThis.targetDir = originalTargetDir;
 		globalThis.targetSpeed = originalTargetSpeed;
