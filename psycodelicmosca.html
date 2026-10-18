@@ -7425,21 +7425,19 @@ function drawPhotorealBody() {
 		x, y, width, splitY * scale
 	);
 
-	// Preserve and clarify the abdomen response during both connectome grooming
-	// and the brief touch-triggered cleaning feedback.
+	// Keep abdomen motion subtle and hinge it exactly at the overlapping seam.
+	// Thorax grooming should move the legs, not pull the abdomen away from the shell.
 	var abdomenGroomLocation = behavior.current === 'groom' ? behavior.groomLocation :
 		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenFlex = 0;
-	if (abdomenGroomLocation === 'abdomen' || abdomenGroomLocation === 'thorax' ||
-		abdomenGroomLocation === 'torax') {
-		// Slightly larger flex makes belly grooming readable through the body cutout.
-		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
+	if (abdomenGroomLocation === 'abdomen') {
+		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 2 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	var lowerSourceY = Math.max(0, splitY - overlap);
 	ctx.save();
 	if (abdomenFlex) {
-		ctx.translate(0, splitCanvasY + abdomenFlex * 0.45);
-		ctx.rotate(abdomenFlex * 0.012);
+		ctx.translate(0, splitCanvasY);
+		ctx.rotate(abdomenFlex * 0.006);
 		ctx.translate(0, -splitCanvasY);
 	}
 	ctx.drawImage(
@@ -7577,9 +7575,8 @@ function drawAbdomen() {
 	var abdomenGroomLocation = behavior.current === 'groom' ? behavior.groomLocation :
 		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenCurl = 0;
-	if (abdomenGroomLocation === 'abdomen' || abdomenGroomLocation === 'thorax' ||
-		abdomenGroomLocation === 'torax') {
-		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
+	if (abdomenGroomLocation === 'abdomen') {
+		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 2 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	ay += abdomenCurl;
 
@@ -8018,6 +8015,7 @@ function drawLegs(state, dtScale) {
 		var kneeMod = restAngles.knee;
 		var walkOffset = 0;
 		var jitter = 0;
+		var tarsusBendOffset = 0.3;
 
 		if (isWalking && !groomingPoseActive) {
 			// Tripod gait animation
@@ -8039,9 +8037,13 @@ function drawLegs(state, dtScale) {
 				hipMod = 0.55 + Math.sin(strokePhase) * 0.1;
 				kneeMod = 0.9 + Math.sin(strokePhase * 1.3 + 0.6) * 0.16;
 			} else if (groomLoc === 'thorax' && pairIdx === 0) {
-				// Full bilateral front-leg grooming: wide symmetric rub
-				hipMod = -0.2 + Math.sin(anim.groomPhase) * 0.5;
-				kneeMod = -0.6 + Math.sin(anim.groomPhase * 1.3) * 0.2;
+				// Bend the forelegs around the thorax margin and curl their fine tarsi
+				// back onto the shell for alternating, visible brushing strokes.
+				var thoraxStroke = Math.sin(strokePhase * 1.3 + 0.3);
+				hipMod = 0.12 + Math.sin(strokePhase) * 0.08;
+				kneeMod = 0.75 + thoraxStroke * 0.1;
+				var targetTarsusBend = 2.35 + thoraxStroke * 0.1;
+				tarsusBendOffset = 0.3 + (targetTarsusBend - 0.3) * groomBlend;
 			} else if (groomLoc === 'leg') {
 				// Targeted single-leg cleaning: only the leg on the touched side moves
 				// Use side-based targeting: left legs clean when side=-1 touch
@@ -8095,8 +8097,9 @@ function drawLegs(state, dtScale) {
 		var seg2EndX = seg1EndX + Math.cos(kneeAngleAbs) * BODY.legSeg2;
 		var seg2EndY = seg1EndY + Math.sin(kneeAngleAbs) * BODY.legSeg2;
 
-		// Third segment (tarsus) -- slight hook
-		var tarsusAngle = kneeAngleAbs + side * 0.3;
+		// The tarsus keeps its small resting hook, but curls back toward the shell
+		// during thorax washing to make the brushing contact visible.
+		var tarsusAngle = kneeAngleAbs + side * tarsusBendOffset;
 		var seg3EndX = seg2EndX + Math.cos(tarsusAngle) * BODY.legSeg3;
 		var seg3EndY = seg2EndY + Math.sin(tarsusAngle) * BODY.legSeg3;
 

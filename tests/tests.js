@@ -359,6 +359,48 @@ function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
 		'the original rear legs keep their abdomen-grooming motion');
 }
 
+function test_thorax_grooming_front_tarsi_brush_the_shell_in_alternating_strokes() {
+	var thoraxA = captureGroomingLegs('startle', 'thorax', 0.35, true);
+	var leftFemur = thoraxA[0];
+	var leftTibia = thoraxA[1];
+	var leftTarsus = thoraxA[2];
+	var rightFemur = thoraxA[3];
+	var rightTibia = thoraxA[4];
+	var rightTarsus = thoraxA[5];
+	var leftFemurAngle = Math.atan2(leftFemur.path[1][1] - leftFemur.path[0][1],
+		leftFemur.path[1][0] - leftFemur.path[0][0]);
+	var leftTibiaAngle = Math.atan2(leftTibia.path[1][1] - leftTibia.path[0][1],
+		leftTibia.path[1][0] - leftTibia.path[0][0]);
+	var leftTarsusAngle = Math.atan2(leftTarsus.path[1][1] - leftTarsus.path[0][1],
+		leftTarsus.path[1][0] - leftTarsus.path[0][0]);
+	var rightFemurAngle = Math.atan2(rightFemur.path[1][1] - rightFemur.path[0][1],
+		rightFemur.path[1][0] - rightFemur.path[0][0]);
+	var rightTibiaAngle = Math.atan2(rightTibia.path[1][1] - rightTibia.path[0][1],
+		rightTibia.path[1][0] - rightTibia.path[0][0]);
+	assertTrue(Math.abs(normalizeAngle(leftTibiaAngle - leftFemurAngle)) > 1.0 &&
+		Math.abs(normalizeAngle(rightTibiaAngle - rightFemurAngle)) > 1.0,
+		'thorax cleaning visibly folds both forelegs at their knees');
+	assertTrue(Math.abs(normalizeAngle(leftTarsusAngle - leftTibiaAngle)) > 2.0,
+		'the fine tarsus curls back toward the thorax instead of pointing away from it');
+	assertTrue(leftTarsus.path[1][0] < -10 && leftTarsus.path[1][0] > -14 &&
+		leftTarsus.path[1][1] > -11 && leftTarsus.path[1][1] < -6,
+		'the left tarsus reaches the outer thorax margin to brush the shell');
+	assertTrue(rightTarsus.path[1][0] > 10 && rightTarsus.path[1][0] < 14 &&
+		rightTarsus.path[1][1] > -11 && rightTarsus.path[1][1] < -6,
+		'the right tarsus mirrors the contact pose on the opposite thorax edge');
+
+	var thoraxB = captureGroomingLegs('startle', 'thorax', 2.7, true);
+	var leftStrokeDx = thoraxB[2].path[1][0] - leftTarsus.path[1][0];
+	var leftStrokeDy = thoraxB[2].path[1][1] - leftTarsus.path[1][1];
+	var rightStrokeDx = thoraxB[5].path[1][0] - rightTarsus.path[1][0];
+	var rightStrokeDy = thoraxB[5].path[1][1] - rightTarsus.path[1][1];
+	assertTrue(Math.hypot(leftStrokeDx, leftStrokeDy) > 0.5 &&
+		Math.hypot(rightStrokeDx, rightStrokeDy) > 0.5,
+		'the forelegs sweep back and forth over the thorax instead of holding a static pose');
+	assertTrue(leftStrokeDx * -rightStrokeDx + leftStrokeDy * rightStrokeDy < 0,
+		'the left and right thorax strokes alternate instead of sweeping in sync');
+}
+
 function test_proboscis_reach_uses_face_position_food_radius_and_orientation() {
 	var originalBaseY = BODY.proboscisBaseY;
 	var originalLength = BODY.proboscisLength;
@@ -525,11 +567,13 @@ function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback(
 	var originalReady = globalThis.flyBodyAssetReady;
 	var originalAsset = globalThis.flyBodyAsset;
 	var rotations = [];
+	var translations = [];
 	globalThis.flyBodyAssetReady = true;
 	globalThis.flyBodyAsset = { naturalWidth: 454, naturalHeight: 1284 };
 	globalThis.ctx = new Proxy({}, {
 		get: function (_target, name) {
 			if (name === 'rotate') return function (angle) { rotations.push(angle); };
+			if (name === 'translate') return function (x, y) { translations.push([x, y]); };
 			return function () {};
 		},
 		set: function () { return true; }
@@ -542,16 +586,32 @@ function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback(
 		behavior.groomLocation = 'abdomen';
 		anim.groomFeedbackUntil = 0;
 		drawPhotorealBody();
-		assertClose(rotations[0], 0.042, 0.000001,
-			'connectome-driven abdomen grooming flexes the photo cutout enough to read');
+		assertClose(rotations[0], 0.012, 0.000001,
+			'connectome abdomen grooming keeps the photo cutout on a subtle hinge');
+		assertEqual(translations.length, 2, 'the abdomen rotates around the split without an offset');
+		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
+			'the abdomen hinge preserves the join instead of translating away from the thorax');
 
 		rotations = [];
+		translations = [];
 		behavior.current = 'startle';
 		anim.groomFeedbackUntil = Date.now() + 1000;
 		anim.groomFeedbackLocation = 'abdomen';
 		drawPhotorealBody();
-		assertClose(rotations[0], 0.042, 0.000001,
-			'abdomen touch feedback also flexes the cutout while the brain is startled');
+		assertClose(rotations[0], 0.012, 0.000001,
+			'abdomen touch feedback keeps the cutout on the same subtle hinge');
+		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
+			'touch-triggered belly cleaning does not pull the abdomen off the shell');
+
+		rotations = [];
+		translations = [];
+		behavior.current = 'groom';
+		behavior.groomLocation = 'thorax';
+		anim.groomPoseLocation = 'thorax';
+		anim.groomFeedbackUntil = 0;
+		drawPhotorealBody();
+		assertEqual(rotations.length, 0, 'thorax cleaning does not curl the abdomen cutout');
+		assertEqual(translations.length, 0, 'thorax cleaning leaves the abdomen joint closed');
 	} finally {
 		globalThis.ctx = originalCtx;
 		behavior.current = originalState;
