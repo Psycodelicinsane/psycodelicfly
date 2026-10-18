@@ -1109,6 +1109,10 @@ function test_vector_body_fallback_uses_the_darker_photocuticle_filter() {
 
 function test_photoreal_wings_use_asset_on_both_sides() {
 	resetBrainState();
+	var originalWingReady = globalThis.flyWingAssetReady;
+	var originalWingAsset = globalThis.flyWingAsset;
+	var originalWingMicro = anim.wingMicro;
+	var originalWingSpread = anim.wingSpread;
 	globalThis.flyWingAssetReady = true;
 	globalThis.flyWingAsset = { naturalWidth: 765, naturalHeight: 1485 };
 	BODY.wingOffsetX = 7;
@@ -1116,11 +1120,25 @@ function test_photoreal_wings_use_asset_on_both_sides() {
 	BODY.wingLength = 42;
 	BODY.wingWidth = 16;
 	anim.wingMicro = 0.5;
-	anim.wingSpread = 0.25;
-	globalThis.__canvasImageDrawCalls = 0;
-	drawWing(-1);
-	drawWing(1);
-	assertEqual(globalThis.__canvasImageDrawCalls, 2, 'mirrored photoreal wing asset is drawn for both sides');
+	try {
+		anim.wingSpread = 0.25;
+		globalThis.__canvasImageDrawCalls = 0;
+		drawWing(-1);
+		drawWing(1);
+		assertEqual(globalThis.__canvasImageDrawCalls, 2, 'mirrored photoreal wing asset is drawn for both sides at rest');
+
+		anim.wingSpread = 1;
+		globalThis.__canvasImageDrawCalls = 0;
+		drawWing(-1);
+		drawWing(1);
+		assertEqual(globalThis.__canvasImageDrawCalls, 10,
+			'flight renders five translucent time-averaged samples for each wing');
+	} finally {
+		globalThis.flyWingAssetReady = originalWingReady;
+		globalThis.flyWingAsset = originalWingAsset;
+		anim.wingMicro = originalWingMicro;
+		anim.wingSpread = originalWingSpread;
+	}
 }
 
 function test_fly_render_layers_keep_tube_under_shell_and_expose_front_mouth() {
@@ -1199,6 +1217,20 @@ function test_wings_open_outward_instead_of_crossing_when_flying() {
 		'full spread rotates each wing away from the body instead of inverting across it');
 	assertClose(computeWingAlpha(0), 0.50, 0.000001, 'wings are less transparent while remaining translucent at rest');
 	assertClose(computeWingAlpha(1), 0.75, 0.000001, 'wings remain translucent but are clearer in flight');
+}
+
+function test_flying_wings_render_a_symmetric_time_averaged_stroke() {
+	var resting = computeWingStrokeSamples(0.25);
+	var flying = computeWingStrokeSamples(1);
+	assertEqual(resting.length, 1, 'resting wings stay crisp instead of being drawn as a blur');
+	assertEqual(flying.length, 5, 'flight wings use a compact set of stroke-exposure samples');
+	assertClose(flying[0].offset, -flying[4].offset, 0.000001, 'outer stroke samples are mirrored');
+	assertClose(flying[1].offset, -flying[3].offset, 0.000001, 'inner stroke samples are mirrored');
+	assertClose(flying[2].offset, 0, 0.000001, 'the strongest sample stays at the mean wing pose');
+	assertClose(flying.reduce(function (sum, sample) { return sum + sample.opacity; }, 0), 1, 0.000001,
+		'sample opacity is normalized so the motion blur stays translucent');
+	assertTrue(flying[0].offset < 0 && flying[4].offset > 0,
+		'the flight stroke covers both sides of the mean wing position');
 }
 
 function test_center_camera_preserves_zoom_while_centering_fly() {
@@ -2210,6 +2242,114 @@ function test_locomotion_speed_is_smoothed_and_capped() {
 		globalThis.speed = originalSpeed;
 		globalThis.targetDir = originalTargetDir;
 		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_flight_turn_noise_stays_small_and_can_steer_both_ways() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFilteredTurn = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'fly';
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		facingDir = 0.4;
+		globalThis.speed = 1;
+		withMockedRandom(0.95, function () { computeMovementForBehavior(); });
+		var rightTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertTrue(rightTurn > 0 && rightTurn < 0.01,
+			'positive flight noise becomes only a fine correction, not a visible heading jump');
+
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		facingDir = 0.4;
+		withMockedRandom(0.05, function () { computeMovementForBehavior(); });
+		var leftTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertTrue(leftTurn < 0 && leftTurn > -0.01,
+			'negative flight noise remains gentle and preserves steering in the opposite direction');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.turnInputFiltered = originalFilteredTurn;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		facingDir = originalFacing;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_heading_turn_rate_caps_flight_and_startle_without_angle_seam_jumps() {
+	var flightStep = computeHeadingStep(0, Math.PI, 0.65, 2.6, 1);
+	assertClose(flightStep, 2.6 / 60, 0.000001,
+		'a large flight command is capped to the configured angular speed per 60 Hz frame');
+
+	var startleStep = computeHeadingStep(0, Math.PI, 0.3, 4.8, 1);
+	assertClose(startleStep, 4.8 / 60, 0.000001,
+		'startle may turn faster but still cannot snap the body to its escape heading');
+
+	var smallCorrection = computeHeadingStep(0, 0.05, 0.9, 2.4, 1);
+	assertClose(smallCorrection, 0.005, 0.000001,
+		'small corrections retain a gentle eased response below the angular-rate cap');
+
+	var seamCorrection = computeHeadingStep(Math.PI - 0.05, -Math.PI + 0.05, 0.5, 6, 1);
+	assertClose(seamCorrection, 0.05, 0.000001,
+		'heading interpolation takes the short path across the plus/minus pi seam');
+	assertClose(computeHeadingStep(0, 1, 0.5, 6, 0), 0, 0.000001,
+		'zero elapsed time cannot change the heading');
+}
+
+function test_startle_burst_changes_target_without_snapping_facing_heading() {
+	var originalState = behavior.current;
+	var originalPhase = behavior.startlePhase;
+	var originalFreezeEnd = behavior.startleFreezeEnd;
+	var originalBurstDir = behavior.burstDir;
+	var originalFacing = facingDir;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeed = globalThis.speed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	var initialHeading = 0.25;
+	try {
+		behavior.current = 'startle';
+		behavior.startlePhase = 'freeze';
+		behavior.startleFreezeEnd = 0;
+		facingDir = initialHeading;
+		globalThis.targetDir = initialHeading;
+		globalThis.speed = 0.7;
+		withMockedRandom(0.5, function () { applyBehaviorMovement(1); });
+
+		assertEqual(behavior.startlePhase, 'burst', 'the freeze phase still transitions into an escape burst');
+		assertClose(facingDir, initialHeading, 0.000001,
+			'the escape direction is not assigned directly to the rendered body heading');
+		assertClose(normalizeAngle(globalThis.targetDir - (initialHeading + Math.PI)), 0, 0.000001,
+			'the burst direction is retained as a target for the rate-limited turn');
+		assertClose(globalThis.speed, 1.8, 0.000001,
+			'the escape begins with a controlled speed instead of an extreme one-frame kick');
+	} finally {
+		behavior.current = originalState;
+		behavior.startlePhase = originalPhase;
+		behavior.startleFreezeEnd = originalFreezeEnd;
+		behavior.burstDir = originalBurstDir;
+		facingDir = originalFacing;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speed = originalSpeed;
 		globalThis.speedChangeInterval = originalSpeedChangeInterval;
 	}
 }

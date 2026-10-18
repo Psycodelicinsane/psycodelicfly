@@ -14,6 +14,30 @@ function normalizeAngle(a) {
 	return a;
 }
 
+/**
+ * Advance the fly's heading toward a target without exceeding a physical
+ * angular rate. `dtScale` is measured in 60 Hz frames, so the cap is stable
+ * across fast and slow displays while the retention factor keeps small turns
+ * gently eased.
+ */
+function computeHeadingStep(currentDir, targetDir, turnRetention, maxTurnRate, dtScale) {
+	currentDir = Number(currentDir);
+	targetDir = Number(targetDir);
+	turnRetention = Number(turnRetention);
+	maxTurnRate = Number(maxTurnRate);
+	dtScale = Number(dtScale);
+	if (!isFinite(currentDir) || !isFinite(targetDir)) return 0;
+	if (!isFinite(turnRetention)) turnRetention = 0.9;
+	if (!isFinite(maxTurnRate) || maxTurnRate < 0) maxTurnRate = 2.4;
+	if (!isFinite(dtScale) || dtScale < 0) dtScale = 1;
+
+	turnRetention = Math.max(0, Math.min(1, turnRetention));
+	var angleDiff = normalizeAngle(targetDir - currentDir);
+	var easedStep = angleDiff * (1 - Math.pow(turnRetention, dtScale));
+	var maxStep = maxTurnRate * dtScale / 60;
+	return Math.max(-maxStep, Math.min(maxStep, easedStep));
+}
+
 // Accumulator thresholds for entering each behavior state
 var BEHAVIOR_THRESHOLDS = {
 	startle: 30,

@@ -627,63 +627,147 @@ canvas {
     pointer-events: none;
 }
 
-/* --- Brain 3D Overlay --- */
-#brain3d-overlay {
+/* --- Shared right-side panel: mutually exclusive Registro / Cerebro views --- */
+.right-panel {
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60vw;
-    height: 60vh;
-    min-width: 400px;
-    min-height: 300px;
+    top: calc(44px + env(safe-area-inset-top, 0px));
+    right: 0;
+    bottom: 180px;
+    width: 360px;
     max-width: 90vw;
-    max-height: 90vh;
-    z-index: 9999;
-    background: #0a0a1a;
-    border: 2px solid rgba(100, 200, 255, 0.4);
-    border-radius: 12px;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), 0 0 15px rgba(100, 200, 255, 0.15);
-    overflow: hidden;
     display: flex;
     flex-direction: column;
-    resize: both;
+    overflow: hidden;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 22;
+    font-family: system-ui, -apple-system, sans-serif;
+    box-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+    transform: translateX(100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 0.28s ease, visibility 0s linear 0.28s;
 }
 
-#brain3d-overlay .brain3d-header {
-    height: 32px;
-    background: rgba(255, 255, 255, 0.05);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.right-panel.right-panel-open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 0.28s ease, visibility 0s;
+}
+
+.right-panel-tabs {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
+    align-items: stretch;
+    gap: 0.25rem;
+    min-height: 44px;
+    padding: 0.25rem 0.4rem 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
 
-#brain3d-overlay .brain3d-title {
-    color: rgba(255, 255, 255, 0.7);
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-}
-
-#brain3d-overlay .brain3d-close-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    color: rgba(255, 255, 255, 0.7);
+.right-panel-tab {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 6px 6px 0 0;
+    background: transparent;
+    color: var(--text-muted);
     cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    padding: 2px 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
+    font: 600 0.82rem system-ui, -apple-system, sans-serif;
+    transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
-#brain3d-overlay .brain3d-close-btn:hover {
-    background: rgba(255, 100, 100, 0.4);
-    color: white;
+.right-panel-tab:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.right-panel-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--accent-subtle);
+}
+
+.right-panel-tab:focus-visible,
+.right-panel-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.right-panel-close {
+    align-self: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: 1.25rem/1 system-ui, -apple-system, sans-serif;
+}
+
+.right-panel-close:hover {
+    color: var(--text);
+    border-color: var(--border);
+    background: var(--surface-hover);
+}
+
+/* Only the selected panel can be displayed inside the shared dock. */
+.caretaker-sidebar {
+    position: relative;
+    inset: auto;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    transform: none;
+    transition: none;
+    z-index: auto;
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+.caretaker-sidebar.sidebar-open {
+    display: flex;
+}
+
+#right-panel:not([data-active-panel="activity"]) #caretaker-sidebar,
+#right-panel:not([data-active-panel="brain"]) #brain3d-overlay {
+    display: none;
+}
+
+#brain3d-overlay {
+    position: relative;
+    inset: auto;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
+    max-height: none;
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0a0a1a;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    z-index: auto;
+}
+
+#brain3d-overlay.brain3d-open {
+    display: flex;
 }
 
 #brain3d-overlay canvas {
@@ -691,6 +775,20 @@ canvas {
     width: 100% !important;
     flex: 1;
     min-height: 0;
+}
+
+.brain3d-unavailable {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    color: var(--text-muted);
+    font: 0.85rem/1.5 system-ui, -apple-system, sans-serif;
+    text-align: center;
+}
+
+.brain3d-unavailable[hidden] {
+    display: none;
 }
 
 /* --- Brain 3D Tooltip --- */
@@ -1022,58 +1120,7 @@ canvas {
     color: var(--accent-hover);
 }
 
-/* --- Caretaker Activity Sidebar --- */
-.caretaker-sidebar {
-    position: fixed;
-    top: 44px;
-    left: 0;
-    bottom: 180px;
-    width: 280px;
-    max-width: 85vw;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    z-index: 22;
-    font-family: system-ui, -apple-system, sans-serif;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-}
-
-.caretaker-sidebar.sidebar-open {
-    transform: translateX(0);
-}
-
-.caretaker-sidebar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-}
-
-.caretaker-sidebar-title {
-    color: var(--text);
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.caretaker-sidebar-close {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 0 0.25rem;
-    line-height: 1;
-}
-
-.caretaker-sidebar-close:hover {
-    color: var(--text);
-}
-
+/* --- Caretaker Activity Sidebar content within the shared right panel --- */
 .activity-feed {
     flex: 1;
     overflow-y: auto;
@@ -1378,7 +1425,7 @@ canvas {
     color: var(--text-muted);
 }
 
-/* Activity toggle button (desktop) */
+/* Register and brain controls also remain available on narrow screens. */
 #activityToggle {
     display: inline-block;
 }
@@ -1805,11 +1852,26 @@ canvas {
     }
 
     .toolbar-left {
+        flex: 1 1 auto;
+        min-width: 0;
         gap: 0.25rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .toolbar-left::-webkit-scrollbar {
+        display: none;
+    }
+
+    .toolbar-left > * {
+        flex-shrink: 0;
     }
 
     .toolbar-right {
         gap: 0.35rem;
+        flex-shrink: 0;
     }
 
     .tool-btn {
@@ -1818,7 +1880,7 @@ canvas {
     }
 
     .toolbar-title {
-        font-size: 0.75rem;
+        display: none;
     }
 
     /* Hide non-essential toolbar items on mobile */
@@ -1893,13 +1955,14 @@ canvas {
         min-width: 0;
     }
 
-    /* --- Brain 3D overlay as centered window on mobile --- */
-    #brain3d-overlay {
-        width: 90vw !important;
-        height: 70vh !important;
-        min-width: unset !important;
-        min-height: 250px !important;
-        bottom: auto !important;
+    /* Both right-panel tabs share one full-width mobile drawer. */
+    .right-panel {
+        top: calc(36px + env(safe-area-inset-top, 0px));
+        bottom: 120px;
+        width: 100vw;
+        max-width: 100vw;
+        border-left: 0;
+        z-index: 23;
     }
 
     /* --- Education panel full-width on mobile --- */
@@ -1907,18 +1970,6 @@ canvas {
         width: 100%;
         max-width: 100vw;
         top: calc(36px + env(safe-area-inset-top, 0px));
-    }
-
-    .caretaker-sidebar {
-        top: calc(36px + env(safe-area-inset-top, 0px));
-        bottom: 120px;
-        width: 100%;
-        max-width: 100vw;
-        z-index: 23;
-    }
-
-    #activityToggle {
-        display: none;
     }
 
     /* --- Help overlay repositioned for compact toolbar --- */
@@ -1966,10 +2017,11 @@ canvas {
         display: none;
     }
 
-    .caretaker-sidebar {
+    .right-panel {
         top: calc(32px + env(safe-area-inset-top, 0px));
         bottom: 0;
-        width: 240px;
+        width: 260px;
+        max-width: 85vw;
     }
 
     #drive-meters {
@@ -1992,13 +2044,13 @@ canvas {
     <div id="toolbar">
         <div class="toolbar-left">
             <button class="tool-btn sidebar-toggle" id="sidebarToggle" aria-label="Alternar panel">&#9776;</button>
+            <button class="tool-btn" id="brain3dBtn" aria-pressed="false" aria-controls="right-panel" title="Abrir la vista 3D del cerebro">Cerebro</button>
+            <button class="tool-btn" id="activityToggle" aria-pressed="false" aria-controls="right-panel">Registro</button>
             <button class="tool-btn active" data-tool="feed">Comida</button>
             <button class="tool-btn" data-tool="touch">Tocar</button>
             <button class="tool-btn" data-tool="air">Viento</button>
             <button class="tool-btn" data-tool="light" id="lightBtn">Luz: Brillante</button>
             <button class="tool-btn" data-tool="temp" id="tempBtn">Temp.: Neutra</button>
-            <button class="tool-btn" id="brain3dBtn" aria-pressed="false">Cerebro 3D</button>
-            <button class="tool-btn" id="activityToggle">Registro</button>
             <button class="tool-btn" id="learnBtn">Aprender</button>
             <button class="tool-btn" id="helpBtn">?</button>
             <button class="tool-btn" id="liteBtn" title="Reducir el uso de recursos">Modo ligero</button>
@@ -2067,33 +2119,39 @@ canvas {
             </div>
         </div>
     </div>
-    <div id="caretaker-sidebar" class="caretaker-sidebar">
-        <div class="caretaker-sidebar-header">
-            <span class="caretaker-sidebar-title">Registro de la mosca</span>
-            <button class="caretaker-sidebar-close" id="caretaker-sidebar-close" aria-label="Cerrar el registro">&times;</button>
+    <div id="right-panel" class="right-panel" aria-label="Panel lateral de la mosca" aria-hidden="true">
+        <div class="right-panel-tabs" role="tablist" aria-label="Vistas del panel lateral">
+            <button id="activityTab" class="right-panel-tab" type="button" role="tab" aria-selected="false" aria-controls="caretaker-sidebar" tabindex="-1">Registro</button>
+            <button id="brainTab" class="right-panel-tab" type="button" role="tab" aria-selected="false" aria-controls="brain3d-overlay" tabindex="-1">Cerebro</button>
+            <button id="rightPanelCloseBtn" class="right-panel-close" type="button" aria-label="Cerrar el panel lateral">&times;</button>
         </div>
-        <div class="activity-feed fly-activity-log" id="fly-activity-log" role="log" aria-label="Registro de lo que hace la mosca" aria-live="polite"><div class="fly-log-empty">La actividad de la mosca aparecerá aquí.</div></div>
-        <div id="activity-feed-list" hidden aria-hidden="true"></div>
-        <div class="chat-section" id="chat-section">
-            <div class="chat-history" id="chat-history"></div>
-            <div class="chat-input-row">
-                <input type="text" class="chat-input" id="chat-input" placeholder="Pregunta sobre la mosca..." autocomplete="off" />
-                <button class="chat-send-btn" id="chat-send-btn">Enviar</button>
+        <div id="caretaker-sidebar" class="caretaker-sidebar" role="tabpanel" aria-labelledby="activityTab" aria-hidden="true">
+            <div class="activity-feed fly-activity-log" id="fly-activity-log" role="log" aria-label="Registro de lo que hace la mosca" aria-live="polite"><div class="fly-log-empty">La actividad de la mosca aparecerá aquí.</div></div>
+            <div id="activity-feed-list" hidden aria-hidden="true"></div>
+            <div class="chat-section" id="chat-section">
+                <div class="chat-history" id="chat-history"></div>
+                <div class="chat-input-row">
+                    <input type="text" class="chat-input" id="chat-input" placeholder="Pregunta sobre la mosca..." autocomplete="off" />
+                    <button class="chat-send-btn" id="chat-send-btn">Enviar</button>
+                </div>
+            </div>
+            <div class="analytics-section" id="analytics-section">
+                <div class="analytics-section-header">
+                    <span class="analytics-section-title">Estadísticas</span>
+                    <button class="analytics-toggle-btn" id="analytics-toggle">Ocultar</button>
+                </div>
+                <div class="analytics-content" id="analytics-content"></div>
+            </div>
+            <div class="calendar-section" id="calendar-section">
+                <div class="calendar-section-header">
+                    <span class="calendar-section-title">Calendario</span>
+                    <button class="calendar-toggle-btn" id="calendar-toggle">Ocultar</button>
+                </div>
+                <div class="calendar-content" id="calendar-content"></div>
             </div>
         </div>
-        <div class="analytics-section" id="analytics-section">
-            <div class="analytics-section-header">
-                <span class="analytics-section-title">Estadísticas</span>
-                <button class="analytics-toggle-btn" id="analytics-toggle">Ocultar</button>
-            </div>
-            <div class="analytics-content" id="analytics-content"></div>
-        </div>
-        <div class="calendar-section" id="calendar-section">
-            <div class="calendar-section-header">
-                <span class="calendar-section-title">Calendario</span>
-                <button class="calendar-toggle-btn" id="calendar-toggle">Ocultar</button>
-            </div>
-            <div class="calendar-content" id="calendar-content"></div>
+        <div id="brain3d-overlay" class="brain3d-panel" role="tabpanel" aria-labelledby="brainTab" aria-hidden="true">
+            <div id="brain3d-unavailable" class="brain3d-unavailable" hidden>La vista 3D necesita compatibilidad con WebGL, que no está disponible en este navegador.</div>
         </div>
     </div>
     <div id="drawer-backdrop" class="drawer-backdrop"></div>
@@ -2109,7 +2167,6 @@ canvas {
         </div>
         <div class="education-content" id="education-content"></div>
     </div>
-    <div id="brain3d-overlay" style="display:none;"></div>
     <div id="brain3d-tooltip" style="display:none;"></div>
     <!-- Three.js v0.128.0 (vendored) -->
     
@@ -5455,6 +5512,30 @@ function normalizeAngle(a) {
 	return a;
 }
 
+/**
+ * Advance the fly's heading toward a target without exceeding a physical
+ * angular rate. `dtScale` is measured in 60 Hz frames, so the cap is stable
+ * across fast and slow displays while the retention factor keeps small turns
+ * gently eased.
+ */
+function computeHeadingStep(currentDir, targetDir, turnRetention, maxTurnRate, dtScale) {
+	currentDir = Number(currentDir);
+	targetDir = Number(targetDir);
+	turnRetention = Number(turnRetention);
+	maxTurnRate = Number(maxTurnRate);
+	dtScale = Number(dtScale);
+	if (!isFinite(currentDir) || !isFinite(targetDir)) return 0;
+	if (!isFinite(turnRetention)) turnRetention = 0.9;
+	if (!isFinite(maxTurnRate) || maxTurnRate < 0) maxTurnRate = 2.4;
+	if (!isFinite(dtScale) || dtScale < 0) dtScale = 1;
+
+	turnRetention = Math.max(0, Math.min(1, turnRetention));
+	var angleDiff = normalizeAngle(targetDir - currentDir);
+	var easedStep = angleDiff * (1 - Math.pow(turnRetention, dtScale));
+	var maxStep = maxTurnRate * dtScale / 60;
+	return Math.max(-maxStep, Math.min(maxStep, easedStep));
+}
+
 // Accumulator thresholds for entering each behavior state
 var BEHAVIOR_THRESHOLDS = {
 	startle: 30,
@@ -5606,6 +5687,742 @@ function pauseFeeding(foodItem, now) {
 	foodItem.eaten = Math.min(1, (foodItem.eaten || 0) + ate / foodItem.feedDuration);
 	foodItem.feedStart = 0;
 }
+
+// === js/brain3d.js ===
+/* brain3d.js — Interactive 3D Drosophila brain visualization
+ * Reads live connectome activation levels from BRAIN.postSynaptic
+ * and renders a Three.js scene with glowing neuropil regions.
+ */
+(function () {
+
+var REGION_COLORS = {
+    sensory: 0x3b82f6,
+    central: 0x8b5cf6,
+    drives:  0xf59e0b,
+    motor:   0xef4444
+};
+
+var ACTIVATION_DIVISOR = 80;
+var BASE_OPACITY = 0.3;
+var MAX_OPACITY = 0.8;
+var BASE_EMISSIVE_INTENSITY = 0.0;
+var MAX_EMISSIVE_INTENSITY = 1.0;
+var HIGHLIGHT_OPACITY = 0.9;
+var HIGHLIGHT_EMISSIVE = 1.5;
+var HIGHLIGHT_FADE_MS = 300;
+
+var REGION_DEFS = [
+    {
+        name: 'Lóbulos ópticos',
+        description: 'Procesamiento visual: detección del movimiento, el color y el flujo óptico',
+        type: 'sensory',
+        neurons: ['VIS_R1R6', 'VIS_R7R8', 'VIS_ME', 'VIS_LO', 'VIS_LC', 'VIS_LPTC'],
+        meshDefs: [
+            { geo: 'sphere', args: [1.4, 16, 12], pos: [-3.2, 0.2, -0.3], scale: [1, 0.75, 1.1] },
+            { geo: 'sphere', args: [1.4, 16, 12], pos: [3.2, 0.2, -0.3], scale: [1, 0.75, 1.1] }
+        ]
+    },
+    {
+        name: 'Lóbulos antenales',
+        description: 'Procesamiento olfativo: detección de olores asociados con comida y peligro',
+        type: 'sensory',
+        neurons: ['OLF_ORN_FOOD', 'OLF_ORN_DANGER', 'OLF_LN', 'OLF_PN'],
+        meshDefs: [
+            { geo: 'sphere', args: [0.45, 12, 10], pos: [-0.7, -0.6, 2.2], scale: [1, 1, 1] },
+            { geo: 'sphere', args: [0.45, 12, 10], pos: [0.7, -0.6, 2.2], scale: [1, 1, 1] }
+        ]
+    },
+    {
+        name: 'Cuerpos fungiformes',
+        description: 'Aprendizaje y memoria: asociaciones entre olores, recompensas y castigos',
+        type: 'central',
+        neurons: ['MB_KC', 'MB_APL', 'MB_MBON_APP', 'MB_MBON_AV', 'MB_DAN_REW', 'MB_DAN_PUN'],
+        meshDefs: [
+            { geo: 'sphere', args: [0.6, 12, 10], pos: [-1.3, 1.0, -0.3], scale: [1, 1, 1] },
+            { geo: 'sphere', args: [0.6, 12, 10], pos: [1.3, 1.0, -0.3], scale: [1, 1, 1] },
+            { geo: 'torus', args: [0.4, 0.12, 8, 16], pos: [-0.6, 0.2, 1.0], scale: [1, 1, 1], rot: [Math.PI / 2, 0, 0] },
+            { geo: 'torus', args: [0.4, 0.12, 8, 16], pos: [0.6, 0.2, 1.0], scale: [1, 1, 1], rot: [Math.PI / 2, 0, 0] }
+        ]
+    },
+    {
+        name: 'Complejo central',
+        description: 'Navegación: orientación, integración de trayectoria y coordinación motora',
+        type: 'central',
+        neurons: ['CX_EPG', 'CX_PFN', 'CX_FC', 'CX_HDELTA', 'CLOCK_DN'],
+        meshDefs: [
+            { geo: 'cylinder', args: [0.8, 0.8, 0.2, 16], pos: [0, 0.5, 0], scale: [1, 1, 1], rot: [Math.PI / 2, 0, 0] }
+        ]
+    },
+    {
+        name: 'Cuerno lateral',
+        description: 'Respuestas innatas a los olores: aproximación o evitación',
+        type: 'central',
+        neurons: ['LH_APP', 'LH_AV'],
+        meshDefs: [
+            { geo: 'sphere', args: [0.45, 12, 10], pos: [-1.8, 0.5, 0.3], scale: [1, 1, 1] },
+            { geo: 'sphere', args: [0.45, 12, 10], pos: [1.8, 0.5, 0.3], scale: [1, 1, 1] }
+        ]
+    },
+    {
+        name: 'Zona subesofágica',
+        description: 'Control de la alimentación y el aseo: procesamiento del gusto y órdenes motoras',
+        type: 'central',
+        neurons: ['SEZ_FEED', 'SEZ_GROOM', 'SEZ_WATER', 'GUS_GRN_SWEET', 'GUS_GRN_BITTER', 'GUS_GRN_WATER', 'GNG_DESC'],
+        meshDefs: [
+            { geo: 'sphere', args: [0.7, 12, 10], pos: [0, -1.0, 1.2], scale: [1.2, 0.7, 0.8] }
+        ]
+    },
+    {
+        name: 'VNC / Motor',
+        description: 'Salida motora: locomoción, vuelo y movimiento corporal',
+        type: 'motor',
+        neurons: ['DN_WALK', 'DN_FLIGHT', 'DN_TURN', 'DN_BACKUP', 'DN_STARTLE', 'VNC_CPG'],
+        collectMNPrefix: true,
+        meshDefs: [
+            { geo: 'cylinder', args: [0.35, 0.25, 2.5, 12], pos: [0, -1.5, -1.8], scale: [1, 1, 1], rot: [0.3, 0, 0] }
+        ]
+    },
+    {
+        name: 'Termosensorial',
+        description: 'Detección de la temperatura: calor y frío',
+        type: 'sensory',
+        neurons: ['THERMO_WARM', 'THERMO_COOL'],
+        meshDefs: [
+            { geo: 'sphere', args: [0.3, 10, 8], pos: [0, 0.0, 2.8], scale: [1, 1, 1] }
+        ]
+    },
+    {
+        name: 'Mecanosensorial',
+        description: 'Tacto y propiocepción: contacto, viento y posición corporal',
+        type: 'sensory',
+        neurons: ['MECH_BRISTLE', 'MECH_JO', 'MECH_CHORD', 'ANTENNAL_MECH', 'NOCI'],
+        meshDefs: [
+            { geo: 'sphere', args: [0.35, 10, 8], pos: [0, 0.7, 1.8], scale: [1, 1, 1] }
+        ]
+    },
+    {
+        name: 'Impulsos',
+        description: 'Estados motivacionales: hambre, miedo, fatiga, curiosidad e impulso de aseo',
+        type: 'drives',
+        neurons: ['DRIVE_HUNGER', 'DRIVE_FEAR', 'DRIVE_FATIGUE', 'DRIVE_CURIOSITY', 'DRIVE_GROOM'],
+        meshDefs: [
+            { geo: 'sphere', args: [0.5, 12, 10], pos: [0, 0.3, -0.3], scale: [1, 1, 1] }
+        ]
+    }
+];
+
+window.Brain3D = {
+    active: false,
+    _initialized: false,
+    _scene: null,
+    _camera: null,
+    _renderer: null,
+    _controls: null,
+    _regions: [],
+    _allMeshes: [],
+    _raycaster: null,
+    _mouse: null,
+    _container: null,
+    _tooltipEl: null,
+    _animFrameId: null,
+    _initFailed: false,
+
+    init: function () {
+        if (Brain3D._initialized) return;
+        Brain3D._container = document.getElementById('brain3d-overlay');
+        Brain3D._tooltipEl = document.getElementById('brain3d-tooltip');
+        try {
+            Brain3D._scene = new THREE.Scene();
+            Brain3D._scene.background = new THREE.Color(0x0a0a1a);
+
+            var width = Brain3D._container.clientWidth || window.innerWidth;
+            var height = Brain3D._container.clientHeight || (window.innerHeight - 44 - 90);
+
+            Brain3D._camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 100);
+            Brain3D._camera.position.set(0, 6, 10);
+
+            Brain3D._renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            Brain3D._renderer.setSize(width, height);
+            Brain3D._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            Brain3D._container.appendChild(Brain3D._renderer.domElement);
+
+            Brain3D._controls = new THREE.OrbitControls(Brain3D._camera, Brain3D._renderer.domElement);
+            Brain3D._controls.enableDamping = true;
+            Brain3D._controls.dampingFactor = 0.08;
+            Brain3D._controls.target.set(0, 0, 0);
+            Brain3D._controls.update();
+
+            Brain3D._scene.add(new THREE.AmbientLight(0x404060, 0.6));
+            var pointLight1 = new THREE.PointLight(0xffffff, 0.8, 50);
+            pointLight1.position.set(5, 8, 5);
+            Brain3D._scene.add(pointLight1);
+            var pointLight2 = new THREE.PointLight(0x8888ff, 0.4, 50);
+            pointLight2.position.set(-5, -3, -5);
+            Brain3D._scene.add(pointLight2);
+
+            Brain3D._buildRegions();
+
+            Brain3D._raycaster = new THREE.Raycaster();
+            Brain3D._mouse = new THREE.Vector2();
+
+            Brain3D._renderer.domElement.addEventListener('mousemove', Brain3D._onMouseMove);
+
+            Brain3D._initialized = true;
+        } catch (e) {
+            console.warn('Brain3D: WebGL not available', e);
+            Brain3D._initFailed = true;
+            Brain3D._initialized = false;
+            return;
+        }
+    },
+
+    _buildRegions: function () {
+        Brain3D._regions = [];
+        Brain3D._allMeshes = [];
+
+        for (var i = 0; i < REGION_DEFS.length; i++) {
+            var regionDef = REGION_DEFS[i];
+            var neuronList = regionDef.neurons.slice();
+
+            if (regionDef.collectMNPrefix === true) {
+                var keys = Object.keys(BRAIN.postSynaptic);
+                for (var k = 0; k < keys.length; k++) {
+                    if (keys[k].indexOf('MN_') === 0 && neuronList.indexOf(keys[k]) === -1) {
+                        neuronList.push(keys[k]);
+                    }
+                }
+            }
+
+            var colorHex = REGION_COLORS[regionDef.type];
+            var region = {
+                name: regionDef.name,
+                description: regionDef.description,
+                type: regionDef.type,
+                neurons: neuronList,
+                meshes: [],
+                activation: 0,
+                _highlightUntil: 0
+            };
+
+            for (var m = 0; m < regionDef.meshDefs.length; m++) {
+                var meshDef = regionDef.meshDefs[m];
+                var geometry;
+                if (meshDef.geo === 'sphere') {
+                    geometry = new THREE.SphereGeometry(meshDef.args[0], meshDef.args[1], meshDef.args[2]);
+                } else if (meshDef.geo === 'torus') {
+                    geometry = new THREE.TorusGeometry(meshDef.args[0], meshDef.args[1], meshDef.args[2], meshDef.args[3]);
+                } else if (meshDef.geo === 'cylinder') {
+                    geometry = new THREE.CylinderGeometry(meshDef.args[0], meshDef.args[1], meshDef.args[2], meshDef.args[3]);
+                }
+
+                var material = new THREE.MeshStandardMaterial({
+                    color: colorHex,
+                    emissive: colorHex,
+                    emissiveIntensity: 0,
+                    transparent: true,
+                    opacity: 0.3,
+                    depthWrite: false,
+                    roughness: 0.6,
+                    metalness: 0.1
+                });
+
+                var mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(meshDef.pos[0], meshDef.pos[1], meshDef.pos[2]);
+                mesh.scale.set(meshDef.scale[0], meshDef.scale[1], meshDef.scale[2]);
+                if (meshDef.rot) {
+                    mesh.rotation.set(meshDef.rot[0], meshDef.rot[1], meshDef.rot[2]);
+                }
+                mesh.userData.region = region;
+                mesh.renderOrder = 1;
+                Brain3D._scene.add(mesh);
+                region.meshes.push(mesh);
+                Brain3D._allMeshes.push(mesh);
+            }
+
+            Brain3D._regions.push(region);
+        }
+
+        // Faint wireframe outline for spatial reference
+        var outlineGeo = new THREE.SphereGeometry(4.5, 16, 12);
+        var outlineMat = new THREE.MeshBasicMaterial({
+            color: 0x223355,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.06
+        });
+        var outline = new THREE.Mesh(outlineGeo, outlineMat);
+        outline.position.set(0, 0, 0);
+        outline.scale.set(1, 0.6, 0.9);
+        Brain3D._scene.add(outline);
+    },
+
+    show: function () {
+        Brain3D._container = document.getElementById('brain3d-overlay');
+        if (!Brain3D._container) return false;
+        Brain3D._container.classList.add('brain3d-open');
+
+        var fallback = document.getElementById('brain3d-unavailable');
+        if (Brain3D._initFailed) {
+            if (fallback) fallback.hidden = false;
+            Brain3D.active = false;
+            return false;
+        }
+        if (Brain3D.active && Brain3D._initialized) {
+            if (fallback) fallback.hidden = true;
+            Brain3D._onResize();
+            return true;
+        }
+        if (!Brain3D._initialized) {
+            Brain3D.init();
+            if (!Brain3D._initialized) {
+                if (fallback) fallback.hidden = false;
+                Brain3D.active = false;
+                return false;
+            }
+        }
+        if (fallback) fallback.hidden = true;
+        Brain3D.active = true;
+        window.addEventListener('resize', Brain3D._onResize);
+        Brain3D._renderer.domElement.addEventListener('mouseleave', Brain3D._onMouseLeave);
+        Brain3D._onResize();
+        Brain3D._renderLoop();
+        return true;
+    },
+
+    hide: function () {
+        window.removeEventListener('resize', Brain3D._onResize);
+        if (Brain3D._renderer) {
+            Brain3D._renderer.domElement.removeEventListener('mouseleave', Brain3D._onMouseLeave);
+        }
+        if (Brain3D._container) {
+            Brain3D._container.classList.remove('brain3d-open');
+        }
+        var fallback = document.getElementById('brain3d-unavailable');
+        if (fallback) fallback.hidden = true;
+        Brain3D.active = false;
+        if (Brain3D._tooltipEl) {
+            Brain3D._tooltipEl.style.display = 'none';
+        }
+        if (Brain3D._animFrameId !== null) {
+            cancelAnimationFrame(Brain3D._animFrameId);
+            Brain3D._animFrameId = null;
+        }
+    },
+
+    toggle: function () {
+        if (Brain3D.active) {
+            Brain3D.hide();
+        } else {
+            Brain3D.show();
+        }
+    },
+
+    _renderLoop: function () {
+        if (!Brain3D.active) return;
+        Brain3D._animFrameId = requestAnimationFrame(Brain3D._renderLoop);
+        Brain3D._controls.update();
+        Brain3D._renderer.render(Brain3D._scene, Brain3D._camera);
+    },
+
+    update: function () {
+        if (!Brain3D.active || !Brain3D._initialized) return;
+
+        for (var i = 0; i < Brain3D._regions.length; i++) {
+            var region = Brain3D._regions[i];
+            var sum = 0;
+            var count = 0;
+            for (var n = 0; n < region.neurons.length; n++) {
+                var neuronName = region.neurons[n];
+                if (BRAIN.postSynaptic[neuronName]) {
+                    sum += BRAIN.postSynaptic[neuronName][BRAIN.thisState];
+                    count++;
+                }
+            }
+            var avg = count > 0 ? sum / count : 0;
+            var normalized = Math.min(1, Math.max(0, avg / ACTIVATION_DIVISOR));
+            region.activation = normalized;
+
+            var opacity = BASE_OPACITY + normalized * (MAX_OPACITY - BASE_OPACITY);
+            var emissiveIntensity = BASE_EMISSIVE_INTENSITY + normalized * (MAX_EMISSIVE_INTENSITY - BASE_EMISSIVE_INTENSITY);
+
+            if (region._highlightUntil > 0) {
+                var now = Date.now();
+                if (now < region._highlightUntil) {
+                    continue;
+                }
+                var fadeElapsed = now - region._highlightUntil;
+                if (fadeElapsed < HIGHLIGHT_FADE_MS) {
+                    var t = fadeElapsed / HIGHLIGHT_FADE_MS;
+                    var fadeOpacity = HIGHLIGHT_OPACITY + (opacity - HIGHLIGHT_OPACITY) * t;
+                    var fadeEmissive = HIGHLIGHT_EMISSIVE + (emissiveIntensity - HIGHLIGHT_EMISSIVE) * t;
+                    for (var j = 0; j < region.meshes.length; j++) {
+                        region.meshes[j].material.opacity = fadeOpacity;
+                        region.meshes[j].material.emissiveIntensity = fadeEmissive;
+                    }
+                    continue;
+                }
+                region._highlightUntil = 0;
+            }
+
+            for (var j = 0; j < region.meshes.length; j++) {
+                region.meshes[j].material.opacity = opacity;
+                region.meshes[j].material.emissiveIntensity = emissiveIntensity;
+            }
+        }
+    },
+
+    highlightRegion: function (regionName) {
+        if (!Brain3D.active || !Brain3D._initialized || !Brain3D._regions) return;
+
+        var foundRegion = null;
+        for (var i = 0; i < Brain3D._regions.length; i++) {
+            if (Brain3D._regions[i].name === regionName) {
+                foundRegion = Brain3D._regions[i];
+                break;
+            }
+        }
+        if (!foundRegion) return;
+
+        foundRegion._highlightUntil = Date.now() + 1200;
+        for (var j = 0; j < foundRegion.meshes.length; j++) {
+            foundRegion.meshes[j].material.emissiveIntensity = HIGHLIGHT_EMISSIVE;
+            foundRegion.meshes[j].material.opacity = HIGHLIGHT_OPACITY;
+        }
+    },
+
+    _onMouseMove: function (event) {
+        var rect = Brain3D._renderer.domElement.getBoundingClientRect();
+        Brain3D._mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        Brain3D._mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        Brain3D._raycaster.setFromCamera(Brain3D._mouse, Brain3D._camera);
+        var intersects = Brain3D._raycaster.intersectObjects(Brain3D._allMeshes);
+
+        if (intersects.length > 0) {
+            var region = intersects[0].object.userData.region;
+            var regionPopTotal = 0;
+            if (typeof neuronPopulations !== 'undefined') {
+                for (var p = 0; p < region.neurons.length; p++) {
+                    regionPopTotal += (neuronPopulations[region.neurons[p]] || 0);
+                }
+            }
+            var regionTypeLabels = { sensory: 'Sensorial', central: 'Central', drives: 'Impulsos', motor: 'Motor' };
+            var html = '<div class="b3d-tip-name">' + region.name + '</div>';
+            html += '<div class="b3d-tip-desc">' + region.description + '</div>';
+            if (regionPopTotal > 0) {
+                html += '<div class="b3d-tip-pop" style="font-size:0.7rem;color:#8892a4;margin:2px 0 4px;">' + region.neurons.length + ' grupos que representan aproximadamente ' + regionPopTotal.toLocaleString('es-ES') + ' neuronas</div>';
+            }
+            html += '<div class="b3d-tip-type">' + (regionTypeLabels[region.type] || region.type) + '</div>';
+            html += '<div class="b3d-tip-neurons">';
+            for (var i = 0; i < region.neurons.length; i++) {
+                var nName = region.neurons[i];
+                var raw = BRAIN.postSynaptic[nName] ? BRAIN.postSynaptic[nName][BRAIN.thisState] : 0;
+                var desc = (typeof neuronDescriptions !== 'undefined' && neuronDescriptions[nName]) ? neuronDescriptions[nName] : nName;
+                var pct = Math.min(100, Math.max(0, Math.round(raw / ACTIVATION_DIVISOR * 100)));
+                html += '<div class="b3d-tip-neuron"><span class="b3d-tip-neuron-name">' + desc + '</span><span class="b3d-tip-neuron-val">' + pct + '%</span></div>';
+            }
+            html += '</div>';
+            Brain3D._tooltipEl.innerHTML = html;
+            Brain3D._tooltipEl.style.left = (event.clientX + 12) + 'px';
+            Brain3D._tooltipEl.style.top = (event.clientY + 12) + 'px';
+            if (event.clientX + 12 + 260 > window.innerWidth) {
+                Brain3D._tooltipEl.style.left = (event.clientX - 270) + 'px';
+            }
+            if (event.clientY + 12 + Brain3D._tooltipEl.offsetHeight > window.innerHeight - 90) {
+                Brain3D._tooltipEl.style.top = (event.clientY - Brain3D._tooltipEl.offsetHeight - 12) + 'px';
+            }
+            Brain3D._tooltipEl.style.display = 'block';
+        } else {
+            Brain3D._tooltipEl.style.display = 'none';
+        }
+    },
+
+    _onMouseLeave: function () {
+        Brain3D._tooltipEl.style.display = 'none';
+    },
+
+    _onResize: function () {
+        if (!Brain3D._renderer) return;
+        var width = Brain3D._container.clientWidth || window.innerWidth;
+        var height = Brain3D._container.clientHeight || (window.innerHeight - 44 - 90);
+        Brain3D._camera.aspect = width / height;
+        Brain3D._camera.updateProjectionMatrix();
+        Brain3D._renderer.setSize(width, height);
+    }
+};
+
+})();
+
+// === js/education.js ===
+(function () {
+    var EDUCATION_REGIONS = [
+        {
+            id: 'optic-lobes',
+            name: 'Lóbulos ópticos',
+            neurons: ['VIS_R1R6', 'VIS_R7R8', 'VIS_ME', 'VIS_LO', 'VIS_LC', 'VIS_LPTC'],
+            type: 'sensory',
+            explanation: 'Los lóbulos ópticos son los centros de procesamiento visual de la mosca, uno a cada lado del cerebro. Detectan movimiento, color, bordes y objetos que se acercan. Casi la mitad del cerebro de la mosca se dedica a la visión.',
+            analogy: 'Como tu córtex visual, pero optimizado para detectar movimiento rápido y evitar matamoscas.',
+            interaction: 'Cambia la luz entre brillante, tenue y oscura, y observa cómo responden los lóbulos ópticos.',
+            populationEstimate: '~60 000 neuronas en la mosca real'
+        },
+        {
+            id: 'antennal-lobes',
+            name: 'Lóbulos antenales',
+            neurons: ['OLF_ORN_FOOD', 'OLF_ORN_DANGER', 'OLF_LN', 'OLF_PN'],
+            type: 'sensory',
+            explanation: 'Los lóbulos antenales procesan los olores detectados por las antenas. Distintos olores activan diferentes glomérulos (agrupaciones), lo que permite a la mosca distinguir la comida del peligro.',
+            analogy: 'Como tu bulbo olfativo: la primera etapa del procesamiento de los olores antes de que llegue a otras áreas del cerebro.',
+            interaction: 'Coloca comida en el lienzo y observa cómo se activan las neuronas olfativas cuando la mosca la detecta.',
+            populationEstimate: '~2 600 neuronas en ~50 glomérulos'
+        },
+        {
+            id: 'mushroom-bodies',
+            name: 'Cuerpos fungiformes',
+            neurons: ['MB_KC', 'MB_APL', 'MB_MBON_APP', 'MB_MBON_AV', 'MB_DAN_REW', 'MB_DAN_PUN'],
+            type: 'central',
+            explanation: 'Los cuerpos fungiformes son centros de aprendizaje y memoria. Asocian olores con recompensas o castigos y ayudan a la mosca a aprender cuáles anuncian comida y cuáles, peligro.',
+            analogy: 'Como el hipocampo de la mosca — forman y recuerdan memorias sobre olores.',
+            interaction: 'Alimenta a la mosca repetidamente y observa cómo se activan las neuronas dopaminérgicas de recompensa (DAN) junto con las células de Kenyon.',
+            populationEstimate: '~2 000 células de Kenyon + ~400 neuronas de salida y dopaminérgicas'
+        },
+        {
+            id: 'central-complex',
+            name: 'Complejo central',
+            neurons: ['CX_EPG', 'CX_PFN', 'CX_FC', 'CX_HDELTA', 'CLOCK_DN'],
+            type: 'central',
+            explanation: 'El complejo central es el centro de navegación de la mosca. Mantiene una brújula interna, rastrea la dirección de la mosca y coordina los patrones de locomoción.',
+            analogy: 'Como una brújula y un sistema de dirección combinados: indica hacia dónde apunta la mosca y ayuda a planificar su recorrido.',
+            interaction: 'Observa las neuronas brújula (EPG) mientras la mosca camina y cambia de dirección.',
+            populationEstimate: '~3 000 neuronas en la mosca real'
+        },
+        {
+            id: 'lateral-horn',
+            name: 'Cuerno lateral',
+            neurons: ['LH_APP', 'LH_AV'],
+            type: 'central',
+            explanation: 'El cuerno lateral maneja respuestas innatas (no aprendidas) a los olores. A diferencia de los cuerpos fungiformes, que participan en el aprendizaje, el cuerno lateral desencadena respuestas innatas de aproximación o evitación.',
+            analogy: 'Como un reflejo instintivo: retiras la mano de una superficie caliente antes de pensarlo.',
+            interaction: 'Coloca comida cerca de la mosca y observa cómo se activa LH_APP (aproximación). El cuerno lateral responde incluso sin aprendizaje previo.',
+            populationEstimate: '~1 400 neuronas'
+        },
+        {
+            id: 'sez',
+            name: 'Zona subesofágica',
+            neurons: ['SEZ_FEED', 'SEZ_GROOM', 'SEZ_WATER', 'GUS_GRN_SWEET', 'GUS_GRN_BITTER', 'GUS_GRN_WATER', 'GNG_DESC'],
+            type: 'central',
+            explanation: 'La zona subesofágica (SEZ) es el centro de mando para alimentación y aseo. Procesa la información del gusto y envía comandos motores para extender la probóscide o iniciar el aseo.',
+            analogy: 'Como quien gestiona una cafetería: decide si comer según la información de las papilas gustativas.',
+            interaction: 'Alimenta a la mosca y observa cómo se ilumina la SEZ. Toca la mosca para desencadenar los comandos de aseo.',
+            populationEstimate: '~7 000 neuronas'
+        },
+        {
+            id: 'vnc-motor',
+            name: 'VNC / Motor',
+            neurons: ['DN_WALK', 'DN_FLIGHT', 'DN_TURN', 'DN_BACKUP', 'DN_STARTLE', 'VNC_CPG'],
+            type: 'motor',
+            collectMNPrefix: true,
+            explanation: 'El cordón nervioso ventral (VNC) es el equivalente a la médula espinal de la mosca. Contiene neuronas motoras que controlan las patas, alas, probóscide y abdomen, además de generadores de patrones centrales que coordinan movimientos rítmicos como caminar.',
+            analogy: 'Como tu médula espinal: transmite órdenes del cerebro a los músculos y coordina movimientos repetitivos, como caminar.',
+            interaction: 'Observa cómo se activan las neuronas motoras durante cualquier comportamiento: caminar enciende los motores de las patas, volar enciende los motores de las alas.',
+            populationEstimate: '~15 000 neuronas, incluidas motoras e interneuronas'
+        },
+        {
+            id: 'thermosensory',
+            name: 'Termosensorial',
+            neurons: ['THERMO_WARM', 'THERMO_COOL'],
+            type: 'sensory',
+            explanation: 'Las neuronas termosensoriales detectan cambios de temperatura. Los sensores de calor y frío reportan al cerebro para que la mosca busque temperaturas confortables.',
+            analogy: 'Como los sensores de temperatura en tu piel — le dicen al cerebro si hace demasiado calor o demasiado frío.',
+            interaction: 'Cambia la temperatura a cálida o fría y observa cómo se activan las neuronas termosensoriales correspondientes.',
+            populationEstimate: '~60 neuronas'
+        },
+        {
+            id: 'mechanosensory',
+            name: 'Mecanosensorial',
+            neurons: ['MECH_BRISTLE', 'MECH_JO', 'MECH_CHORD', 'ANTENNAL_MECH', 'NOCI'],
+            type: 'sensory',
+            explanation: 'Las neuronas mecanosensoriales detectan tacto, viento, gravedad y posición corporal. Las neuronas cerdas responden al contacto físico, el órgano de Johnston detecta viento y gravedad a través de las antenas, y los órganos cordotonales registran las posiciones de las extremidades.',
+            analogy: 'Como la combinación de tu sentido del tacto y el sistema del equilibrio del oído interno.',
+            interaction: 'Toca la mosca para activar las neuronas sensoriales de las sedas. Sopla aire para activar el órgano de Johnston.',
+            populationEstimate: '~2 500 neuronas'
+        },
+        {
+            id: 'drives',
+            name: 'Impulsos',
+            neurons: ['DRIVE_HUNGER', 'DRIVE_FEAR', 'DRIVE_FATIGUE', 'DRIVE_CURIOSITY', 'DRIVE_GROOM'],
+            type: 'drives',
+            explanation: 'Las neuronas de impulso representan estados motivacionales internos. Fluctúan con el tiempo y sesgan el comportamiento de la mosca: una mosca hambrienta busca comida, una mosca asustada huye, una mosca cansada descansa.',
+            analogy: 'Como las sensaciones de hambre, ansiedad o cansancio: estados internos que influyen en lo que haces después.',
+            interaction: 'Observa los medidores de impulsos en el panel inferior. El hambre aumenta con el tiempo; el miedo se dispara cuando tocas o soplas aire a la mosca.',
+            populationEstimate: 'Distribuidas — modeladas como 5 grupos funcionales'
+        }
+    ];
+
+    window.EducationPanel = {
+        active: false,
+        _initialized: false,
+        _panel: null,
+        _content: null,
+
+        init: function () {
+            EducationPanel._panel = document.getElementById('education-panel');
+            var closeBtn = document.getElementById('education-close-btn');
+            closeBtn.textContent = '×';
+            closeBtn.addEventListener('click', function () {
+                EducationPanel.hide();
+                var learnBtnEl = document.getElementById('learnBtn');
+                if (learnBtnEl) learnBtnEl.classList.remove('active');
+            });
+            EducationPanel._content = document.getElementById('education-content');
+            EducationPanel._buildContent();
+            EducationPanel._initialized = true;
+        },
+
+        _buildContent: function () {
+            var html = '';
+
+            html += '<p class="edu-text" style="margin-bottom:1rem;">Un modelo funcional simplificado del cerebro de la mosca de la fruta. 59 grupos de neuronas modelan ~130 000 neuronas reales mapeadas por FlyWire (2024).</p>';
+
+            var types = [
+                { key: 'sensory', label: 'Sensorial', color: '#3b82f6' },
+                { key: 'central', label: 'Central', color: '#8b5cf6' },
+                { key: 'drives', label: 'Impulsos', color: '#f59e0b' },
+                { key: 'motor', label: 'Motor', color: '#ef4444' }
+            ];
+
+            html += '<div class="edu-columns">';
+            for (var t = 0; t < types.length; t++) {
+                var type = types[t];
+                html += '<div class="edu-column">';
+                html += '<div class="edu-column-header edu-type-' + type.key + '">' + type.label + '</div>';
+                for (var i = 0; i < EDUCATION_REGIONS.length; i++) {
+                    var region = EDUCATION_REGIONS[i];
+                    if (region.type !== type.key) continue;
+                    html += '<div class="edu-region-card" data-region-id="' + region.id + '">';
+                    html += '<span class="edu-region-link" data-region="' + region.name + '">' + region.name + '</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+
+            // Signal flow diagram
+            html += '<div class="edu-section" style="margin-top:1rem;">';
+            html += '<h2 class="edu-section-title">Flujo de señales</h2>';
+            html += '<svg class="edu-signal-flow" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">';
+            html += '<defs>';
+            html += '<marker id="edu-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8892a4"/></marker>';
+            html += '<marker id="edu-arrow-drives" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/></marker>';
+            html += '</defs>';
+            html += '<rect x="20" y="60" width="140" height="80" rx="8" fill="rgba(59,130,246,0.2)" stroke="#3b82f6"/>';
+            html += '<text x="90" y="105" text-anchor="middle" fill="white" font-size="14">Sensorial</text>';
+            html += '<rect x="230" y="40" width="140" height="120" rx="8" fill="rgba(139,92,246,0.2)" stroke="#8b5cf6"/>';
+            html += '<text x="300" y="105" text-anchor="middle" fill="white" font-size="14">Central</text>';
+            html += '<rect x="440" y="60" width="140" height="80" rx="8" fill="rgba(239,68,68,0.2)" stroke="#ef4444"/>';
+            html += '<text x="510" y="105" text-anchor="middle" fill="white" font-size="14">Motor</text>';
+            html += '<line x1="160" y1="100" x2="230" y2="100" stroke="#8892a4" stroke-width="2" marker-end="url(#edu-arrow)"/>';
+            html += '<line x1="370" y1="100" x2="440" y2="100" stroke="#8892a4" stroke-width="2" marker-end="url(#edu-arrow)"/>';
+            html += '<rect x="250" y="175" width="100" height="25" rx="4" fill="rgba(245,158,11,0.2)" stroke="#f59e0b"/>';
+            html += '<text x="300" y="192" text-anchor="middle" fill="white" font-size="12">Impulsos</text>';
+            html += '<line x1="300" y1="175" x2="300" y2="160" stroke="#f59e0b" stroke-dasharray="4,3" stroke-width="2" marker-end="url(#edu-arrow-drives)"/>';
+            html += '</svg>';
+            html += '</div>';
+
+            html += '<div id="edu-detail" class="edu-detail-panel" style="display:none;"></div>';
+
+            html += '<div class="edu-section">';
+            html += '<h2 class="edu-section-title">¿Qué está simplificado?</h2>';
+            html += '<ul class="edu-list">';
+            html += '<li>Cada grupo = cientos o miles de neuronas reales</li>';
+            html += '<li>Los pesos de conexión son estimaciones, no cantidades exactas</li>';
+            html += '<li>Sin plasticidad sináptica (los pesos son fijos)</li>';
+            html += '<li>Sin difusión de neuromoduladores ni uniones comunicantes</li>';
+            html += '</ul>';
+            html += '</div>';
+
+            html += '<div class="edu-section">';
+            html += '<h2 class="edu-section-title">Aprender más</h2>';
+            html += '<ul class="edu-links">';
+            html += '<li><a href="https://codex.flywire.ai" target="_blank" rel="noopener noreferrer">FlyWire Codex</a></li>';
+            html += '<li><a href="https://doi.org/10.1038/s41586-024-07558-y" target="_blank" rel="noopener noreferrer">Dorkenwald et al. 2024</a></li>';
+            html += '<li><a href="https://www.virtualflybrain.org" target="_blank" rel="noopener noreferrer">Virtual Fly Brain</a></li>';
+            html += '</ul>';
+            html += '</div>';
+
+            EducationPanel._content.innerHTML = html;
+
+            var cards = EducationPanel._content.querySelectorAll('.edu-region-card');
+            for (var ci = 0; ci < cards.length; ci++) {
+                (function (card) {
+                    card.addEventListener('click', function () {
+                        var regionId = card.getAttribute('data-region-id');
+                        for (var r = 0; r < EDUCATION_REGIONS.length; r++) {
+                            if (EDUCATION_REGIONS[r].id === regionId) {
+                                EducationPanel._showDetail(EDUCATION_REGIONS[r]);
+                                EducationPanel.highlightRegion(EDUCATION_REGIONS[r].name);
+                                break;
+                            }
+                        }
+                    });
+                })(cards[ci]);
+            }
+        },
+
+        _showDetail: function (region) {
+            var detail = document.getElementById('edu-detail');
+            if (!detail) return;
+            var html = '<div class="edu-section">';
+            var regionTypeLabels = { sensory: 'Sensorial', central: 'Central', drives: 'Impulsos', motor: 'Motor' };
+            html += '<h2 class="edu-section-title"><span class="edu-region-link" data-region="' + region.name + '">' + region.name + '</span><span class="edu-type-badge edu-type-' + region.type + '">' + (regionTypeLabels[region.type] || region.type) + '</span></h2>';
+            html += '<p class="edu-text">' + region.explanation + '</p>';
+            html += '<p class="edu-analogy"><strong>Analogía:</strong> ' + region.analogy + '</p>';
+            html += '<p class="edu-interaction"><strong>Pruébalo:</strong> ' + region.interaction + '</p>';
+            html += '<div class="edu-neuron-list"><strong>Grupos de neuronas:</strong>';
+            for (var j = 0; j < region.neurons.length; j++) {
+                html += '<span class="edu-neuron-tag">' + region.neurons[j] + '</span>';
+            }
+            if (region.collectMNPrefix && typeof BRAIN !== 'undefined' && BRAIN.postSynaptic) {
+                var keys = Object.keys(BRAIN.postSynaptic);
+                for (var k = 0; k < keys.length; k++) {
+                    if (keys[k].indexOf('MN_') === 0 && region.neurons.indexOf(keys[k]) === -1) {
+                        html += '<span class="edu-neuron-tag">' + keys[k] + '</span>';
+                    }
+                }
+            }
+            html += '</div>';
+            html += '<div class="edu-population">' + region.populationEstimate + '</div>';
+            html += '</div>';
+            detail.innerHTML = html;
+            detail.style.display = 'block';
+        },
+
+        highlightRegion: function (regionName) {
+            if (typeof Brain3D !== 'undefined' && Brain3D.highlightRegion) {
+                Brain3D.highlightRegion(regionName);
+            }
+        },
+
+        show: function () {
+            if (!EducationPanel._initialized) EducationPanel.init();
+            EducationPanel._panel.style.display = 'flex';
+            EducationPanel.active = true;
+        },
+
+        hide: function () {
+            EducationPanel._panel.style.display = 'none';
+            EducationPanel.active = false;
+        },
+
+        toggle: function () {
+            if (EducationPanel.active) {
+                EducationPanel.hide();
+            } else {
+                EducationPanel.show();
+            }
+        }
+    };
+})();
+
 // === js/main.js ===
 /**
  * @file Script principal de la simulación PsycodelicMosca.
@@ -6122,22 +6939,122 @@ for (var i = 0; i < toolButtons.length; i++) {
 	})(toolButtons[i]);
 }
 
-// --- Brain 3D toggle ---
+// --- Shared right panel: Registro and Cerebro are exclusive tab views. ---
+var rightPanel = document.getElementById('right-panel');
+var caretakerSidebarEl = document.getElementById('caretaker-sidebar');
+var brainPanelEl = document.getElementById('brain3d-overlay');
 var brain3dBtn = document.getElementById('brain3dBtn');
+var activityToggle = document.getElementById('activityToggle');
+var activityTab = document.getElementById('activityTab');
+var brainTab = document.getElementById('brainTab');
+var rightPanelCloseBtn = document.getElementById('rightPanelCloseBtn');
+var rightPanelCurrent = null;
+
+function updateRightPanelControls() {
+    var isOpen = !!(rightPanel && rightPanel.classList.contains('right-panel-open'));
+    var activityActive = isOpen && rightPanelCurrent === 'activity';
+    var brainActive = isOpen && rightPanelCurrent === 'brain';
+    if (rightPanel) rightPanel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    if (activityToggle) {
+        activityToggle.classList.toggle('active', activityActive);
+        activityToggle.setAttribute('aria-pressed', activityActive ? 'true' : 'false');
+    }
+    if (brain3dBtn) {
+        brain3dBtn.classList.toggle('active', brainActive);
+        brain3dBtn.setAttribute('aria-pressed', brainActive ? 'true' : 'false');
+    }
+    if (activityTab) {
+        activityTab.classList.toggle('active', activityActive);
+        activityTab.setAttribute('aria-selected', activityActive ? 'true' : 'false');
+        activityTab.tabIndex = activityActive ? 0 : -1;
+    }
+    if (brainTab) {
+        brainTab.classList.toggle('active', brainActive);
+        brainTab.setAttribute('aria-selected', brainActive ? 'true' : 'false');
+        brainTab.tabIndex = brainActive ? 0 : -1;
+    }
+    if (caretakerSidebarEl) caretakerSidebarEl.setAttribute('aria-hidden', activityActive ? 'false' : 'true');
+    if (brainPanelEl) brainPanelEl.setAttribute('aria-hidden', brainActive ? 'false' : 'true');
+}
+
+function closeRightPanel() {
+    var previousPanel = rightPanelCurrent;
+    if (typeof Brain3D !== 'undefined') Brain3D.hide();
+    if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.close();
+    rightPanelCurrent = null;
+    if (rightPanel) {
+        rightPanel.classList.remove('right-panel-open');
+        rightPanel.removeAttribute('data-active-panel');
+    }
+    updateRightPanelControls();
+    var trigger = previousPanel === 'brain' ? brain3dBtn : activityToggle;
+    if (trigger && typeof trigger.focus === 'function') trigger.focus();
+}
+
+function selectRightPanel(panel) {
+    if (!rightPanel || (panel !== 'activity' && panel !== 'brain')) return false;
+    rightPanelCurrent = panel;
+    rightPanel.setAttribute('data-active-panel', panel);
+    rightPanel.classList.add('right-panel-open');
+    if (panel === 'activity') {
+        if (typeof Brain3D !== 'undefined') Brain3D.hide();
+        if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.open();
+    } else {
+        if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.close();
+        if (typeof Brain3D !== 'undefined') Brain3D.show();
+    }
+    updateRightPanelControls();
+    return true;
+}
+
+function toggleRightPanel(panel) {
+    if (rightPanel && rightPanel.classList.contains('right-panel-open') && rightPanelCurrent === panel) {
+        closeRightPanel();
+        return false;
+    }
+    return selectRightPanel(panel);
+}
+
+function handleRightPanelTabKeydown(event) {
+    var nextPanel = null;
+    if (event.key === 'ArrowRight') nextPanel = 'brain';
+    else if (event.key === 'ArrowLeft') nextPanel = 'activity';
+    else if (event.key === 'Home') nextPanel = 'activity';
+    else if (event.key === 'End') nextPanel = 'brain';
+    if (!nextPanel) return;
+    event.preventDefault();
+    selectRightPanel(nextPanel);
+    var nextTab = nextPanel === 'brain' ? brainTab : activityTab;
+    if (nextTab) nextTab.focus();
+}
+
 if (brain3dBtn) {
-    brain3dBtn.addEventListener('click', function () {
-        if (typeof Brain3D !== 'undefined') {
-            Brain3D.toggle();
-            var isActive = Brain3D.active;
-            brain3dBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-            if (isActive) {
-                brain3dBtn.classList.add('active');
-            } else {
-                brain3dBtn.classList.remove('active');
-            }
-        }
+    brain3dBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        toggleRightPanel('brain');
     });
 }
+if (activityToggle) {
+    activityToggle.addEventListener('click', function (event) {
+        event.stopPropagation();
+        toggleRightPanel('activity');
+    });
+}
+if (activityTab) {
+    activityTab.addEventListener('click', function () { selectRightPanel('activity'); });
+    activityTab.addEventListener('keydown', handleRightPanelTabKeydown);
+}
+if (brainTab) {
+    brainTab.addEventListener('click', function () { selectRightPanel('brain'); });
+    brainTab.addEventListener('keydown', handleRightPanelTabKeydown);
+}
+if (rightPanelCloseBtn) rightPanelCloseBtn.addEventListener('click', closeRightPanel);
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && rightPanel && rightPanel.classList.contains('right-panel-open')) {
+        closeRightPanel();
+    }
+});
+updateRightPanelControls();
 
 // --- Learn / Education panel toggle ---
 var learnBtn = document.getElementById('learnBtn');
@@ -6218,36 +7135,8 @@ if (sidebarToggle) {
 				openDrawer();
 			}
 		} else {
-			// On desktop, hamburger toggles activity sidebar
-			if (typeof CaretakerSidebar !== 'undefined') {
-				var isOpen = CaretakerSidebar.toggle();
-				var actBtn = document.getElementById('activityToggle');
-				if (actBtn) actBtn.classList.toggle('active', isOpen);
-			}
-		}
-	});
-}
-
-// --- Activity sidebar toggle (desktop) ---
-var activityToggle = document.getElementById('activityToggle');
-var activityCloseBtn = document.getElementById('caretaker-sidebar-close');
-
-if (activityToggle) {
-	activityToggle.addEventListener('click', function(e) {
-		e.stopPropagation();
-		if (typeof CaretakerSidebar !== 'undefined') {
-			var isOpen = CaretakerSidebar.toggle();
-			activityToggle.classList.toggle('active', isOpen);
-		}
-	});
-}
-
-if (activityCloseBtn) {
-	activityCloseBtn.addEventListener('click', function() {
-		if (typeof CaretakerSidebar !== 'undefined') {
-			var sidebar = document.getElementById('caretaker-sidebar');
-			if (sidebar) sidebar.classList.remove('sidebar-open');
-			if (activityToggle) activityToggle.classList.remove('active');
+			// On desktop, the hamburger opens Registro in the shared right dock.
+			toggleRightPanel('activity');
 		}
 	});
 }
@@ -6915,7 +7804,9 @@ function computeMovementForBehavior() {
 		targetSpeed = smoothLocomotionSpeed(desiredPhotoSpeed, 0.85, 0.35);
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 2.5);
 	} else if (state === 'fly') {
-		var flightTurn = computeMotorTurnOffset(BRAIN.accumleft, BRAIN.accumright) + (Math.random() - 0.5) * 0.2;
+		// In flight, neural asymmetry should make small steering corrections;
+		// per-tick randomness is deliberately much weaker than the walk wander.
+		var flightTurn = computeMotorTurnOffset(BRAIN.accumleft, BRAIN.accumright) + (Math.random() - 0.5) * 0.05;
 		targetDir = facingDir + filterPersistentTurn(flightTurn);
 		var desiredFlightSpeed = Math.max(rawMotorSpeed * 2.5, 1.5);
 		targetSpeed = smoothLocomotionSpeed(desiredFlightSpeed, 2.4, 0.45);
@@ -6989,10 +7880,11 @@ function applyBehaviorMovement(dtScale) {
 			speedChangeInterval = 0;
 			if (now >= behavior.startleFreezeEnd) {
 				behavior.startlePhase = 'burst';
-				speed = 3.0;
-				behavior.burstDir = normalizeAngle(facingDir + Math.PI + (Math.random() - 0.5) * 0.5);
+				// Launch with a brief but controlled acceleration; the heading
+				// itself turns toward burstDir under the shared angular-rate limit.
+				speed = 1.8;
+				behavior.burstDir = normalizeAngle(facingDir + Math.PI + (Math.random() - 0.5) * 0.35);
 				targetDir = behavior.burstDir;
-				facingDir = behavior.burstDir;
 				targetSpeed = 0.5;
 				speedChangeInterval = (targetSpeed - speed) / 30;
 			}
@@ -7518,6 +8410,24 @@ function computeWingAlpha(spread) {
 }
 
 /**
+ * Drosophila wings beat around 200 times per second, far above a 60 Hz canvas
+ * frame rate. Render the time-averaged stroke as a few translucent samples
+ * instead of a slow, visibly oscillating wing pose that aliases on screen.
+ */
+function computeWingStrokeSamples(spread) {
+	var spreadAmount = Math.max(0, Math.min(1, Number(spread) || 0));
+	if (spreadAmount < 0.5) return [{ offset: 0, opacity: 1 }];
+	var extent = 0.30 * spreadAmount;
+	return [
+		{ offset: -extent, opacity: 0.16 },
+		{ offset: -extent * 0.5, opacity: 0.20 },
+		{ offset: 0, opacity: 0.28 },
+		{ offset: extent * 0.5, opacity: 0.20 },
+		{ offset: extent, opacity: 0.16 }
+	];
+}
+
+/**
  * Draws one wing (side = -1 for left, +1 for right).
  */
 function drawWing(side) {
@@ -7527,95 +8437,88 @@ function drawWing(side) {
 	var ww = BODY.wingWidth * side;
 	var spreadAmount = Math.max(0, Math.min(1, Number(anim.wingSpread) || 0));
 
-	// Wing micro-movement (idle flutter)
+	// Idle wings keep their small, slow antennal-style twitch. During flight,
+	// wingbeat samples below form a translucent swept arc at the display rate.
 	var microOffset = anim.wingMicro * 0.5 * side;
-
-	// Flight buzz stays symmetric; increased spread turns the wings outward.
-	var buzzOffset = 0;
-	if (spreadAmount > 0.5) {
-		buzzOffset = Math.sin(Date.now() / 30) * 0.08 * spreadAmount;
-	}
-
-	ctx.save();
-	ctx.globalAlpha = 1.0;
-	ctx.filter = getFlyLightingFilter();
-	ctx.translate(wx + microOffset, wy);
-	ctx.rotate(computeWingRotation(side, spreadAmount, microOffset, buzzOffset));
-
-	// Keep the photo cutouts close to their resting size during flight.
-	var wingScale = 1.0 + spreadAmount * 0.15;
-	ctx.scale(wingScale, wingScale);
-
-	// The wing membranes remain translucent at rest and during flight.
+	var strokeSamples = computeWingStrokeSamples(spreadAmount);
 	var wingAlpha = computeWingAlpha(spreadAmount);
+	var wingScale = 1.0 + spreadAmount * 0.15;
 
-	// Use the real venated wing cutout when available; mirror it for the other
-	// side while retaining the same root, spread, buzz and micro-motion controls.
-	if (flyWingAssetReady && flyWingAsset.naturalWidth && flyWingAsset.naturalHeight) {
-		ctx.globalAlpha = wingAlpha;
-		ctx.scale(side, 1);
-		ctx.drawImage(flyWingAsset, 0, 0, BODY.wingWidth * 1.4, wl);
+	for (var sampleIndex = 0; sampleIndex < strokeSamples.length; sampleIndex++) {
+		var sample = strokeSamples[sampleIndex];
+		ctx.save();
+		ctx.globalAlpha = 1.0;
+		ctx.filter = getFlyLightingFilter();
+		ctx.translate(wx + microOffset, wy);
+		ctx.rotate(computeWingRotation(side, spreadAmount, microOffset, sample.offset));
+		ctx.scale(wingScale, wingScale);
+
+		// Use the real venated wing cutout when available; mirror it for the
+		// other side and let the weighted samples create flight-stroke blur.
+		if (flyWingAssetReady && flyWingAsset.naturalWidth && flyWingAsset.naturalHeight) {
+			ctx.globalAlpha = wingAlpha * sample.opacity;
+			ctx.scale(side, 1);
+			ctx.drawImage(flyWingAsset, 0, 0, BODY.wingWidth * 1.4, wl);
+			ctx.restore();
+			continue;
+		}
+
+		// Thin translucent membrane, warmer than the old blue stylization.
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.bezierCurveTo(
+			ww * 1.2, wl * 0.2,
+			ww * 1.4, wl * 0.7,
+			ww * 0.3, wl
+		);
+		ctx.bezierCurveTo(
+			-ww * 0.2, wl * 0.8,
+			-ww * 0.1, wl * 0.3,
+			0, 0
+		);
+		var membrane = ctx.createLinearGradient(0, 0, ww * 0.9, wl);
+		membrane.addColorStop(0, 'rgba(244, 228, 193, 0.58)');
+		membrane.addColorStop(0.45, 'rgba(207, 222, 205, 0.34)');
+		membrane.addColorStop(1, 'rgba(251, 243, 218, 0.52)');
+		ctx.fillStyle = membrane;
+		ctx.globalAlpha = wingAlpha * sample.opacity;
+		ctx.fill();
+		ctx.strokeStyle = 'rgba(79, 59, 39, 0.55)';
+		ctx.lineWidth = 0.65;
+		ctx.globalAlpha = Math.min(1, (wingAlpha + 0.2) * sample.opacity);
+		ctx.stroke();
+
+		// Drosophila-like costa, longitudinal veins and delicate cross-veins.
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.bezierCurveTo(ww * 0.58, wl * 0.2, ww * 1.13, wl * 0.62, ww * 0.31, wl * 0.98);
+		ctx.moveTo(0, 0);
+		ctx.quadraticCurveTo(ww * 0.28, wl * 0.45, ww * 0.2, wl * 0.91);
+		ctx.moveTo(ww * 0.05, wl * 0.12);
+		ctx.quadraticCurveTo(ww * 0.58, wl * 0.23, ww * 1.0, wl * 0.36);
+		ctx.moveTo(ww * 0.13, wl * 0.31);
+		ctx.quadraticCurveTo(ww * 0.65, wl * 0.43, ww * 0.91, wl * 0.55);
+		ctx.moveTo(ww * 0.18, wl * 0.52);
+		ctx.quadraticCurveTo(ww * 0.62, wl * 0.61, ww * 0.75, wl * 0.73);
+		ctx.moveTo(ww * 0.14, wl * 0.34);
+		ctx.quadraticCurveTo(ww * 0.34, wl * 0.29, ww * 0.55, wl * 0.3);
+		ctx.moveTo(ww * 0.18, wl * 0.54);
+		ctx.quadraticCurveTo(ww * 0.38, wl * 0.49, ww * 0.72, wl * 0.52);
+		ctx.strokeStyle = 'rgba(71, 52, 35, 0.6)';
+		ctx.lineWidth = 0.42;
+		ctx.globalAlpha = 0.82 * sample.opacity;
+		ctx.stroke();
+
+		// Fine highlights along the membrane suggest its glassy, iridescent surface.
+		ctx.beginPath();
+		ctx.moveTo(ww * 0.04, wl * 0.08);
+		ctx.quadraticCurveTo(ww * 0.76, wl * 0.25, ww * 1.08, wl * 0.48);
+		ctx.strokeStyle = 'rgba(255, 252, 231, 0.58)';
+		ctx.lineWidth = 0.5;
+		ctx.globalAlpha = 0.72 * sample.opacity;
+		ctx.stroke();
 		ctx.restore();
-		return;
 	}
-
-	// Thin translucent membrane, warmer than the old blue stylization.
-	ctx.beginPath();
-	ctx.moveTo(0, 0);
-	ctx.bezierCurveTo(
-		ww * 1.2, wl * 0.2,
-		ww * 1.4, wl * 0.7,
-		ww * 0.3, wl
-	);
-	ctx.bezierCurveTo(
-		-ww * 0.2, wl * 0.8,
-		-ww * 0.1, wl * 0.3,
-		0, 0
-	);
-	var membrane = ctx.createLinearGradient(0, 0, ww * 0.9, wl);
-	membrane.addColorStop(0, 'rgba(244, 228, 193, 0.58)');
-	membrane.addColorStop(0.45, 'rgba(207, 222, 205, 0.34)');
-	membrane.addColorStop(1, 'rgba(251, 243, 218, 0.52)');
-	ctx.fillStyle = membrane;
-	ctx.globalAlpha = wingAlpha;
-	ctx.fill();
-	ctx.strokeStyle = 'rgba(79, 59, 39, 0.55)';
-	ctx.lineWidth = 0.65;
-	ctx.globalAlpha = Math.min(1, wingAlpha + 0.2);
-	ctx.stroke();
-
-	// Drosophila-like costa, longitudinal veins and delicate cross-veins.
-	ctx.beginPath();
-	ctx.moveTo(0, 0);
-	ctx.bezierCurveTo(ww * 0.58, wl * 0.2, ww * 1.13, wl * 0.62, ww * 0.31, wl * 0.98);
-	ctx.moveTo(0, 0);
-	ctx.quadraticCurveTo(ww * 0.28, wl * 0.45, ww * 0.2, wl * 0.91);
-	ctx.moveTo(ww * 0.05, wl * 0.12);
-	ctx.quadraticCurveTo(ww * 0.58, wl * 0.23, ww * 1.0, wl * 0.36);
-	ctx.moveTo(ww * 0.13, wl * 0.31);
-	ctx.quadraticCurveTo(ww * 0.65, wl * 0.43, ww * 0.91, wl * 0.55);
-	ctx.moveTo(ww * 0.18, wl * 0.52);
-	ctx.quadraticCurveTo(ww * 0.62, wl * 0.61, ww * 0.75, wl * 0.73);
-	ctx.moveTo(ww * 0.14, wl * 0.34);
-	ctx.quadraticCurveTo(ww * 0.34, wl * 0.29, ww * 0.55, wl * 0.3);
-	ctx.moveTo(ww * 0.18, wl * 0.54);
-	ctx.quadraticCurveTo(ww * 0.38, wl * 0.49, ww * 0.72, wl * 0.52);
-	ctx.strokeStyle = 'rgba(71, 52, 35, 0.6)';
-	ctx.lineWidth = 0.42;
-	ctx.globalAlpha = 0.82;
-	ctx.stroke();
-
-	// Fine highlights along the membrane suggest its glassy, iridescent surface.
-	ctx.beginPath();
-	ctx.moveTo(ww * 0.04, wl * 0.08);
-	ctx.quadraticCurveTo(ww * 0.76, wl * 0.25, ww * 1.08, wl * 0.48);
-	ctx.strokeStyle = 'rgba(255, 252, 231, 0.58)';
-	ctx.lineWidth = 0.5;
-	ctx.globalAlpha = 0.72;
-	ctx.stroke();
-	ctx.globalAlpha = 1.0;
-
-	ctx.restore();
 }
 
 /**
@@ -8285,21 +9188,25 @@ function update(dt) {
 		targetDir += angleDiffEdge * awayStrength * 0.3 * dtScale;
 	}
 
-	// Exponential interpolation toward targetDir using shortest-arc angle difference.
-	// Behavior-dependent retention: fast (0.3) for escape states where near-instant
-	// turning is needed at high speed, slow (0.9) for calm states where smooth
-	// gentle turns look natural. At dtScale=1 (60fps): 0.3 closes 70% of the gap
-	// per frame (~3 frames to 97%), 0.9 closes 10% per frame (~22 frames to 90%).
+	// Ease toward targetDir along the shortest arc, but cap angular velocity.
+	// The explicit rate limit prevents an occasional steering update or escape
+	// event from snapping the entire body (which reads as a head-bob/jolt).
 	var turnRetention;
+	var maxTurnRate;
 	if (behavior.current === 'startle' && behavior.startlePhase === 'burst') {
 		turnRetention = 0.3;
+		maxTurnRate = 4.8;
 	} else if (behavior.current === 'fly') {
-		turnRetention = 0.4;
+		turnRetention = 0.65;
+		maxTurnRate = 2.6;
+	} else if (behavior.current === 'phototaxis' || behavior.current === 'brace') {
+		turnRetention = 0.82;
+		maxTurnRate = 2.2;
 	} else {
 		turnRetention = 0.9;
+		maxTurnRate = 1.8;
 	}
-	var angleDiffTurn = normalizeAngle(targetDir - facingDir);
-	facingDir += angleDiffTurn * (1 - Math.pow(turnRetention, dtScale));
+	facingDir += computeHeadingStep(facingDir, targetDir, turnRetention, maxTurnRate, dtScale);
 
 	// Normalize angles to [-PI, PI] to prevent unbounded growth
 	facingDir = normalizeAngle(facingDir);
@@ -9013,10 +9920,24 @@ requestAnimationFrame(loop);
     feedList.scrollTop = 0;
   }
 
-  function toggle() {
+  function open() {
     if (sidebar === null) return false;
-    sidebar.classList.toggle('sidebar-open');
-    return sidebar.classList.contains('sidebar-open');
+    sidebar.classList.add('sidebar-open');
+    return true;
+  }
+
+  function close() {
+    if (sidebar === null) return false;
+    sidebar.classList.remove('sidebar-open');
+    return true;
+  }
+
+  function toggle() {
+    if (isOpen()) {
+      close();
+      return false;
+    }
+    return open();
   }
 
   function isOpen() {
@@ -9100,6 +10021,8 @@ requestAnimationFrame(loop);
     onAction: onAction,
     onIncident: onIncident,
     onHistory: onHistory,
+    open: open,
+    close: close,
     toggle: toggle,
     isOpen: isOpen,
     loadChatHistory: loadChatHistory
@@ -9662,7 +10585,6 @@ requestAnimationFrame(loop);
   window.caretakerBridge = { getState: getState, connect: connect,
     isConnected: function() { return connected; } };
 })();
-
 </script>
 </body>
 

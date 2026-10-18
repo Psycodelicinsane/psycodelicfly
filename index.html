@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PsycodelicMosca - Cerebro de la Mosca</title>
-    <link rel="stylesheet" type="text/css" href="./css/main.css?v=21">
+    <link rel="stylesheet" type="text/css" href="./css/main.css?v=23">
 </head>
 
 <body>
     <div id="toolbar">
         <div class="toolbar-left">
             <button class="tool-btn sidebar-toggle" id="sidebarToggle" aria-label="Alternar panel">&#9776;</button>
+            <button class="tool-btn" id="brain3dBtn" aria-pressed="false" aria-controls="right-panel" title="Abrir la vista 3D del cerebro">Cerebro</button>
+            <button class="tool-btn" id="activityToggle" aria-pressed="false" aria-controls="right-panel">Registro</button>
             <button class="tool-btn active" data-tool="feed">Comida</button>
             <button class="tool-btn" data-tool="touch">Tocar</button>
             <button class="tool-btn" data-tool="air">Viento</button>
             <button class="tool-btn" data-tool="light" id="lightBtn">Luz: Brillante</button>
             <button class="tool-btn" data-tool="temp" id="tempBtn">Temp.: Neutra</button>
-            <button class="tool-btn" id="brain3dBtn" aria-pressed="false">Cerebro 3D</button>
-            <button class="tool-btn" id="activityToggle">Registro</button>
             <button class="tool-btn" id="learnBtn">Aprender</button>
             <button class="tool-btn" id="helpBtn">?</button>
             <button class="tool-btn" id="liteBtn" title="Reducir el uso de recursos">Modo ligero</button>
@@ -86,33 +86,39 @@
             </div>
         </div>
     </div>
-    <div id="caretaker-sidebar" class="caretaker-sidebar">
-        <div class="caretaker-sidebar-header">
-            <span class="caretaker-sidebar-title">Registro de la mosca</span>
-            <button class="caretaker-sidebar-close" id="caretaker-sidebar-close" aria-label="Cerrar el registro">&times;</button>
+    <div id="right-panel" class="right-panel" aria-label="Panel lateral de la mosca" aria-hidden="true">
+        <div class="right-panel-tabs" role="tablist" aria-label="Vistas del panel lateral">
+            <button id="activityTab" class="right-panel-tab" type="button" role="tab" aria-selected="false" aria-controls="caretaker-sidebar" tabindex="-1">Registro</button>
+            <button id="brainTab" class="right-panel-tab" type="button" role="tab" aria-selected="false" aria-controls="brain3d-overlay" tabindex="-1">Cerebro</button>
+            <button id="rightPanelCloseBtn" class="right-panel-close" type="button" aria-label="Cerrar el panel lateral">&times;</button>
         </div>
-        <div class="activity-feed fly-activity-log" id="fly-activity-log" role="log" aria-label="Registro de lo que hace la mosca" aria-live="polite"><div class="fly-log-empty">La actividad de la mosca aparecerá aquí.</div></div>
-        <div id="activity-feed-list" hidden aria-hidden="true"></div>
-        <div class="chat-section" id="chat-section">
-            <div class="chat-history" id="chat-history"></div>
-            <div class="chat-input-row">
-                <input type="text" class="chat-input" id="chat-input" placeholder="Pregunta sobre la mosca..." autocomplete="off" />
-                <button class="chat-send-btn" id="chat-send-btn">Enviar</button>
+        <div id="caretaker-sidebar" class="caretaker-sidebar" role="tabpanel" aria-labelledby="activityTab" aria-hidden="true">
+            <div class="activity-feed fly-activity-log" id="fly-activity-log" role="log" aria-label="Registro de lo que hace la mosca" aria-live="polite"><div class="fly-log-empty">La actividad de la mosca aparecerá aquí.</div></div>
+            <div id="activity-feed-list" hidden aria-hidden="true"></div>
+            <div class="chat-section" id="chat-section">
+                <div class="chat-history" id="chat-history"></div>
+                <div class="chat-input-row">
+                    <input type="text" class="chat-input" id="chat-input" placeholder="Pregunta sobre la mosca..." autocomplete="off" />
+                    <button class="chat-send-btn" id="chat-send-btn">Enviar</button>
+                </div>
+            </div>
+            <div class="analytics-section" id="analytics-section">
+                <div class="analytics-section-header">
+                    <span class="analytics-section-title">Estadísticas</span>
+                    <button class="analytics-toggle-btn" id="analytics-toggle">Ocultar</button>
+                </div>
+                <div class="analytics-content" id="analytics-content"></div>
+            </div>
+            <div class="calendar-section" id="calendar-section">
+                <div class="calendar-section-header">
+                    <span class="calendar-section-title">Calendario</span>
+                    <button class="calendar-toggle-btn" id="calendar-toggle">Ocultar</button>
+                </div>
+                <div class="calendar-content" id="calendar-content"></div>
             </div>
         </div>
-        <div class="analytics-section" id="analytics-section">
-            <div class="analytics-section-header">
-                <span class="analytics-section-title">Estadísticas</span>
-                <button class="analytics-toggle-btn" id="analytics-toggle">Ocultar</button>
-            </div>
-            <div class="analytics-content" id="analytics-content"></div>
-        </div>
-        <div class="calendar-section" id="calendar-section">
-            <div class="calendar-section-header">
-                <span class="calendar-section-title">Calendario</span>
-                <button class="calendar-toggle-btn" id="calendar-toggle">Ocultar</button>
-            </div>
-            <div class="calendar-content" id="calendar-content"></div>
+        <div id="brain3d-overlay" class="brain3d-panel" role="tabpanel" aria-labelledby="brainTab" aria-hidden="true">
+            <div id="brain3d-unavailable" class="brain3d-unavailable" hidden>La vista 3D necesita compatibilidad con WebGL, que no está disponible en este navegador.</div>
         </div>
     </div>
     <div id="drawer-backdrop" class="drawer-backdrop"></div>
@@ -128,7 +134,6 @@
         </div>
         <div class="education-content" id="education-content"></div>
     </div>
-    <div id="brain3d-overlay" style="display:none;"></div>
     <div id="brain3d-tooltip" style="display:none;"></div>
     <!-- Three.js v0.128.0 (vendored) -->
     <script src="./js/vendor/three.min.js"></script>
@@ -137,12 +142,12 @@
     <script type="text/javascript" src="./js/connectome.js?v=18"></script>
     <script type="text/javascript" src="./js/brain-worker-bridge.js?v=20"></script>
     <script type="text/javascript" src="./js/neuro-renderer.js?v=19"></script>
-    <script type="text/javascript" src="./js/fly-logic.js?v=22"></script>
-    <script type="text/javascript" src="./js/brain3d.js?v=20"></script>
+    <script type="text/javascript" src="./js/fly-logic.js?v=23"></script>
+    <script type="text/javascript" src="./js/brain3d.js?v=21"></script>
     <script type="text/javascript" src="./js/education.js?v=19"></script>
-    <script type="text/javascript" src="./js/main.js?v=50"></script>
+    <script type="text/javascript" src="./js/main.js?v=52"></script>
     <script type="text/javascript" src="./js/caretaker-renderer.js?v=17"></script>
-    <script type="text/javascript" src="./js/caretaker-sidebar.js?v=19"></script>
+    <script type="text/javascript" src="./js/caretaker-sidebar.js?v=20"></script>
     <script type="text/javascript" src="./js/caretaker-analytics.js?v=18"></script>
     <script type="text/javascript" src="./js/caretaker-calendar.js?v=22"></script>
     <script type="text/javascript" src="./js/caretaker-bridge.js?v=18"></script>

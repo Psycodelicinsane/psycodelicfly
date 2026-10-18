@@ -161,10 +161,24 @@
     feedList.scrollTop = 0;
   }
 
-  function toggle() {
+  function open() {
     if (sidebar === null) return false;
-    sidebar.classList.toggle('sidebar-open');
-    return sidebar.classList.contains('sidebar-open');
+    sidebar.classList.add('sidebar-open');
+    return true;
+  }
+
+  function close() {
+    if (sidebar === null) return false;
+    sidebar.classList.remove('sidebar-open');
+    return true;
+  }
+
+  function toggle() {
+    if (isOpen()) {
+      close();
+      return false;
+    }
+    return open();
   }
 
   function isOpen() {
@@ -248,6 +262,8 @@
     onAction: onAction,
     onIncident: onIncident,
     onHistory: onHistory,
+    open: open,
+    close: close,
     toggle: toggle,
     isOpen: isOpen,
     loadChatHistory: loadChatHistory

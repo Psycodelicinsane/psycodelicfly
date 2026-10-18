@@ -513,22 +513,122 @@ for (var i = 0; i < toolButtons.length; i++) {
 	})(toolButtons[i]);
 }
 
-// --- Brain 3D toggle ---
+// --- Shared right panel: Registro and Cerebro are exclusive tab views. ---
+var rightPanel = document.getElementById('right-panel');
+var caretakerSidebarEl = document.getElementById('caretaker-sidebar');
+var brainPanelEl = document.getElementById('brain3d-overlay');
 var brain3dBtn = document.getElementById('brain3dBtn');
+var activityToggle = document.getElementById('activityToggle');
+var activityTab = document.getElementById('activityTab');
+var brainTab = document.getElementById('brainTab');
+var rightPanelCloseBtn = document.getElementById('rightPanelCloseBtn');
+var rightPanelCurrent = null;
+
+function updateRightPanelControls() {
+    var isOpen = !!(rightPanel && rightPanel.classList.contains('right-panel-open'));
+    var activityActive = isOpen && rightPanelCurrent === 'activity';
+    var brainActive = isOpen && rightPanelCurrent === 'brain';
+    if (rightPanel) rightPanel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    if (activityToggle) {
+        activityToggle.classList.toggle('active', activityActive);
+        activityToggle.setAttribute('aria-pressed', activityActive ? 'true' : 'false');
+    }
+    if (brain3dBtn) {
+        brain3dBtn.classList.toggle('active', brainActive);
+        brain3dBtn.setAttribute('aria-pressed', brainActive ? 'true' : 'false');
+    }
+    if (activityTab) {
+        activityTab.classList.toggle('active', activityActive);
+        activityTab.setAttribute('aria-selected', activityActive ? 'true' : 'false');
+        activityTab.tabIndex = activityActive ? 0 : -1;
+    }
+    if (brainTab) {
+        brainTab.classList.toggle('active', brainActive);
+        brainTab.setAttribute('aria-selected', brainActive ? 'true' : 'false');
+        brainTab.tabIndex = brainActive ? 0 : -1;
+    }
+    if (caretakerSidebarEl) caretakerSidebarEl.setAttribute('aria-hidden', activityActive ? 'false' : 'true');
+    if (brainPanelEl) brainPanelEl.setAttribute('aria-hidden', brainActive ? 'false' : 'true');
+}
+
+function closeRightPanel() {
+    var previousPanel = rightPanelCurrent;
+    if (typeof Brain3D !== 'undefined') Brain3D.hide();
+    if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.close();
+    rightPanelCurrent = null;
+    if (rightPanel) {
+        rightPanel.classList.remove('right-panel-open');
+        rightPanel.removeAttribute('data-active-panel');
+    }
+    updateRightPanelControls();
+    var trigger = previousPanel === 'brain' ? brain3dBtn : activityToggle;
+    if (trigger && typeof trigger.focus === 'function') trigger.focus();
+}
+
+function selectRightPanel(panel) {
+    if (!rightPanel || (panel !== 'activity' && panel !== 'brain')) return false;
+    rightPanelCurrent = panel;
+    rightPanel.setAttribute('data-active-panel', panel);
+    rightPanel.classList.add('right-panel-open');
+    if (panel === 'activity') {
+        if (typeof Brain3D !== 'undefined') Brain3D.hide();
+        if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.open();
+    } else {
+        if (typeof CaretakerSidebar !== 'undefined') CaretakerSidebar.close();
+        if (typeof Brain3D !== 'undefined') Brain3D.show();
+    }
+    updateRightPanelControls();
+    return true;
+}
+
+function toggleRightPanel(panel) {
+    if (rightPanel && rightPanel.classList.contains('right-panel-open') && rightPanelCurrent === panel) {
+        closeRightPanel();
+        return false;
+    }
+    return selectRightPanel(panel);
+}
+
+function handleRightPanelTabKeydown(event) {
+    var nextPanel = null;
+    if (event.key === 'ArrowRight') nextPanel = 'brain';
+    else if (event.key === 'ArrowLeft') nextPanel = 'activity';
+    else if (event.key === 'Home') nextPanel = 'activity';
+    else if (event.key === 'End') nextPanel = 'brain';
+    if (!nextPanel) return;
+    event.preventDefault();
+    selectRightPanel(nextPanel);
+    var nextTab = nextPanel === 'brain' ? brainTab : activityTab;
+    if (nextTab) nextTab.focus();
+}
+
 if (brain3dBtn) {
-    brain3dBtn.addEventListener('click', function () {
-        if (typeof Brain3D !== 'undefined') {
-            Brain3D.toggle();
-            var isActive = Brain3D.active;
-            brain3dBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-            if (isActive) {
-                brain3dBtn.classList.add('active');
-            } else {
-                brain3dBtn.classList.remove('active');
-            }
-        }
+    brain3dBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        toggleRightPanel('brain');
     });
 }
+if (activityToggle) {
+    activityToggle.addEventListener('click', function (event) {
+        event.stopPropagation();
+        toggleRightPanel('activity');
+    });
+}
+if (activityTab) {
+    activityTab.addEventListener('click', function () { selectRightPanel('activity'); });
+    activityTab.addEventListener('keydown', handleRightPanelTabKeydown);
+}
+if (brainTab) {
+    brainTab.addEventListener('click', function () { selectRightPanel('brain'); });
+    brainTab.addEventListener('keydown', handleRightPanelTabKeydown);
+}
+if (rightPanelCloseBtn) rightPanelCloseBtn.addEventListener('click', closeRightPanel);
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && rightPanel && rightPanel.classList.contains('right-panel-open')) {
+        closeRightPanel();
+    }
+});
+updateRightPanelControls();
 
 // --- Learn / Education panel toggle ---
 var learnBtn = document.getElementById('learnBtn');
@@ -609,36 +709,8 @@ if (sidebarToggle) {
 				openDrawer();
 			}
 		} else {
-			// On desktop, hamburger toggles activity sidebar
-			if (typeof CaretakerSidebar !== 'undefined') {
-				var isOpen = CaretakerSidebar.toggle();
-				var actBtn = document.getElementById('activityToggle');
-				if (actBtn) actBtn.classList.toggle('active', isOpen);
-			}
-		}
-	});
-}
-
-// --- Activity sidebar toggle (desktop) ---
-var activityToggle = document.getElementById('activityToggle');
-var activityCloseBtn = document.getElementById('caretaker-sidebar-close');
-
-if (activityToggle) {
-	activityToggle.addEventListener('click', function(e) {
-		e.stopPropagation();
-		if (typeof CaretakerSidebar !== 'undefined') {
-			var isOpen = CaretakerSidebar.toggle();
-			activityToggle.classList.toggle('active', isOpen);
-		}
-	});
-}
-
-if (activityCloseBtn) {
-	activityCloseBtn.addEventListener('click', function() {
-		if (typeof CaretakerSidebar !== 'undefined') {
-			var sidebar = document.getElementById('caretaker-sidebar');
-			if (sidebar) sidebar.classList.remove('sidebar-open');
-			if (activityToggle) activityToggle.classList.remove('active');
+			// On desktop, the hamburger opens Registro in the shared right dock.
+			toggleRightPanel('activity');
 		}
 	});
 }
@@ -1306,7 +1378,9 @@ function computeMovementForBehavior() {
 		targetSpeed = smoothLocomotionSpeed(desiredPhotoSpeed, 0.85, 0.35);
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 2.5);
 	} else if (state === 'fly') {
-		var flightTurn = computeMotorTurnOffset(BRAIN.accumleft, BRAIN.accumright) + (Math.random() - 0.5) * 0.2;
+		// In flight, neural asymmetry should make small steering corrections;
+		// per-tick randomness is deliberately much weaker than the walk wander.
+		var flightTurn = computeMotorTurnOffset(BRAIN.accumleft, BRAIN.accumright) + (Math.random() - 0.5) * 0.05;
 		targetDir = facingDir + filterPersistentTurn(flightTurn);
 		var desiredFlightSpeed = Math.max(rawMotorSpeed * 2.5, 1.5);
 		targetSpeed = smoothLocomotionSpeed(desiredFlightSpeed, 2.4, 0.45);
@@ -1380,10 +1454,11 @@ function applyBehaviorMovement(dtScale) {
 			speedChangeInterval = 0;
 			if (now >= behavior.startleFreezeEnd) {
 				behavior.startlePhase = 'burst';
-				speed = 3.0;
-				behavior.burstDir = normalizeAngle(facingDir + Math.PI + (Math.random() - 0.5) * 0.5);
+				// Launch with a brief but controlled acceleration; the heading
+				// itself turns toward burstDir under the shared angular-rate limit.
+				speed = 1.8;
+				behavior.burstDir = normalizeAngle(facingDir + Math.PI + (Math.random() - 0.5) * 0.35);
 				targetDir = behavior.burstDir;
-				facingDir = behavior.burstDir;
 				targetSpeed = 0.5;
 				speedChangeInterval = (targetSpeed - speed) / 30;
 			}
@@ -1909,6 +1984,24 @@ function computeWingAlpha(spread) {
 }
 
 /**
+ * Drosophila wings beat around 200 times per second, far above a 60 Hz canvas
+ * frame rate. Render the time-averaged stroke as a few translucent samples
+ * instead of a slow, visibly oscillating wing pose that aliases on screen.
+ */
+function computeWingStrokeSamples(spread) {
+	var spreadAmount = Math.max(0, Math.min(1, Number(spread) || 0));
+	if (spreadAmount < 0.5) return [{ offset: 0, opacity: 1 }];
+	var extent = 0.30 * spreadAmount;
+	return [
+		{ offset: -extent, opacity: 0.16 },
+		{ offset: -extent * 0.5, opacity: 0.20 },
+		{ offset: 0, opacity: 0.28 },
+		{ offset: extent * 0.5, opacity: 0.20 },
+		{ offset: extent, opacity: 0.16 }
+	];
+}
+
+/**
  * Draws one wing (side = -1 for left, +1 for right).
  */
 function drawWing(side) {
@@ -1918,95 +2011,88 @@ function drawWing(side) {
 	var ww = BODY.wingWidth * side;
 	var spreadAmount = Math.max(0, Math.min(1, Number(anim.wingSpread) || 0));
 
-	// Wing micro-movement (idle flutter)
+	// Idle wings keep their small, slow antennal-style twitch. During flight,
+	// wingbeat samples below form a translucent swept arc at the display rate.
 	var microOffset = anim.wingMicro * 0.5 * side;
-
-	// Flight buzz stays symmetric; increased spread turns the wings outward.
-	var buzzOffset = 0;
-	if (spreadAmount > 0.5) {
-		buzzOffset = Math.sin(Date.now() / 30) * 0.08 * spreadAmount;
-	}
-
-	ctx.save();
-	ctx.globalAlpha = 1.0;
-	ctx.filter = getFlyLightingFilter();
-	ctx.translate(wx + microOffset, wy);
-	ctx.rotate(computeWingRotation(side, spreadAmount, microOffset, buzzOffset));
-
-	// Keep the photo cutouts close to their resting size during flight.
-	var wingScale = 1.0 + spreadAmount * 0.15;
-	ctx.scale(wingScale, wingScale);
-
-	// The wing membranes remain translucent at rest and during flight.
+	var strokeSamples = computeWingStrokeSamples(spreadAmount);
 	var wingAlpha = computeWingAlpha(spreadAmount);
+	var wingScale = 1.0 + spreadAmount * 0.15;
 
-	// Use the real venated wing cutout when available; mirror it for the other
-	// side while retaining the same root, spread, buzz and micro-motion controls.
-	if (flyWingAssetReady && flyWingAsset.naturalWidth && flyWingAsset.naturalHeight) {
-		ctx.globalAlpha = wingAlpha;
-		ctx.scale(side, 1);
-		ctx.drawImage(flyWingAsset, 0, 0, BODY.wingWidth * 1.4, wl);
+	for (var sampleIndex = 0; sampleIndex < strokeSamples.length; sampleIndex++) {
+		var sample = strokeSamples[sampleIndex];
+		ctx.save();
+		ctx.globalAlpha = 1.0;
+		ctx.filter = getFlyLightingFilter();
+		ctx.translate(wx + microOffset, wy);
+		ctx.rotate(computeWingRotation(side, spreadAmount, microOffset, sample.offset));
+		ctx.scale(wingScale, wingScale);
+
+		// Use the real venated wing cutout when available; mirror it for the
+		// other side and let the weighted samples create flight-stroke blur.
+		if (flyWingAssetReady && flyWingAsset.naturalWidth && flyWingAsset.naturalHeight) {
+			ctx.globalAlpha = wingAlpha * sample.opacity;
+			ctx.scale(side, 1);
+			ctx.drawImage(flyWingAsset, 0, 0, BODY.wingWidth * 1.4, wl);
+			ctx.restore();
+			continue;
+		}
+
+		// Thin translucent membrane, warmer than the old blue stylization.
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.bezierCurveTo(
+			ww * 1.2, wl * 0.2,
+			ww * 1.4, wl * 0.7,
+			ww * 0.3, wl
+		);
+		ctx.bezierCurveTo(
+			-ww * 0.2, wl * 0.8,
+			-ww * 0.1, wl * 0.3,
+			0, 0
+		);
+		var membrane = ctx.createLinearGradient(0, 0, ww * 0.9, wl);
+		membrane.addColorStop(0, 'rgba(244, 228, 193, 0.58)');
+		membrane.addColorStop(0.45, 'rgba(207, 222, 205, 0.34)');
+		membrane.addColorStop(1, 'rgba(251, 243, 218, 0.52)');
+		ctx.fillStyle = membrane;
+		ctx.globalAlpha = wingAlpha * sample.opacity;
+		ctx.fill();
+		ctx.strokeStyle = 'rgba(79, 59, 39, 0.55)';
+		ctx.lineWidth = 0.65;
+		ctx.globalAlpha = Math.min(1, (wingAlpha + 0.2) * sample.opacity);
+		ctx.stroke();
+
+		// Drosophila-like costa, longitudinal veins and delicate cross-veins.
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.bezierCurveTo(ww * 0.58, wl * 0.2, ww * 1.13, wl * 0.62, ww * 0.31, wl * 0.98);
+		ctx.moveTo(0, 0);
+		ctx.quadraticCurveTo(ww * 0.28, wl * 0.45, ww * 0.2, wl * 0.91);
+		ctx.moveTo(ww * 0.05, wl * 0.12);
+		ctx.quadraticCurveTo(ww * 0.58, wl * 0.23, ww * 1.0, wl * 0.36);
+		ctx.moveTo(ww * 0.13, wl * 0.31);
+		ctx.quadraticCurveTo(ww * 0.65, wl * 0.43, ww * 0.91, wl * 0.55);
+		ctx.moveTo(ww * 0.18, wl * 0.52);
+		ctx.quadraticCurveTo(ww * 0.62, wl * 0.61, ww * 0.75, wl * 0.73);
+		ctx.moveTo(ww * 0.14, wl * 0.34);
+		ctx.quadraticCurveTo(ww * 0.34, wl * 0.29, ww * 0.55, wl * 0.3);
+		ctx.moveTo(ww * 0.18, wl * 0.54);
+		ctx.quadraticCurveTo(ww * 0.38, wl * 0.49, ww * 0.72, wl * 0.52);
+		ctx.strokeStyle = 'rgba(71, 52, 35, 0.6)';
+		ctx.lineWidth = 0.42;
+		ctx.globalAlpha = 0.82 * sample.opacity;
+		ctx.stroke();
+
+		// Fine highlights along the membrane suggest its glassy, iridescent surface.
+		ctx.beginPath();
+		ctx.moveTo(ww * 0.04, wl * 0.08);
+		ctx.quadraticCurveTo(ww * 0.76, wl * 0.25, ww * 1.08, wl * 0.48);
+		ctx.strokeStyle = 'rgba(255, 252, 231, 0.58)';
+		ctx.lineWidth = 0.5;
+		ctx.globalAlpha = 0.72 * sample.opacity;
+		ctx.stroke();
 		ctx.restore();
-		return;
 	}
-
-	// Thin translucent membrane, warmer than the old blue stylization.
-	ctx.beginPath();
-	ctx.moveTo(0, 0);
-	ctx.bezierCurveTo(
-		ww * 1.2, wl * 0.2,
-		ww * 1.4, wl * 0.7,
-		ww * 0.3, wl
-	);
-	ctx.bezierCurveTo(
-		-ww * 0.2, wl * 0.8,
-		-ww * 0.1, wl * 0.3,
-		0, 0
-	);
-	var membrane = ctx.createLinearGradient(0, 0, ww * 0.9, wl);
-	membrane.addColorStop(0, 'rgba(244, 228, 193, 0.58)');
-	membrane.addColorStop(0.45, 'rgba(207, 222, 205, 0.34)');
-	membrane.addColorStop(1, 'rgba(251, 243, 218, 0.52)');
-	ctx.fillStyle = membrane;
-	ctx.globalAlpha = wingAlpha;
-	ctx.fill();
-	ctx.strokeStyle = 'rgba(79, 59, 39, 0.55)';
-	ctx.lineWidth = 0.65;
-	ctx.globalAlpha = Math.min(1, wingAlpha + 0.2);
-	ctx.stroke();
-
-	// Drosophila-like costa, longitudinal veins and delicate cross-veins.
-	ctx.beginPath();
-	ctx.moveTo(0, 0);
-	ctx.bezierCurveTo(ww * 0.58, wl * 0.2, ww * 1.13, wl * 0.62, ww * 0.31, wl * 0.98);
-	ctx.moveTo(0, 0);
-	ctx.quadraticCurveTo(ww * 0.28, wl * 0.45, ww * 0.2, wl * 0.91);
-	ctx.moveTo(ww * 0.05, wl * 0.12);
-	ctx.quadraticCurveTo(ww * 0.58, wl * 0.23, ww * 1.0, wl * 0.36);
-	ctx.moveTo(ww * 0.13, wl * 0.31);
-	ctx.quadraticCurveTo(ww * 0.65, wl * 0.43, ww * 0.91, wl * 0.55);
-	ctx.moveTo(ww * 0.18, wl * 0.52);
-	ctx.quadraticCurveTo(ww * 0.62, wl * 0.61, ww * 0.75, wl * 0.73);
-	ctx.moveTo(ww * 0.14, wl * 0.34);
-	ctx.quadraticCurveTo(ww * 0.34, wl * 0.29, ww * 0.55, wl * 0.3);
-	ctx.moveTo(ww * 0.18, wl * 0.54);
-	ctx.quadraticCurveTo(ww * 0.38, wl * 0.49, ww * 0.72, wl * 0.52);
-	ctx.strokeStyle = 'rgba(71, 52, 35, 0.6)';
-	ctx.lineWidth = 0.42;
-	ctx.globalAlpha = 0.82;
-	ctx.stroke();
-
-	// Fine highlights along the membrane suggest its glassy, iridescent surface.
-	ctx.beginPath();
-	ctx.moveTo(ww * 0.04, wl * 0.08);
-	ctx.quadraticCurveTo(ww * 0.76, wl * 0.25, ww * 1.08, wl * 0.48);
-	ctx.strokeStyle = 'rgba(255, 252, 231, 0.58)';
-	ctx.lineWidth = 0.5;
-	ctx.globalAlpha = 0.72;
-	ctx.stroke();
-	ctx.globalAlpha = 1.0;
-
-	ctx.restore();
 }
 
 /**
@@ -2676,21 +2762,25 @@ function update(dt) {
 		targetDir += angleDiffEdge * awayStrength * 0.3 * dtScale;
 	}
 
-	// Exponential interpolation toward targetDir using shortest-arc angle difference.
-	// Behavior-dependent retention: fast (0.3) for escape states where near-instant
-	// turning is needed at high speed, slow (0.9) for calm states where smooth
-	// gentle turns look natural. At dtScale=1 (60fps): 0.3 closes 70% of the gap
-	// per frame (~3 frames to 97%), 0.9 closes 10% per frame (~22 frames to 90%).
+	// Ease toward targetDir along the shortest arc, but cap angular velocity.
+	// The explicit rate limit prevents an occasional steering update or escape
+	// event from snapping the entire body (which reads as a head-bob/jolt).
 	var turnRetention;
+	var maxTurnRate;
 	if (behavior.current === 'startle' && behavior.startlePhase === 'burst') {
 		turnRetention = 0.3;
+		maxTurnRate = 4.8;
 	} else if (behavior.current === 'fly') {
-		turnRetention = 0.4;
+		turnRetention = 0.65;
+		maxTurnRate = 2.6;
+	} else if (behavior.current === 'phototaxis' || behavior.current === 'brace') {
+		turnRetention = 0.82;
+		maxTurnRate = 2.2;
 	} else {
 		turnRetention = 0.9;
+		maxTurnRate = 1.8;
 	}
-	var angleDiffTurn = normalizeAngle(targetDir - facingDir);
-	facingDir += angleDiffTurn * (1 - Math.pow(turnRetention, dtScale));
+	facingDir += computeHeadingStep(facingDir, targetDir, turnRetention, maxTurnRate, dtScale);
 
 	// Normalize angles to [-PI, PI] to prevent unbounded growth
 	facingDir = normalizeAngle(facingDir);

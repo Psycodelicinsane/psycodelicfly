@@ -266,34 +266,36 @@ window.Brain3D = {
     },
 
     show: function () {
-        if (Brain3D._initFailed) return;
+        Brain3D._container = document.getElementById('brain3d-overlay');
+        if (!Brain3D._container) return false;
+        Brain3D._container.classList.add('brain3d-open');
+
+        var fallback = document.getElementById('brain3d-unavailable');
+        if (Brain3D._initFailed) {
+            if (fallback) fallback.hidden = false;
+            Brain3D.active = false;
+            return false;
+        }
+        if (Brain3D.active && Brain3D._initialized) {
+            if (fallback) fallback.hidden = true;
+            Brain3D._onResize();
+            return true;
+        }
         if (!Brain3D._initialized) {
-            Brain3D._container = document.getElementById('brain3d-overlay');
-            Brain3D._container.style.display = 'flex';
             Brain3D.init();
             if (!Brain3D._initialized) {
-                Brain3D._container.style.display = 'none';
+                if (fallback) fallback.hidden = false;
                 Brain3D.active = false;
-                return;
+                return false;
             }
-            // Add header with close button
-            var header = document.createElement('div');
-            header.className = 'brain3d-header';
-            header.innerHTML = '<span class="brain3d-title">&#129504; Cerebro 3D &mdash; PsycodelicMosca</span><button class="brain3d-close-btn" id="brain3d-close-btn" title="Cerrar el cerebro 3D" aria-label="Cerrar el cerebro 3D">&#10005;</button>';
-            Brain3D._container.insertBefore(header, Brain3D._container.firstChild);
-            document.getElementById('brain3d-close-btn').addEventListener('click', function () {
-                Brain3D.hide();
-                var btn = document.getElementById('brain3dBtn');
-                if (btn) btn.classList.remove('active');
-            });
-        } else {
-            Brain3D._container.style.display = 'flex';
         }
+        if (fallback) fallback.hidden = true;
         Brain3D.active = true;
         window.addEventListener('resize', Brain3D._onResize);
         Brain3D._renderer.domElement.addEventListener('mouseleave', Brain3D._onMouseLeave);
         Brain3D._onResize();
         Brain3D._renderLoop();
+        return true;
     },
 
     hide: function () {
@@ -302,8 +304,10 @@ window.Brain3D = {
             Brain3D._renderer.domElement.removeEventListener('mouseleave', Brain3D._onMouseLeave);
         }
         if (Brain3D._container) {
-            Brain3D._container.style.display = 'none';
+            Brain3D._container.classList.remove('brain3d-open');
         }
+        var fallback = document.getElementById('brain3d-unavailable');
+        if (fallback) fallback.hidden = true;
         Brain3D.active = false;
         if (Brain3D._tooltipEl) {
             Brain3D._tooltipEl.style.display = 'none';
