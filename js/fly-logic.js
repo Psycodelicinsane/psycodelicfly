@@ -115,15 +115,34 @@ function computeMotorTurnOffset(leftOutput, rightOutput) {
 }
 
 /**
- * Pure extraction of food-seeking steering logic (main.js ~lines 859-862).
- * Returns the computed targetDir and seekStrength.
+ * Pure food-seeking steering with a bounded per-tick turn and rear-target
+ * hysteresis. Returns targetDir, seekStrength, turn, and angleDiff.
  */
-function computeFoodSeekDir(flyX, flyY, foodX, foodY, hunger, facingDirVal) {
+var FOOD_SEEK_MAX_TURN = 0.75;
+function computeFoodSeekDir(flyX, flyY, foodX, foodY, hunger, facingDirVal, previousTurnSign) {
 	var foodAngle = Math.atan2(-(foodY - flyY), foodX - flyX);
 	var seekStrength = Math.min(1, hunger);
 	var angleDiffToFood = normalizeAngle(foodAngle - facingDirVal);
-	var targetDir = facingDirVal + angleDiffToFood * seekStrength;
-	return { targetDir: targetDir, seekStrength: seekStrength };
+	var desiredTurn = angleDiffToFood * seekStrength;
+	var turnSign = 0;
+	var rearTarget = Math.abs(angleDiffToFood) > Math.PI - 0.25;
+	if ((previousTurnSign === -1 || previousTurnSign === 1) &&
+		Math.abs(angleDiffToFood) > Math.PI - 0.55) {
+		// Keep the chosen side while the target crosses the directly-behind seam.
+		turnSign = previousTurnSign;
+	} else if (rearTarget) {
+		turnSign = angleDiffToFood < 0 ? -1 : 1;
+	}
+	var turnMagnitude = Math.min(FOOD_SEEK_MAX_TURN, Math.abs(desiredTurn));
+	var turn = turnSign ? turnSign * turnMagnitude :
+		Math.max(-FOOD_SEEK_MAX_TURN, Math.min(FOOD_SEEK_MAX_TURN, desiredTurn));
+	return {
+		targetDir: facingDirVal + turn,
+		seekStrength: seekStrength,
+		turn: turn,
+		angleDiff: angleDiffToFood,
+		turnSign: turnSign
+	};
 }
 
 /**

@@ -40,7 +40,11 @@ function withMockedRandom(mockValue, fn) {
 
 // Mutable test state (these globals are used by the shared
 // functions in fly-logic.js: evaluateBehaviorEntry, isCoolingDown, hasNearbyFood)
-var behavior = { current: 'idle', enterTime: 0, cooldowns: {} };
+var behavior = {
+	current: 'idle', enterTime: 0, cooldowns: {},
+	turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
+	locomotionSpeedCommand: 0
+};
 var food = [];
 var fly = { x: 400, y: 300 };
 
@@ -80,7 +84,11 @@ function resetBrainState() {
 		curiosity: 0.5,
 		groom: 0.1,
 	};
-	behavior = { current: 'idle', enterTime: 0, cooldowns: {} };
+	behavior = {
+		current: 'idle', enterTime: 0, cooldowns: {},
+		turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
+		locomotionSpeedCommand: 0
+	};
 	food = [];
 	fly = { x: 400, y: 300 };
 }
@@ -359,14 +367,14 @@ function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
 		'the original rear legs keep their abdomen-grooming motion');
 }
 
-function test_thorax_grooming_front_tarsi_brush_the_shell_in_alternating_strokes() {
+function test_thorax_grooming_middle_tarsi_brush_the_shell_in_alternating_strokes() {
 	var thoraxA = captureGroomingLegs('startle', 'thorax', 0.35, true);
-	var leftFemur = thoraxA[0];
-	var leftTibia = thoraxA[1];
-	var leftTarsus = thoraxA[2];
-	var rightFemur = thoraxA[3];
-	var rightTibia = thoraxA[4];
-	var rightTarsus = thoraxA[5];
+	var leftFemur = thoraxA[6];
+	var leftTibia = thoraxA[7];
+	var leftTarsus = thoraxA[8];
+	var rightFemur = thoraxA[9];
+	var rightTibia = thoraxA[10];
+	var rightTarsus = thoraxA[11];
 	var leftFemurAngle = Math.atan2(leftFemur.path[1][1] - leftFemur.path[0][1],
 		leftFemur.path[1][0] - leftFemur.path[0][0]);
 	var leftTibiaAngle = Math.atan2(leftTibia.path[1][1] - leftTibia.path[0][1],
@@ -379,7 +387,7 @@ function test_thorax_grooming_front_tarsi_brush_the_shell_in_alternating_strokes
 		rightTibia.path[1][0] - rightTibia.path[0][0]);
 	assertTrue(Math.abs(normalizeAngle(leftTibiaAngle - leftFemurAngle)) > 1.0 &&
 		Math.abs(normalizeAngle(rightTibiaAngle - rightFemurAngle)) > 1.0,
-		'thorax cleaning visibly folds both forelegs at their knees');
+		'thorax cleaning visibly folds both middle legs at their knees');
 	assertTrue(Math.abs(normalizeAngle(leftTarsusAngle - leftTibiaAngle)) > 2.0,
 		'the fine tarsus curls back toward the thorax instead of pointing away from it');
 	assertTrue(leftTarsus.path[1][0] < -10 && leftTarsus.path[1][0] > -14 &&
@@ -390,13 +398,13 @@ function test_thorax_grooming_front_tarsi_brush_the_shell_in_alternating_strokes
 		'the right tarsus mirrors the contact pose on the opposite thorax edge');
 
 	var thoraxB = captureGroomingLegs('startle', 'thorax', 2.7, true);
-	var leftStrokeDx = thoraxB[2].path[1][0] - leftTarsus.path[1][0];
-	var leftStrokeDy = thoraxB[2].path[1][1] - leftTarsus.path[1][1];
-	var rightStrokeDx = thoraxB[5].path[1][0] - rightTarsus.path[1][0];
-	var rightStrokeDy = thoraxB[5].path[1][1] - rightTarsus.path[1][1];
+	var leftStrokeDx = thoraxB[8].path[1][0] - leftTarsus.path[1][0];
+	var leftStrokeDy = thoraxB[8].path[1][1] - leftTarsus.path[1][1];
+	var rightStrokeDx = thoraxB[11].path[1][0] - rightTarsus.path[1][0];
+	var rightStrokeDy = thoraxB[11].path[1][1] - rightTarsus.path[1][1];
 	assertTrue(Math.hypot(leftStrokeDx, leftStrokeDy) > 0.5 &&
 		Math.hypot(rightStrokeDx, rightStrokeDy) > 0.5,
-		'the forelegs sweep back and forth over the thorax instead of holding a static pose');
+		'the middle legs sweep back and forth over the thorax instead of holding a static pose');
 	assertTrue(leftStrokeDx * -rightStrokeDx + leftStrokeDy * rightStrokeDy < 0,
 		'the left and right thorax strokes alternate instead of sweeping in sync');
 }
@@ -452,11 +460,16 @@ function test_feed_approach_stops_at_proboscis_reach_distance() {
 	var originalFlyX = fly.x;
 	var originalFlyY = fly.y;
 	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
 	var originalSpeed = globalThis.speed;
 	var originalTargetDir = globalThis.targetDir;
 	var originalTargetSpeed = globalThis.targetSpeed;
 	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
 	try {
+		behavior.foodSeekTurnSign = 0;
 		behavior.current = 'feed';
 		fly.x = 400;
 		fly.y = 300;
@@ -473,6 +486,10 @@ function test_feed_approach_stops_at_proboscis_reach_distance() {
 			'the body stops at the proboscis contact distance instead of covering the food');
 	} finally {
 		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
 		food = originalFood;
 		fly.x = originalFlyX;
 		fly.y = originalFlyY;
@@ -568,12 +585,14 @@ function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback(
 	var originalAsset = globalThis.flyBodyAsset;
 	var rotations = [];
 	var translations = [];
+	var imageArgs = [];
 	globalThis.flyBodyAssetReady = true;
 	globalThis.flyBodyAsset = { naturalWidth: 454, naturalHeight: 1284 };
 	globalThis.ctx = new Proxy({}, {
 		get: function (_target, name) {
 			if (name === 'rotate') return function (angle) { rotations.push(angle); };
 			if (name === 'translate') return function (x, y) { translations.push([x, y]); };
+			if (name === 'drawImage') return function () { imageArgs.push(Array.prototype.slice.call(arguments)); };
 			return function () {};
 		},
 		set: function () { return true; }
@@ -586,20 +605,28 @@ function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback(
 		behavior.groomLocation = 'abdomen';
 		anim.groomFeedbackUntil = 0;
 		drawPhotorealBody();
-		assertClose(rotations[0], 0.012, 0.000001,
-			'connectome abdomen grooming keeps the photo cutout on a subtle hinge');
-		assertEqual(translations.length, 2, 'the abdomen rotates around the split without an offset');
+		assertClose(rotations[0], 0.042, 0.000001,
+			'connectome abdomen grooming produces a visible swing around the hinge');
+		assertEqual(translations.length, 2, 'the abdomen rotates around the split without shifting the hinge');
 		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
-			'the abdomen hinge preserves the join instead of translating away from the thorax');
+			'the abdomen hinge stays connected to the thorax');
+		assertEqual(imageArgs.length, 2, 'the photo body is split into a thorax and an overlapping abdomen');
+		var sourceSplitY = Math.round(1284 * 0.57);
+		var overlapCanvas = (sourceSplitY - imageArgs[1][2]) * (BODY.bodySpriteHeight / 1284);
+		var halfBodyWidth = 454 * (BODY.bodySpriteHeight / 1284) / 2;
+		var edgeRotationShift = halfBodyWidth * Math.abs(Math.sin(rotations[0]));
+		assertTrue(overlapCanvas > edgeRotationShift,
+			'the overlapping abdomen strip covers rotational edge movement and prevents a visible cut');
 
 		rotations = [];
 		translations = [];
+		imageArgs = [];
 		behavior.current = 'startle';
 		anim.groomFeedbackUntil = Date.now() + 1000;
 		anim.groomFeedbackLocation = 'abdomen';
 		drawPhotorealBody();
-		assertClose(rotations[0], 0.012, 0.000001,
-			'abdomen touch feedback keeps the cutout on the same subtle hinge');
+		assertClose(rotations[0], 0.042, 0.000001,
+			'abdomen touch feedback uses the same visible, connected hinge');
 		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
 			'touch-triggered belly cleaning does not pull the abdomen off the shell');
 
@@ -1610,13 +1637,19 @@ function test_food_seek_uses_facingDir_not_targetDir() {
 
 	var facingDirVal2 = -Math.PI / 2;
 	var result2 = computeFoodSeekDir(flyX, flyY, foodX, foodY, 0.8, facingDirVal2);
-	// angleDiff2 = normalizeAngle(PI/4 - (-PI/2)) = normalizeAngle(3*PI/4) = 3*PI/4
-	// targetDir = -PI/2 + (3*PI/4) * 0.8
-	var expected2 = -Math.PI / 2 + (3 * Math.PI / 4) * 0.8;
+	// The large target offset is capped to a smooth 0.75 radian turn per brain tick.
+	var expected2 = -Math.PI / 2 + FOOD_SEEK_MAX_TURN;
 	assertClose(result2.targetDir, expected2, 0.001,
-		'targetDir differs with different facingDir');
+		'targetDir differs with different facingDir while limiting a sudden reversal');
+	assertClose(result2.turn, FOOD_SEEK_MAX_TURN, 0.001,
+		'food seeking exposes its bounded turn command for speed easing');
 	assertTrue(result2.targetDir !== result.targetDir,
 		'different facingDir produces different result');
+
+	var rearTargetA = computeFoodSeekDir(400, 300, 380, 300, 1, 0, 0);
+	var rearTargetB = computeFoodSeekDir(400, 300, 380, 299.9, 1, 0, rearTargetA.turnSign);
+	assertTrue(rearTargetA.turnSign !== 0 && rearTargetB.angleDiff > 0 && rearTargetB.turn < 0,
+		'the fly keeps its chosen turning side when a rear food target crosses the angle seam');
 }
 
 function test_food_seek_strength_scales_with_hunger() {
@@ -1628,6 +1661,82 @@ function test_food_seek_strength_scales_with_hunger() {
 
 	var r3 = computeFoodSeekDir(400, 300, 500, 200, 1.5, 0);
 	assertClose(r3.seekStrength, 1.0, 0.001, 'seekStrength clamped to 1.0 at hunger 1.5');
+}
+
+function test_food_seek_bounds_reversals_and_slows_while_turning_sharply() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalFood = food;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalFoodNearby = BRAIN.stimulate.foodNearby;
+	var originalHunger = BRAIN.drives.hunger;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'explore';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0;
+		food = [{ x: fly.x - 20, y: fly.y, radius: 10 }];
+		BRAIN.stimulate.foodNearby = true;
+		BRAIN.drives.hunger = 0.9;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		BRAIN.accumWalkLeft = 10;
+		BRAIN.accumWalkRight = 10;
+		BRAIN.accumHead = 0;
+		globalThis.speed = 0;
+
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		var firstTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertClose(Math.abs(firstTurn), FOOD_SEEK_MAX_TURN, 0.000001,
+			'a food target behind the fly is approached with a bounded turn, not a 180-degree snap');
+		assertTrue(globalThis.targetSpeed < 0.1,
+			'the fly eases its speed down while making a sharp food-seeking turn');
+
+		var turnSign = Math.sign(firstTurn);
+		for (var turnTick = 0; turnTick < 3; turnTick++) {
+			facingDir = globalThis.targetDir;
+			withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+			assertTrue(normalizeAngle(globalThis.targetDir - facingDir) * turnSign > 0,
+				'the target bearing keeps guiding the fly through the turn instead of making it reverse');
+		}
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		food = originalFood;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		BRAIN.stimulate.foodNearby = originalFoodNearby;
+		BRAIN.drives.hunger = originalHunger;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
 }
 
 function test_motor_turn_offset_ignores_balanced_worker_noise() {
@@ -1645,6 +1754,8 @@ function test_walk_heading_settles_under_sustained_motor_bias() {
 	var originalState = behavior.current;
 	var originalFacing = facingDir;
 	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
 	var originalSpeedCommand = behavior.locomotionSpeedCommand;
 	var originalAccumLeft = BRAIN.accumleft;
 	var originalAccumRight = BRAIN.accumright;
@@ -1658,6 +1769,8 @@ function test_walk_heading_settles_under_sustained_motor_bias() {
 	try {
 		behavior.current = 'walk';
 		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
 		facingDir = 0.7;
 		globalThis.speed = 0;
@@ -1706,6 +1819,8 @@ function test_walk_heading_settles_under_sustained_motor_bias() {
 	} finally {
 		behavior.current = originalState;
 		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
 		behavior.locomotionSpeedCommand = originalSpeedCommand;
 		facingDir = originalFacing;
 		BRAIN.accumleft = originalAccumLeft;
@@ -1724,6 +1839,8 @@ function test_walk_can_make_small_turns_with_balanced_leg_output() {
 	var originalState = behavior.current;
 	var originalFacing = facingDir;
 	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
 	var originalSpeedCommand = behavior.locomotionSpeedCommand;
 	var originalAccumLeft = BRAIN.accumleft;
 	var originalAccumRight = BRAIN.accumright;
@@ -1737,6 +1854,8 @@ function test_walk_can_make_small_turns_with_balanced_leg_output() {
 	try {
 		behavior.current = 'walk';
 		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
 		facingDir = -0.4;
 		globalThis.speed = 0;
@@ -1750,12 +1869,16 @@ function test_walk_can_make_small_turns_with_balanced_leg_output() {
 			'walk mode retains a gentle turn even when synthetic leg motors are symmetric');
 		facingDir = globalThis.targetDir;
 		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
 		withMockedRandom(0.25, function () { computeMovementForBehavior(); });
 		assertTrue(normalizeAngle(globalThis.targetDir - facingDir) < 0,
 			'the small walk turns are unbiased and can change direction naturally');
 	} finally {
 		behavior.current = originalState;
 		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
 		behavior.locomotionSpeedCommand = originalSpeedCommand;
 		facingDir = originalFacing;
 		BRAIN.accumleft = originalAccumLeft;
@@ -1774,6 +1897,8 @@ function test_explore_uses_small_relative_turns_not_absolute_heading_jumps() {
 	var originalState = behavior.current;
 	var originalFacing = facingDir;
 	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
 	var originalSpeedCommand = behavior.locomotionSpeedCommand;
 	var originalAccumLeft = BRAIN.accumleft;
 	var originalAccumRight = BRAIN.accumright;
@@ -1789,6 +1914,8 @@ function test_explore_uses_small_relative_turns_not_absolute_heading_jumps() {
 	try {
 		behavior.current = 'explore';
 		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
 		facingDir = 0.5;
 		BRAIN.accumleft = 10;
@@ -1815,6 +1942,8 @@ function test_explore_uses_small_relative_turns_not_absolute_heading_jumps() {
 	} finally {
 		behavior.current = originalState;
 		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
 		behavior.locomotionSpeedCommand = originalSpeedCommand;
 		facingDir = originalFacing;
 		BRAIN.accumleft = originalAccumLeft;
@@ -1831,10 +1960,82 @@ function test_explore_uses_small_relative_turns_not_absolute_heading_jumps() {
 	}
 }
 
+function test_exploration_turn_noise_is_smoothed_to_avoid_c_shaped_reversals() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalFoodNearby = BRAIN.stimulate.foodNearby;
+	var originalHunger = BRAIN.drives.hunger;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'explore';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0.7;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		BRAIN.accumWalkLeft = 10;
+		BRAIN.accumWalkRight = 10;
+		BRAIN.accumHead = 0;
+		BRAIN.stimulate.foodNearby = false;
+		BRAIN.drives.hunger = 0;
+		globalThis.speed = 0;
+
+		var maxTurnStep = 0;
+		var totalTurnJitter = 0;
+		for (var turnTick = 0; turnTick < 12; turnTick++) {
+			withMockedRandom(turnTick % 2 === 0 ? 0.95 : 0.05, function () {
+				computeMovementForBehavior();
+			});
+			var turnStep = normalizeAngle(globalThis.targetDir - facingDir);
+			maxTurnStep = Math.max(maxTurnStep, Math.abs(turnStep));
+			totalTurnJitter += Math.abs(turnStep);
+			facingDir = globalThis.targetDir;
+		}
+		assertTrue(maxTurnStep < 0.05,
+			'alternating noisy motor ticks cannot snap the heading left and right');
+		assertTrue(totalTurnJitter < 0.5,
+			'smoothed exploration noise avoids a repeated C-shaped back-and-forth path');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		BRAIN.stimulate.foodNearby = originalFoodNearby;
+		BRAIN.drives.hunger = originalHunger;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
 function test_phototaxis_near_light_turns_gently_without_atan2_flip() {
 	var originalState = behavior.current;
 	var originalFacing = facingDir;
 	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
 	var originalSpeedCommand = behavior.locomotionSpeedCommand;
 	var originalFlyX = fly.x;
 	var originalFlyY = fly.y;
@@ -1847,6 +2048,8 @@ function test_phototaxis_near_light_turns_gently_without_atan2_flip() {
 	try {
 		behavior.current = 'phototaxis';
 		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
 		facingDir = 0.4;
 		fly.x = globalThis.innerWidth / 2;
@@ -1867,9 +2070,30 @@ function test_phototaxis_near_light_turns_gently_without_atan2_flip() {
 		}
 		assertTrue(Math.abs(normalizeAngle(facingDir - 0.4)) < 0.5,
 			'a repeated directional bias near the light cannot turn into a persistent orbit');
+
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0;
+		fly.x = globalThis.innerWidth / 2 + 39;
+		fly.y = globalThis.innerHeight / 2;
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		var insideSpeed = globalThis.targetSpeed;
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0;
+		fly.x = globalThis.innerWidth / 2 + 41;
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		assertTrue(Math.abs(globalThis.targetSpeed - insideSpeed) < 0.01,
+			'phototaxis speed eases continuously across the near-light boundary');
+		assertTrue(Math.abs(normalizeAngle(globalThis.targetDir - facingDir)) <= 0.75,
+			'phototaxis bounds its turn instead of curving back sharply near the target');
 	} finally {
 		behavior.current = originalState;
 		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
 		behavior.locomotionSpeedCommand = originalSpeedCommand;
 		facingDir = originalFacing;
 		fly.x = originalFlyX;
@@ -1886,6 +2110,8 @@ function test_phototaxis_near_light_turns_gently_without_atan2_flip() {
 function test_locomotion_speed_is_smoothed_and_capped() {
 	var originalState = behavior.current;
 	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
 	var originalSpeedCommand = behavior.locomotionSpeedCommand;
 	var originalAccumLeft = BRAIN.accumleft;
 	var originalAccumRight = BRAIN.accumright;
@@ -1899,6 +2125,8 @@ function test_locomotion_speed_is_smoothed_and_capped() {
 	try {
 		behavior.current = 'walk';
 		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
 		globalThis.speed = 0;
 		BRAIN.accumleft = 1000;
@@ -1925,6 +2153,8 @@ function test_locomotion_speed_is_smoothed_and_capped() {
 
 		behavior.current = 'fly';
 		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
 		behavior.locomotionSpeedCommand = 0;
 		globalThis.speed = 0;
 		BRAIN.accumleft = 1000;
@@ -1937,6 +2167,8 @@ function test_locomotion_speed_is_smoothed_and_capped() {
 	} finally {
 		behavior.current = originalState;
 		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
 		behavior.locomotionSpeedCommand = originalSpeedCommand;
 		BRAIN.accumleft = originalAccumLeft;
 		BRAIN.accumright = originalAccumRight;

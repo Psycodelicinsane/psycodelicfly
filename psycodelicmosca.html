@@ -5556,15 +5556,34 @@ function computeMotorTurnOffset(leftOutput, rightOutput) {
 }
 
 /**
- * Pure extraction of food-seeking steering logic (main.js ~lines 859-862).
- * Returns the computed targetDir and seekStrength.
+ * Pure food-seeking steering with a bounded per-tick turn and rear-target
+ * hysteresis. Returns targetDir, seekStrength, turn, and angleDiff.
  */
-function computeFoodSeekDir(flyX, flyY, foodX, foodY, hunger, facingDirVal) {
+var FOOD_SEEK_MAX_TURN = 0.75;
+function computeFoodSeekDir(flyX, flyY, foodX, foodY, hunger, facingDirVal, previousTurnSign) {
 	var foodAngle = Math.atan2(-(foodY - flyY), foodX - flyX);
 	var seekStrength = Math.min(1, hunger);
 	var angleDiffToFood = normalizeAngle(foodAngle - facingDirVal);
-	var targetDir = facingDirVal + angleDiffToFood * seekStrength;
-	return { targetDir: targetDir, seekStrength: seekStrength };
+	var desiredTurn = angleDiffToFood * seekStrength;
+	var turnSign = 0;
+	var rearTarget = Math.abs(angleDiffToFood) > Math.PI - 0.25;
+	if ((previousTurnSign === -1 || previousTurnSign === 1) &&
+		Math.abs(angleDiffToFood) > Math.PI - 0.55) {
+		// Keep the chosen side while the target crosses the directly-behind seam.
+		turnSign = previousTurnSign;
+	} else if (rearTarget) {
+		turnSign = angleDiffToFood < 0 ? -1 : 1;
+	}
+	var turnMagnitude = Math.min(FOOD_SEEK_MAX_TURN, Math.abs(desiredTurn));
+	var turn = turnSign ? turnSign * turnMagnitude :
+		Math.max(-FOOD_SEEK_MAX_TURN, Math.min(FOOD_SEEK_MAX_TURN, desiredTurn));
+	return {
+		targetDir: facingDirVal + turn,
+		seekStrength: seekStrength,
+		turn: turn,
+		angleDiff: angleDiffToFood,
+		turnSign: turnSign
+	};
 }
 
 /**
@@ -5587,7 +5606,6 @@ function pauseFeeding(foodItem, now) {
 	foodItem.eaten = Math.min(1, (foodItem.eaten || 0) + ate / foodItem.feedDuration);
 	foodItem.feedStart = 0;
 }
-
 // === js/main.js ===
 /**
  * @file Script principal de la simulación PsycodelicMosca.
@@ -5750,6 +5768,8 @@ var behavior = {
 	groomLocation: null,
 	burstDir: 0,
 	turnBiasBaseline: 0,
+	turnInputFiltered: 0,
+	foodSeekTurnSign: 0,
 	locomotionSpeedCommand: 0,
 };
 
@@ -6453,6 +6473,8 @@ document.addEventListener('visibilitychange', function () {
 		behavior.cooldowns = {};
 		behavior.burstDir = 0;
 		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.foodSeekTurnSign = 0;
 		behavior.locomotionSpeedCommand = 0;
 		speed = 0;
 		speedChangeInterval = 0;
@@ -6768,25 +6790,29 @@ function syncBrainFlags() {
 }
 
 /**
- * High-pass a turn command so steady motor or noise bias cannot spin the fly.
- * Called on the 500ms brain tick alongside the movement controller.
+ * Smooth a turn command, then remove its persistent bias so worker noise
+ * cannot make the fly zigzag or spin. Called on each 500ms brain tick.
  */
 function filterPersistentTurn(rawTurn) {
 	if (typeof rawTurn !== 'number' || !isFinite(rawTurn)) rawTurn = 0;
+	var filteredInput = Number(behavior.turnInputFiltered);
+	if (!isFinite(filteredInput)) filteredInput = 0;
 	var baseline = Number(behavior.turnBiasBaseline);
 	if (!isFinite(baseline)) baseline = 0;
 
-	// A steady motor or random offset is a heading preference, not an endless
-	// angular velocity. Remove its DC component while letting changing signals
-	// through; this preserves brief turns without allowing one-sided outputs to
-	// wind the fly around in circles.
+	// Smooth worker and wander samples before removing their persistent bias.
+	// High-passing raw per-tick noise alone can exaggerate alternating inputs
+	// into a left-right zigzag, even though the desired heading change is small.
 	if (Math.abs(rawTurn) < 0.0001) {
+		behavior.turnInputFiltered = 0;
 		behavior.turnBiasBaseline = 0;
 		return 0;
 	}
-	baseline += (rawTurn - baseline) * 0.25;
+	filteredInput += (rawTurn - filteredInput) * 0.35;
+	behavior.turnInputFiltered = filteredInput;
+	baseline += (filteredInput - baseline) * 0.25;
 	behavior.turnBiasBaseline = baseline;
-	var turn = rawTurn - baseline;
+	var turn = filteredInput - baseline;
 	return Math.max(-0.12, Math.min(0.12, turn));
 }
 
@@ -6814,6 +6840,13 @@ function smoothLocomotionSpeed(rawSpeed, maxSpeed, blend) {
 function computeMovementForBehavior() {
 	var scalingFactor = 20;
 	var state = behavior.current;
+	var foodSeeking = (state === 'walk' || state === 'explore') &&
+		BRAIN.stimulate.foodNearby && BRAIN.drives.hunger > 0.3;
+	if (state !== 'feed' && !foodSeeking) behavior.foodSeekTurnSign = 0;
+	if (state !== 'walk' && state !== 'explore' && state !== 'phototaxis' && state !== 'fly') {
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+	}
 	var rawMotorSpeed = (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5);
 
 	if (state === 'walk' || state === 'explore') {
@@ -6836,15 +6869,23 @@ function computeMovementForBehavior() {
 		// Keep an active gait visibly translating even when the virtual VNC output
 		// is near its walk-entry threshold (matching the reference fork's floor).
 		var desiredWalkSpeed = Math.max(rawMotorSpeed, 0.25);
-		// Food-seeking: steer toward nearest food when hungry and food detected.
+		// Food seeking uses bounded steering and eases speed when the target is
+		// well behind, avoiding a tight C-shaped loop while the fly turns around.
 		if (BRAIN.stimulate.foodNearby && BRAIN.drives.hunger > 0.3) {
 			var nf = nearestFood();
 			if (nf) {
-				var foodAngle = Math.atan2(-(nf.item.y - fly.y), nf.item.x - fly.x);
-				var seekStrength = Math.min(1, BRAIN.drives.hunger);
-				var angleDiffToFood = normalizeAngle(foodAngle - facingDir);
-				targetDir = facingDir + angleDiffToFood * seekStrength;
+				var foodSteering = computeFoodSeekDir(
+					fly.x, fly.y, nf.item.x, nf.item.y, BRAIN.drives.hunger,
+					facingDir, behavior.foodSeekTurnSign
+				);
+				behavior.foodSeekTurnSign = foodSteering.turnSign;
+				targetDir = foodSteering.targetDir;
 				desiredWalkSpeed = Math.max(desiredWalkSpeed, 0.3);
+				if (Math.abs(foodSteering.angleDiff) > 0.9) {
+					desiredWalkSpeed = Math.min(desiredWalkSpeed, 0.2);
+				}
+			} else {
+				behavior.foodSeekTurnSign = 0;
 			}
 		}
 		targetSpeed = smoothLocomotionSpeed(desiredWalkSpeed, 0.85, 0.35);
@@ -6854,17 +6895,23 @@ function computeMovementForBehavior() {
 	} else if (state === 'phototaxis') {
 		var dx = window.innerWidth / 2 - fly.x;
 		var dy = -(window.innerHeight / 2 - fly.y);
-		var desiredPhotoSpeed;
-		if (Math.hypot(dx, dy) < 40) {
-			// atan2(0, 0) flips to an arbitrary heading at the light source.
-			// Mill gently around it instead of orbiting or snapping to a stop.
-			targetDir = facingDir + filterPersistentTurn((Math.random() - 0.5) * 0.4);
-			desiredPhotoSpeed = 0.15;
+		var lightDistance = Math.hypot(dx, dy);
+		var arrivalStrength = Math.max(0, Math.min(1, lightDistance / 40));
+		var lightAngle = Math.atan2(dy, dx);
+		var angleDiffToLight = normalizeAngle(lightAngle - facingDir);
+		var millingTurn = 0;
+		if (arrivalStrength < 1) {
+			// Fade into a quiet mill near the light instead of snapping at its center.
+			millingTurn = filterPersistentTurn((Math.random() - 0.5) * 0.4);
 		} else {
 			behavior.turnBiasBaseline = 0;
-			targetDir = Math.atan2(dy, dx);
-			desiredPhotoSpeed = Math.max(rawMotorSpeed, 0.3);
+			behavior.turnInputFiltered = 0;
 		}
+		var photoTurn = angleDiffToLight * arrivalStrength + millingTurn * (1 - arrivalStrength);
+		photoTurn = Math.max(-0.75, Math.min(0.75, photoTurn));
+		targetDir = facingDir + photoTurn;
+		var photoSpeedScale = Math.max(0.5, Math.min(1, lightDistance / 80));
+		var desiredPhotoSpeed = Math.max(rawMotorSpeed, 0.3) * photoSpeedScale;
 		targetSpeed = smoothLocomotionSpeed(desiredPhotoSpeed, 0.85, 0.35);
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 2.5);
 	} else if (state === 'fly') {
@@ -6893,11 +6940,15 @@ function computeMovementForBehavior() {
 		// Approach until the mouth can reach the food, not until the body overlaps it.
 		var nf = nearestFood();
 		if (nf && !isFoodWithinProboscisReach(nf.item)) {
-			var foodAngle = Math.atan2(-(nf.item.y - fly.y), nf.item.x - fly.x);
-			targetDir = foodAngle;
-			targetSpeed = 0.25;
+			var foodSteering = computeFoodSeekDir(
+				fly.x, fly.y, nf.item.x, nf.item.y, 1, facingDir, behavior.foodSeekTurnSign
+			);
+			behavior.foodSeekTurnSign = foodSteering.turnSign;
+			targetDir = foodSteering.targetDir;
+			targetSpeed = Math.abs(foodSteering.angleDiff) > 0.9 ? 0.15 : 0.25;
 			speedChangeInterval = (targetSpeed - speed) / 30;
 		} else {
+			behavior.foodSeekTurnSign = 0;
 			targetSpeed = 0;
 			speedChangeInterval = -speed * 0.1;
 		}
@@ -7413,7 +7464,7 @@ function drawPhotorealBody() {
 	var y = BODY.bodySpriteTop;
 	var splitY = Math.round(sourceHeight * 0.57);
 	var splitCanvasY = y + splitY * scale;
-	var overlap = 18; // a sub-pixel overlap prevents a seam when the abdomen flexes
+	var overlap = 48; // ~2.4 canvas px of overlap keeps the hinged cutout connected
 
 	ctx.save();
 	ctx.filter = getFlyLightingFilter();
@@ -7425,19 +7476,19 @@ function drawPhotorealBody() {
 		x, y, width, splitY * scale
 	);
 
-	// Keep abdomen motion subtle and hinge it exactly at the overlapping seam.
-	// Thorax grooming should move the legs, not pull the abdomen away from the shell.
+	// Let the abdomen swing again, but hinge it in place so it cannot pull away
+	// from the thorax. The overlapping source strip masks fractional edge gaps.
 	var abdomenGroomLocation = behavior.current === 'groom' ? behavior.groomLocation :
 		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenFlex = 0;
 	if (abdomenGroomLocation === 'abdomen') {
-		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 2 * Math.max(0, Math.min(1, anim.groomBlend));
+		abdomenFlex = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	var lowerSourceY = Math.max(0, splitY - overlap);
 	ctx.save();
 	if (abdomenFlex) {
 		ctx.translate(0, splitCanvasY);
-		ctx.rotate(abdomenFlex * 0.006);
+		ctx.rotate(abdomenFlex * 0.012);
 		ctx.translate(0, -splitCanvasY);
 	}
 	ctx.drawImage(
@@ -7576,7 +7627,7 @@ function drawAbdomen() {
 		(anim.groomBlend > 0.01 ? (anim.groomPoseLocation || anim.groomFeedbackLocation || behavior.groomLocation) : null);
 	var abdomenCurl = 0;
 	if (abdomenGroomLocation === 'abdomen') {
-		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 2 * Math.max(0, Math.min(1, anim.groomBlend));
+		abdomenCurl = Math.sin(anim.groomPhase * 0.8) * 3.5 * Math.max(0, Math.min(1, anim.groomBlend));
 	}
 	ay += abdomenCurl;
 
@@ -8036,12 +8087,12 @@ function drawLegs(state, dtScale) {
 				// the tarsi inward along the belly edge in alternating strokes.
 				hipMod = 0.55 + Math.sin(strokePhase) * 0.1;
 				kneeMod = 0.9 + Math.sin(strokePhase * 1.3 + 0.6) * 0.16;
-			} else if (groomLoc === 'thorax' && pairIdx === 0) {
-				// Bend the forelegs around the thorax margin and curl their fine tarsi
-				// back onto the shell for alternating, visible brushing strokes.
+			} else if (groomLoc === 'thorax' && pairIdx === 1) {
+				// Middle legs sweep the wing bases and thorax edge; their tarsi curl
+				// back onto the shell in alternating, visible brushing strokes.
 				var thoraxStroke = Math.sin(strokePhase * 1.3 + 0.3);
-				hipMod = 0.12 + Math.sin(strokePhase) * 0.08;
-				kneeMod = 0.75 + thoraxStroke * 0.1;
+				hipMod = -1.0 + Math.sin(strokePhase) * 0.08;
+				kneeMod = 1.75 + thoraxStroke * 0.1;
 				var targetTarsusBend = 2.35 + thoraxStroke * 0.1;
 				tarsusBendOffset = 0.3 + (targetTarsusBend - 0.3) * groomBlend;
 			} else if (groomLoc === 'leg') {
