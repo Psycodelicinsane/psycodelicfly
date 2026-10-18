@@ -11,9 +11,17 @@
 - Phase 7: Full FlyWire Connectome (139K Neurons) (1 archived, 6 retained) (6 tasks archived to TASKS-ARCHIVE.md)
 ## Discovery Round 23: Motor Pipeline & Visual Panel Regression Fix
 
+**Current audit status (2026-10-18):** `data/connectome.bin.gz` and `data/neuron_meta.json` were rebuilt after checking the actual FlyWire labels. The graph still contains 139,255 neurons and 2,698,236 edges, but the 63 functional bins are an approximation, not a complete functional fly brain. The rebuild now classifies `DN3` as `DN_WALK` (171 cells), `DN1p` as `DN_STARTLE` (28), `LNv` as `CLOCK_DN` (18), and T4/T5 visual-motion cells into `VIS_LPTC` (12,245 moved from `VIS_ME`). `GENERIC_CENTRAL` remains 21,762 cells; 28 of 63 groups are still empty.
+
+Many remaining empty bins cannot be recovered from the current classification labels alone (for example R7/R8 valence splits, nociceptors, and app/aversive cell splits); the brain-only FAFB dataset also excludes VNC leg/wing motor neurons. `NOCI` has a worker fallback through real tactile-bristle neurons plus a short virtual fear drive; the VNC outputs remain synthesized. These are explicit model limitations, not evidence that every missing bin can be populated by more gain tuning.
+
+**Completed interaction follow-up (2026-10-18):** Removed the positioned light-source tool and its local-light, collision, and burn-response paths; ambient light remains uniform. The toolbar now groups Comida/Tocar/Viento under **Items** and Luz/Temp. under **Entorno**, with **Tocar** preselected at startup, while retaining the other panels and camera controls. Empty-scene taps in Tocar do not produce false contact ripples. Startle turns toward the final wall-adjusted escape direction, stays inside the barrier, then resumes exploration instead of becoming stationary. Follow-up regression fixes make a single touch during flight or a startle escape interrupt into visible, body-part-targeted grooming, including taps on spread wings and direct clicks while Comida is selected; three taps within four seconds now bypass the neural startle cooldown and force a pain escape. Flight steering no longer adds random heading jitter, and flight bursts land with a cooldown. `npm test` passes 149/149.
+
+The initial diagnosis below is a historical snapshot from before that audit/rebuild. Its old counts and blanket claims about empty groups are not current:
+
 Commit 5516089 ("Fix FlyWire classification, horizontal layout, and motor output pipeline") introduced two major regressions: (1) the fly is stuck in idle and never walks, flies, startles, or exhibits any behavior, and (2) the bottom neuron visualization panel has badly unbalanced region proportions, making Drives and Motor regions nearly invisible.
 
-**Root cause (confirmed via neuron_meta.json):** 31 of 63 neuron groups have ZERO neurons, including every group critical to the behavioral pipeline:
+**Root cause (historical pre-rebuild snapshot):** 31 of 63 neuron groups had ZERO neurons, including every group critical to the behavioral pipeline:
 - Drives: DRIVE_FEAR=0, DRIVE_CURIOSITY=0, DRIVE_GROOM=0 (only HUNGER=46, FATIGUE=34 survive)
 - Motor: ALL MN_LEG=0, ALL MN_WING=0, ALL DN_*=0 (only VNC_CPG=4, PROBOSCIS=24, HEAD=40, ABDOMEN=8)
 - Avoidance circuit: MB_MBON_AV=0, LH_AV=0, SEZ_GROOM=0, DN_STARTLE=0, NOCI=0
@@ -23,54 +31,47 @@ The classification rules in `scripts/build_connectome.py` don't match FlyWire FA
 
 ### D23.1: Fix build_connectome.py classification rules and rebuild binary
 
-The Python build script's `determine_group()` function fails to classify neurons into 31 of 63 groups. These neurons fall through to GENERIC_CENTRAL (21,955 neurons) or are mis-assigned to overly broad groups (VIS_ME has 82,318 neurons -- likely absorbing neurons that belong in VIS_R7R8, VIS_LC, etc.).
+The pre-rebuild `determine_group()` function left 31 of 63 groups empty. The focused audit/rebuild now leaves 28 empty, reduces `VIS_ME` from 82,318 to 70,049 cells, and reduces `GENERIC_CENTRAL` from 21,955 to 21,762 (15.6%). This remains a coarse mapping; missing annotations cannot be manufactured safely.
 
-**Step 1: Audit current classification rules against FlyWire field values.**
-Run diagnostic queries against `data/classification.csv.gz` to understand the actual distribution of `flow`, `super_class`, `class`, and `sub_class` values. Identify which field value combinations produce neurons that should map to the currently-empty groups. Key questions:
-- What `class`/`sub_class` values correspond to R7/R8 photoreceptors vs R1-R6? (VIS_R7R8 is currently 0)
-- What `class` values identify lobula columnar neurons? (VIS_LC is 0)
-- What `class`/`sub_class` identifies nociceptors? (NOCI is 0)
-- What `class` values map to MBONs with avoidance valence vs approach? (MB_MBON_AV is 0)
-- What `class` identifies lateral horn neurons by valence? (LH_AV is 0)
-- Why are all DN_* groups empty when `flow=efferent` neurons exist?
-- What fields distinguish leg/wing/flight motor neurons?
+**Step 1: Audit current classification rules against FlyWire field values — partially complete.**
+The actual CSV has 1,305 `super_class=descending` cells, but 1,303 carry no subtype and cannot be safely assigned to specific DN motor functions from these fields alone. Named `sub_class=DN3` and `DN1p` cells are now mapped to `DN_WALK` and `DN_STARTLE`; `LNv` cells are mapped to `CLOCK_DN`; T4/T5 motion neurons are mapped to `VIS_LPTC`. Remaining audit questions:
+- R7/R8 vs R1-R6 photoreceptors have no usable subtype split in this export (`VIS_R7R8` remains empty).
+- Lobula-columnar, nociceptive, and appetitive/aversive valence groups have no sufficient direct label (`VIS_LC`, `NOCI`, `MB_MBON_AV`, `MB_DAN_PUN`, `LH_AV` remain empty).
+- The FAFB graph is brain-only; leg/wing motor neurons are not present. Unknown descending neurons remain in `GNG_DESC` rather than being assigned speculative DN functions.
 
-**Step 2: Fix the classification rules.** FlyWire FAFB is brain-only, so VNC motor neurons (MN_LEG_*, MN_WING_*) genuinely don't exist in the dataset. These groups should remain empty and be handled by the virtual VNC layer in JavaScript. But descending neurons (DN_WALK, DN_FLIGHT, DN_STARTLE, etc.) DO exist in the brain dataset as efferent/motor neurons -- they need proper classification rules. Similarly, drives don't map 1:1 to FlyWire cell types -- they're functional abstractions. The fix should:
-- Map efferent descending neurons to DN_* groups based on their target neuropil or known cell types
-- Map nociceptive sensory neurons to NOCI based on class/sub_class
-- Split VIS_ME's 82K neurons properly across VIS_R7R8, VIS_LC, VIS_ME by using sub_class or neuropil
-- Map avoidance-valence MBONs to MB_MBON_AV and punishment DANs to MB_DAN_PUN using known MBON/DAN naming conventions from FlyWire
-- Map lateral horn neurons to LH_AV vs LH_APP by their known connectivity patterns or sub_class
-- For groups that genuinely can't be mapped from FlyWire fields (DRIVE_FEAR, DRIVE_CURIOSITY, DRIVE_GROOM, SEZ_GROOM, CLOCK_DN), document them as "virtual groups" that exist only in the behavioral layer, not in the connectome
+**Step 2: Fix classification rules — partial; keep evidence-based assignments.**
+- Keep the direct DN3, DN1p, LNv, and T4/T5 mappings covered by `tests/test_build_connectome.py`.
+- Do not infer valence or nociception from unrelated labels. `NOCI` is handled by an explicit tactile-proxy/virtual-fear path in `brain-worker-bridge.js`; VNC outputs are synthesized.
+- Further splits for R7/R8, VIS_LC, MBON/DAN/LH valence, and remaining DNs need a validated FlyWire annotation/connectivity source before changing labels.
+- Drives and motor outputs are functional abstractions; empty `DRIVE_FEAR`, `DRIVE_CURIOSITY`, `DRIVE_GROOM`, `MN_LEG_*`, and `MN_WING_*` groups must remain explicitly virtual/synthesized.
 
-**Step 3: Rebuild and validate.**
-- Run `python scripts/build_connectome.py` to regenerate `data/connectome.bin.gz` and `data/neuron_meta.json`
-- Validate: every group that the behavioral pipeline reads via `sendStimulation()` or `synthesizeMotorOutputs()` must have nonzero neuron count OR be explicitly handled as a virtual group
-- The target distribution: no group should have more than ~30% of total neurons (VIS_ME's current 59% is a red flag for mis-classification). GENERIC_CENTRAL should be under 5%.
-- Add cache-busting query params to the fetch URLs in `brain-worker-bridge.js` to prevent stale binary serving
+**Step 3: Rebuild and validate — performed for the current audit.**
+- `python3 scripts/build_connectome.py` regenerated `data/connectome.bin.gz` and `data/neuron_meta.json` (139,255 neurons; 2,698,236 edges).
+- Every remaining empty functional group must either gain evidence-based labels or stay explicitly virtual. A target like “no group over 30%” is not a valid reason to misclassify the large optic-lobe population; `VIS_ME` is now 70,049 and `GENERIC_CENTRAL` remains 21,762.
+- Cache-bust both `neuron_meta.json` and `connectome.bin.gz` with `?v=20261018`, so browsers do not retain the pre-audit mapping or binary.
 
-**Step 4: Handle virtual groups in JavaScript.**
-Groups that genuinely don't exist in FlyWire FAFB (drives, MN_LEG/WING) need a bypass in `brain-worker-bridge.js`:
-- For DRIVE_FEAR, DRIVE_CURIOSITY, DRIVE_GROOM: `workerUpdate()` should write `BRAIN.drives.fear/curiosity/groom` directly to `BRAIN.postSynaptic['DRIVE_FEAR'][nextState]` etc., bypassing the worker aggregation path. The drives are computed by `updateDrives()` on the main thread already -- they just need to appear in postSynaptic for `synthesizeMotorOutputs()` to read.
-- For MN_LEG_*, MN_WING_*: these are already handled by `synthesizeMotorOutputs()` writing to them. No change needed as long as the function actually executes (see D23.2).
+**Step 4: Handle virtual groups in JavaScript — implemented, retain regression coverage.**
+- `workerUpdate()` writes the synthesized `DRIVE_FEAR`, `DRIVE_CURIOSITY`, and `DRIVE_GROOM` values into `BRAIN.postSynaptic` for motor synthesis.
+- `MN_LEG_*` and `MN_WING_*` remain zero-neuron VNC groups; `synthesizeMotorOutputs()` supplies virtual outputs.
+- Empty `NOCI` uses a tactile-neuron proxy plus a short virtual fear pulse, rather than silently dropping the pain event.
 
 Files: `scripts/build_connectome.py` (classification rules), `data/classification.csv.gz` (source data to audit), `data/neuron_meta.json` (output validation), `data/connectome.bin.gz` (rebuild target), `js/brain-worker-bridge.js` (cache busting, virtual group bypass, workerUpdate)
 
-### D23.2: Fix synthesizeMotorOutputs() early exit, scaling, and state timing
+### D23.2: Verify synthesizeMotorOutputs() scaling and worker behavior
 
-After D23.1 populates the neuron groups, `synthesizeMotorOutputs()` in `brain-worker-bridge.js:272` has multiple bugs that prevent motor output from reaching the behavioral layer. The severity of these bugs depends on the actual postSynaptic values after D23.1 -- some may self-resolve, others won't.
+**Current implementation check (2026-10-18):** `motorcontrol()` already reads `DN_STARTLE` from `nextState`, so the historical state-mismatch item below is fixed and should not be reintroduced. The worker also has virtual drive bypasses and the new empty-NOCI fallback. Remaining concern: the early-exit/scaling assumptions need real worker-runtime measurement; unit tests alone do not prove end-to-end FlyWire behavior.
 
-**Bug 1: Fatal early exit (line 312).** `if (total < 0.5) return;` gates ALL motor output on `GNG_DESC + VNC_CPG >= 0.5`. The `descProxy` fallback (lines 299-304) computes motor intent from central circuits and can boost `desc`, but only if those central circuits have nonzero postSynaptic values (which depends on D23.1). Even with D23.1 fixed, the early exit is fragile -- if tonic CX stimulation produces `descProxy < 0.5` during the first few seconds before the network ramps up, the fly sits idle.
+The original pipeline notes below are hypotheses from the earlier classification snapshot; use the current worker and metadata before applying a proposed fix.
+
+**Bug 1: Early exit still needs runtime validation (line 312).** `if (total < 0.5) return;` gates ALL motor output on `GNG_DESC + VNC_CPG >= 0.5`. The `descProxy` fallback (lines 299-304) computes motor intent from central circuits and can boost `desc`, but only if those central circuits have nonzero postSynaptic values (which depends on D23.1). Even with D23.1 fixed, the early exit is fragile -- if tonic CX stimulation produces `descProxy < 0.5` during the first few seconds before the network ramps up, the fly sits idle.
 - Fix: Remove the early exit entirely. Let the magnitude of `walkDrive`, `flightIntent`, etc. naturally control whether motor output is meaningful. If everything is near zero, the addPS calls will add near-zero values, which is fine -- the behavioral thresholds in fly-logic.js will filter them.
 
 **Bug 2: MOTOR_SCALE calibration unknown.** `MOTOR_SCALE = 0.6` was tuned (or guessed) before D23.1. After fixing the classification, the actual postSynaptic values for GNG_DESC, CX_*, DRIVE_FEAR etc. may be very different. With FIRE_STATE_SCALE=100 and proper group populations, CX groups could produce values of 50-100, making `walkDrive` extremely large (e.g., ~200 per side), which would far exceed the walk threshold of 5 and produce absurdly fast walking.
 - Fix: After D23.1, add temporary logging to measure actual postSynaptic ranges for key groups (GNG_DESC, CX_PFN, CX_FC, DRIVE_FEAR, flightIntent, walkIntent). Then calibrate MOTOR_SCALE so that: idle-state walk emerges at accumWalkLeft+Right ~= 6-10 (just above threshold 5), strong touch produces accumFlight ~= 20-30 (above threshold 15), and startle produces accumStartle ~= 35-50 (above threshold 30).
 
-**Bug 3: flightIntent depends on zero-neuron groups.** `flightIntent = dFear * 2.0 + (mbAv + lhAv) * 0.8 + dnStartle * 1.5 + noci * 1.0`. After D23.1 step 4, DRIVE_FEAR will have values from the main-thread bypass. But MB_MBON_AV, LH_AV, and DN_STARTLE depend on proper classification (D23.1 step 2). NOCI needs real neurons too. If any of these remain at zero after D23.1, flight and startle are still broken.
-- Fix: After D23.1, verify each input to flightIntent has a plausible activation path. For any that remain as virtual/empty groups, add a main-thread bypass similar to drives.
+**Bug 3: flightIntent includes empty functional groups.** `flightIntent = dFear * 2.0 + (mbAv + lhAv) * 0.8 + dnStartle * 1.5 + noci * 1.0`. `DRIVE_FEAR` is virtual, while MB_MBON_AV and LH_AV still have no validated labels; DN_STARTLE now has 28 DN1p cells. The worker's empty-NOCI fallback routes pain through tactile bristles and holds a short virtual fear pulse. Validate the end-to-end activation path for these mixed real/virtual inputs before changing the gain.
 
-**Bug 4: DN_STARTLE state mismatch.** `synthesizeMotorOutputs()` writes `DN_STARTLE` to `BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextState]` via `addPS()`. But `motorcontrol()` reads `DN_STARTLE` from `BRAIN.postSynaptic['DN_STARTLE'][BRAIN.thisState]` (line 485 in connectome.js). This means the synthesized startle value is always read one tick late, causing transient startle events to be missed.
-- Fix: Change `motorcontrol()` to read DN_STARTLE from `nextState` instead of `thisState`, consistent with how all other motor groups are read.
+**Bug 4: DN_STARTLE state mismatch — RESOLVED.** `motorcontrol()` reads `DN_STARTLE` from `BRAIN.postSynaptic['DN_STARTLE'][BRAIN.nextState]`, consistent with synthesized outputs. Do not change this back to `thisState`.
 
 **Bug 5: Flight and startle gates too aggressive.** `flightIntent > 1.0` (line 336) and `dFear > 3.0` (line 343) may be appropriate or not depending on the actual value ranges after D23.1. Defer calibration until after D23.1 values are measured.
 

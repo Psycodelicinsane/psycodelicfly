@@ -20,7 +20,7 @@
 	var PAD = 2;
 	var PICK_RADIUS_SQ = 16;
 	var BRIGHTNESS_DECAY = 0.82;   // per-frame decay for interpolation at 10Hz tick rate
-	var SECTION_NAMES = ['Sensory', 'Central', 'Drives', 'Motor'];
+	var SECTION_NAMES = ['Sensorial', 'Central', 'Impulsos', 'Motor'];
 	var LABEL_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
 	var LABEL_BGS = ['rgba(59,130,246,0.1)', 'rgba(139,92,246,0.1)', 'rgba(245,158,11,0.1)', 'rgba(239,68,68,0.1)'];
 	var liteMode = false;
@@ -384,8 +384,8 @@
 				maxWCss = 'max-width:' + Math.max(20, nextLeft - leftPx - 4) + 'px;overflow:hidden;text-overflow:ellipsis;';
 			}
 			div.style.cssText = 'position:absolute;left:' + leftPx + 'px;top:0;box-sizing:border-box;white-space:nowrap;' + maxWCss + 'font-size:0.55rem;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;padding:0.1rem 0.25rem;border-radius:3px;font-family:system-ui,-apple-system,sans-serif;color:' + LABEL_COLORS[r] + ';background:' + LABEL_BGS[r] + ';';
-			div.textContent = SECTION_NAMES[r] + ' (' + sectionBounds[r].neuronIndices.length.toLocaleString() + ')';
-			div.title = SECTION_NAMES[r] + ' (' + sectionBounds[r].neuronIndices.length.toLocaleString() + ')';
+			div.textContent = SECTION_NAMES[r] + ' (' + sectionBounds[r].neuronIndices.length.toLocaleString('es-ES') + ')';
+			div.title = SECTION_NAMES[r] + ' (' + sectionBounds[r].neuronIndices.length.toLocaleString('es-ES') + ')';
 			labelContainer.appendChild(div);
 		}
 	}

@@ -1,25 +1,42 @@
 <!DOCTYPE html>
-
+<html lang="es">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PsycodelicMosca - Cerebro de la Mosca</title>
-    <link rel="stylesheet" type="text/css" href="./css/main.css?v=17">
+    <link rel="stylesheet" type="text/css" href="./css/main.css?v=26">
 </head>
 
 <body>
     <div id="toolbar">
         <div class="toolbar-left">
             <button class="tool-btn sidebar-toggle" id="sidebarToggle" aria-label="Alternar panel">&#9776;</button>
-            <button class="tool-btn active" data-tool="feed">Comida</button>
-            <button class="tool-btn" data-tool="touch">Tocar</button>
-            <button class="tool-btn" data-tool="air">Viento</button>
-            <button class="tool-btn" data-tool="light" id="lightBtn">Luz: Brillante</button>
-            <button class="tool-btn" data-tool="temp" id="tempBtn">Temp: Neutral</button>
-            <button class="tool-btn" id="brain3dBtn" aria-pressed="false">Cerebro 3D</button>
-            <button class="tool-btn" id="activityToggle">Actividad</button>
-            <button class="tool-btn" id="learnBtn">Aprender</button>
-            <button class="tool-btn" id="helpBtn">?</button>
-            <button class="tool-btn" id="liteBtn">Lite</button>
+            <details class="toolbar-dropdown toolbar-dropdown-items" id="itemsDropdown">
+                <summary class="tool-btn toolbar-dropdown-trigger" id="itemsDropdownTrigger" aria-label="Abrir herramientas de Items">
+                    <span>Items</span><span id="itemsActiveLabel" class="toolbar-dropdown-selection">Tocar</span><span class="toolbar-dropdown-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <div class="toolbar-dropdown-menu" role="group" aria-label="Herramientas de interacción">
+                    <button class="tool-btn" data-tool="feed">Comida</button>
+                    <button class="tool-btn active" data-tool="touch">Tocar</button>
+                    <button class="tool-btn" data-tool="air">Viento</button>
+                </div>
+            </details>
+            <details class="toolbar-dropdown toolbar-dropdown-environment" id="environmentDropdown">
+                <summary class="tool-btn toolbar-dropdown-trigger" id="environmentDropdownTrigger" aria-label="Abrir controles del entorno">
+                    <span>Entorno</span><span class="toolbar-dropdown-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <div class="toolbar-dropdown-menu" role="group" aria-label="Condiciones ambientales">
+                    <button class="tool-btn" data-tool="light" id="lightBtn">Luz: Brillante</button>
+                    <button class="tool-btn" data-tool="temp" id="tempBtn">Temp.: Neutra</button>
+                </div>
+            </details>
+            <div class="toolbar-group toolbar-group-panels" role="group" aria-label="Paneles e información">
+                <button class="tool-btn" id="brain3dBtn" aria-pressed="false" aria-controls="side-panel" title="Abrir la vista 3D del cerebro">Cerebro</button>
+                <button class="tool-btn" id="activityToggle" aria-pressed="false" aria-controls="side-panel" title="Abrir el registro de actividad">Registro</button>
+                <button class="tool-btn" id="learnBtn">Aprender</button>
+            </div>
+            <button class="tool-btn" id="helpBtn" title="Abrir la guía de interacción">?</button>
+            <button class="tool-btn" id="liteBtn" title="Reducir el uso de recursos">Modo ligero</button>
         </div>
         <div class="toolbar-right">
             <span id="claudeStatus" class="claude-status" style="display:none;">
@@ -28,23 +45,26 @@
             </span>
             <span class="toolbar-title">PsycodelicMosca</span>
             <span id="scaleIndicator" class="scale-indicator" style="display:none;"></span>
-            <img id="centerButton" src="./svg/center.svg" height="24" class="noselect toolbar-icon" title="Centrar">
-            <img id="clearButton" src="./svg/clear.svg" height="24" class="noselect toolbar-icon" title="Limpiar">
+            <button id="centerButton" type="button" class="toolbar-icon-button" title="Centrar en la mosca" aria-label="Centrar en la mosca"><img src="./svg/center.svg" height="24" class="noselect toolbar-icon" alt=""></button>
+            <button id="cameraFollowButton" type="button" class="tool-btn camera-follow-btn" aria-pressed="false" aria-label="Seguir a la mosca" title="Seguir a la mosca">Seguir</button>
+            <img id="clearButton" src="./svg/clear.svg" height="24" class="noselect toolbar-icon" title="Retirar toda la comida" alt="Retirar toda la comida" role="button" tabindex="0">
             <a href="https://github.com/Psycodelicinsane/psycodelicfly" target="_blank">
-                <img id="githubButton" src="./svg/github.svg" class="noselect" title="GitHub">
+                <img id="githubButton" src="./svg/github.svg" class="noselect" title="Ver el repositorio en GitHub" alt="GitHub">
             </a>
         </div>
     </div>
     <div id="helpOverlay" class="help-overlay" style="display:none;">
         <div class="help-overlay-header">
-            <span>Guía de Interacción</span>
-            <button class="help-close-btn" id="helpCloseBtn">&times;</button>
+            <span>Guía de interacción</span>
+            <button class="help-close-btn" id="helpCloseBtn" aria-label="Cerrar la guía">&times;</button>
         </div>
-        <div class="help-item"><strong>Comida</strong> -- Haz clic en el lienzo para colocar comida. La mosca irá a buscarla y comerá cuando tenga hambre.</div>
-        <div class="help-item"><strong>Tocar</strong> -- Haz clic sobre la mosca para tocarla. La ubicación importa: la cabeza, el tórax, el abdomen o las patas activan diferentes comportamientos de aseo. Toca más de 3 veces en 4 segundos para provocar una respuesta de dolor.</div>
-        <div class="help-item"><strong>Viento</strong> -- Haz clic y arrastra cerca de la mosca para soplar aire. La distancia de arrastre controla la fuerza del viento.</div>
-        <div class="help-item"><strong>Luz</strong> -- Alterna entre Brillante, Tenue y Oscuro. La mosca muestra fototaxis hacia la luz.</div>
-        <div class="help-item"><strong>Temp</strong> -- Alterna entre Neutral, Cálido y Frío. Lo cálido vuelve a la mosca más activa y huidiza; lo frío la hace exploratoria.</div>
+        <div class="help-item"><strong>Items</strong>: abre el desplegable para elegir Comida, Tocar o Viento; la herramienta seleccionada queda indicada en la barra.</div>
+        <div class="help-item"><strong>Comida</strong>: pulsa en una zona libre del lienzo para colocar alimento. Si pulsas directamente sobre la mosca, se interpreta como contacto y empieza a asearse.</div>
+        <div class="help-item"><strong>Tocar</strong>: selecciona la herramienta y pulsa sobre la mosca. La zona tocada determina dónde se asea. Si la tocas tres veces en cuatro segundos, interpreta dolor y huye.</div>
+        <div class="help-item"><strong>Viento</strong>: pulsa y arrastra cerca de la mosca para soplar. La distancia del gesto determina la intensidad.</div>
+        <div class="help-item"><strong>Entorno</strong>: abre el desplegable para cambiar la iluminación ambiental uniforme y la temperatura. La luz ambiental no tiene una posición ni atrae a un centro imaginario.</div>
+        <div class="help-item"><strong>Temperatura</strong>: alterna entre neutra, cálida y fría. El calor aumenta la actividad; el frío favorece la exploración.</div>
+        <div class="help-item"><strong>Cuadrícula</strong>: las líneas finas marcan 50 px; las etiquetas indican coordenadas cada 250 px desde la esquina superior izquierda. X aumenta hacia la derecha e Y hacia abajo. La cuadrícula permanece anclada al mapa al desplazar o ampliar la vista.</div>
     </div>
     <div id="left-panel">
         <div id="connectome-panel">
@@ -83,65 +103,70 @@
             </div>
         </div>
     </div>
-    <div id="caretaker-sidebar" class="caretaker-sidebar">
-        <div class="caretaker-sidebar-header">
-            <span class="caretaker-sidebar-title">Actividad</span>
-            <button class="caretaker-sidebar-close" id="caretaker-sidebar-close">&times;</button>
+    <div id="side-panel" class="side-panel" aria-label="Panel lateral de la mosca" aria-hidden="true">
+        <div class="side-panel-header">
+            <span id="sidePanelTitle" class="side-panel-title">Registro</span>
+            <button id="sidePanelCloseBtn" class="side-panel-close" type="button" aria-label="Cerrar el panel lateral">&times;</button>
         </div>
-        <div class="activity-feed" id="activity-feed-list"></div>
-        <div class="chat-section" id="chat-section">
-            <div class="chat-history" id="chat-history"></div>
-            <div class="chat-input-row">
-                <input type="text" class="chat-input" id="chat-input" placeholder="Pregunta sobre la mosca..." autocomplete="off" />
-                <button class="chat-send-btn" id="chat-send-btn">Enviar</button>
+        <div id="caretaker-sidebar" class="caretaker-sidebar" role="region" aria-labelledby="sidePanelTitle" aria-hidden="true">
+            <div class="activity-feed fly-activity-log" id="fly-activity-log" role="log" aria-label="Registro de lo que hace la mosca" aria-live="polite"><div class="fly-log-empty">La actividad de la mosca aparecerá aquí.</div></div>
+            <div id="activity-feed-list" hidden aria-hidden="true"></div>
+            <div class="chat-section" id="chat-section">
+                <div class="chat-history" id="chat-history"></div>
+                <div class="chat-input-row">
+                    <input type="text" class="chat-input" id="chat-input" placeholder="Pregunta sobre la mosca..." autocomplete="off" />
+                    <button class="chat-send-btn" id="chat-send-btn">Enviar</button>
+                </div>
+            </div>
+            <div class="analytics-section" id="analytics-section">
+                <div class="analytics-section-header">
+                    <span class="analytics-section-title">Estadísticas</span>
+                    <button class="analytics-toggle-btn" id="analytics-toggle">Ocultar</button>
+                </div>
+                <div class="analytics-content" id="analytics-content"></div>
+            </div>
+            <div class="calendar-section" id="calendar-section">
+                <div class="calendar-section-header">
+                    <span class="calendar-section-title">Calendario</span>
+                    <button class="calendar-toggle-btn" id="calendar-toggle">Ocultar</button>
+                </div>
+                <div class="calendar-content" id="calendar-content"></div>
             </div>
         </div>
-        <div class="analytics-section" id="analytics-section">
-            <div class="analytics-section-header">
-                <span class="analytics-section-title">Analíticas</span>
-                <button class="analytics-toggle-btn" id="analytics-toggle">Ocultar</button>
-            </div>
-            <div class="analytics-content" id="analytics-content"></div>
-        </div>
-        <div class="calendar-section" id="calendar-section">
-            <div class="calendar-section-header">
-                <span class="calendar-section-title">Calendario</span>
-                <button class="calendar-toggle-btn" id="calendar-toggle">Ocultar</button>
-            </div>
-            <div class="calendar-content" id="calendar-content"></div>
+        <div id="brain3d-overlay" class="brain3d-panel" role="region" aria-labelledby="sidePanelTitle" aria-hidden="true">
+            <div id="brain3d-unavailable" class="brain3d-unavailable" hidden>La vista 3D necesita compatibilidad con WebGL, que no está disponible en este navegador.</div>
         </div>
     </div>
     <div id="drawer-backdrop" class="drawer-backdrop"></div>
     <canvas id='canvas'></canvas>
     <div id="zoom-controls" class="zoom-controls">
-        <button class="zoom-btn" id="zoomIn">+</button>
-        <button class="zoom-btn" id="zoomOut">&minus;</button>
+        <button class="zoom-btn" id="zoomIn" aria-label="Aumentar el zoom">+</button>
+        <button class="zoom-btn" id="zoomOut" aria-label="Reducir el zoom">&minus;</button>
     </div>
     <div id="education-panel" class="education-panel" style="display:none;">
         <div class="education-panel-header">
             <span class="education-panel-title">Guía del Cerebro</span>
-            <button class="education-close-btn" id="education-close-btn">&times;</button>
+            <button class="education-close-btn" id="education-close-btn" aria-label="Cerrar la guía del cerebro">&times;</button>
         </div>
         <div class="education-content" id="education-content"></div>
     </div>
-    <div id="brain3d-overlay" style="display:none;"></div>
     <div id="brain3d-tooltip" style="display:none;"></div>
     <!-- Three.js v0.128.0 (vendored) -->
     <script src="./js/vendor/three.min.js"></script>
     <script src="./js/vendor/OrbitControls.js"></script>
     <script type="text/javascript" src="./js/constants.js?v=17"></script>
-    <script type="text/javascript" src="./js/connectome.js?v=17"></script>
-    <script type="text/javascript" src="./js/brain-worker-bridge.js?v=17"></script>
-    <script type="text/javascript" src="./js/neuro-renderer.js?v=17"></script>
-    <script type="text/javascript" src="./js/fly-logic.js?v=17"></script>
-    <script type="text/javascript" src="./js/brain3d.js?v=17"></script>
-    <script type="text/javascript" src="./js/education.js?v=17"></script>
-    <script type="text/javascript" src="./js/main.js?v=17"></script>
+    <script type="text/javascript" src="./js/connectome.js?v=20"></script>
+    <script type="text/javascript" src="./js/brain-worker-bridge.js?v=22"></script>
+    <script type="text/javascript" src="./js/neuro-renderer.js?v=19"></script>
+    <script type="text/javascript" src="./js/fly-logic.js?v=27"></script>
+    <script type="text/javascript" src="./js/brain3d.js?v=21"></script>
+    <script type="text/javascript" src="./js/education.js?v=19"></script>
+    <script type="text/javascript" src="./js/main.js?v=64"></script>
     <script type="text/javascript" src="./js/caretaker-renderer.js?v=17"></script>
-    <script type="text/javascript" src="./js/caretaker-sidebar.js?v=17"></script>
-    <script type="text/javascript" src="./js/caretaker-analytics.js?v=17"></script>
-    <script type="text/javascript" src="./js/caretaker-calendar.js?v=17"></script>
-    <script type="text/javascript" src="./js/caretaker-bridge.js?v=17"></script>
+    <script type="text/javascript" src="./js/caretaker-sidebar.js?v=20"></script>
+    <script type="text/javascript" src="./js/caretaker-analytics.js?v=18"></script>
+    <script type="text/javascript" src="./js/caretaker-calendar.js?v=22"></script>
+    <script type="text/javascript" src="./js/caretaker-bridge.js?v=18"></script>
 </body>
 
 </html>

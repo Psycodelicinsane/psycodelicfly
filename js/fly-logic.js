@@ -14,6 +14,58 @@ function normalizeAngle(a) {
 	return a;
 }
 
+var FLY_TOUCH_HIT_RADIUS = 50;
+var AIRBORNE_TOUCH_HIT_RADIUS = 64;
+
+/** Include the expanded wings in the direct-touch target while airborne. */
+function isFlyTouchHit(x, y, flyX, flyY, state) {
+	x = Number(x); y = Number(y); flyX = Number(flyX); flyY = Number(flyY);
+	if (!isFinite(x) || !isFinite(y) || !isFinite(flyX) || !isFinite(flyY)) return false;
+	var radius = state === 'fly' || state === 'startle'
+		? AIRBORNE_TOUCH_HIT_RADIUS : FLY_TOUCH_HIT_RADIUS;
+	return Math.hypot(x - flyX, y - flyY) <= radius;
+}
+
+/**
+ * Advance the fly's heading toward a target without exceeding a physical
+ * angular rate. `dtScale` is measured in 60 Hz frames, so the cap is stable
+ * across fast and slow displays while the retention factor keeps small turns
+ * gently eased.
+ */
+function computeHeadingStep(currentDir, targetDir, turnRetention, maxTurnRate, dtScale) {
+	currentDir = Number(currentDir);
+	targetDir = Number(targetDir);
+	turnRetention = Number(turnRetention);
+	maxTurnRate = Number(maxTurnRate);
+	dtScale = Number(dtScale);
+	if (!isFinite(currentDir) || !isFinite(targetDir)) return 0;
+	if (!isFinite(turnRetention)) turnRetention = 0.9;
+	if (!isFinite(maxTurnRate) || maxTurnRate < 0) maxTurnRate = 2.4;
+	if (!isFinite(dtScale) || dtScale < 0) dtScale = 1;
+
+	turnRetention = Math.max(0, Math.min(1, turnRetention));
+	var angleDiff = normalizeAngle(targetDir - currentDir);
+	var easedStep = angleDiff * (1 - Math.pow(turnRetention, dtScale));
+	var maxStep = maxTurnRate * dtScale / 60;
+	return Math.max(-maxStep, Math.min(maxStep, easedStep));
+}
+
+var STARTLE_ALIGN_TOLERANCE = 0.28;
+var STARTLE_BURST_DURATION_MS = 420;
+
+/** Start the escape only after the body faces the steering target actually used this frame. */
+function tryBeginStartleBurst(behaviorState, currentDir, steeringDir, now) {
+	if (!behaviorState || behaviorState.current !== 'startle' || behaviorState.startlePhase !== 'orient') {
+		return false;
+	}
+	var headingError = Math.abs(normalizeAngle(Number(steeringDir) - Number(currentDir)));
+	if (!isFinite(headingError) || headingError > STARTLE_ALIGN_TOLERANCE) return false;
+	var startTime = typeof now === 'number' && isFinite(now) ? now : Date.now();
+	behaviorState.startlePhase = 'burst';
+	behaviorState.startleBurstEnd = startTime + STARTLE_BURST_DURATION_MS;
+	return true;
+}
+
 // Accumulator thresholds for entering each behavior state
 var BEHAVIOR_THRESHOLDS = {
 	startle: 30,
@@ -51,14 +103,15 @@ function hasNearbyFood() {
  * Priority order (highest first): startle, fly, feed, groom, brace, rest, phototaxis, explore, walk, idle.
  * Requires globals `BRAIN`, `behavior`, `food`, `fly`.
  */
-function evaluateBehaviorEntry() {
+function evaluateBehaviorEntry(options) {
 	var now = Date.now();
 	var totalWalk = BRAIN.accumWalkLeft + BRAIN.accumWalkRight;
+	var ignoreFlight = options && options.ignoreFlight === true;
 
 	if (BRAIN.accumStartle > BEHAVIOR_THRESHOLDS.startle && !isCoolingDown('startle', now)) {
 		return 'startle';
 	}
-	if (BRAIN.accumFlight > BEHAVIOR_THRESHOLDS.fly && !isCoolingDown('fly', now)) {
+	if (!ignoreFlight && BRAIN.accumFlight > BEHAVIOR_THRESHOLDS.fly && !isCoolingDown('fly', now)) {
 		return 'fly';
 	}
 	var feedReady = BRAIN.accumFeed > BEHAVIOR_THRESHOLDS.feed ||
@@ -77,7 +130,8 @@ function evaluateBehaviorEntry() {
 	if (BRAIN.drives.fatigue > restThreshold) {
 		return 'rest';
 	}
-	if (BRAIN.stimulate.lightLevel > BEHAVIOR_THRESHOLDS.phototaxisLight &&
+	var perceivedLight = Number(BRAIN.stimulate.lightLevel) || 0;
+	if (perceivedLight > BEHAVIOR_THRESHOLDS.phototaxisLight &&
 		BRAIN.drives.curiosity > 0.2 && totalWalk > 3) {
 		return 'phototaxis';
 	}
@@ -99,16 +153,50 @@ function evaluateBehaviorEntry() {
 
 var FEED_APPROACH_SPEED = 0.25;
 
+// Ignore tiny left/right motor imbalances from stochastic worker output; these
+// are gait noise, not a sustained steering command that should make the fly circle.
+var MOTOR_TURN_DEADZONE = 0.08;
+var MOTOR_TURN_MAX_OFFSET = 0.12;
+function computeMotorTurnOffset(leftOutput, rightOutput) {
+	var left = Math.max(0, Number(leftOutput) || 0);
+	var right = Math.max(0, Number(rightOutput) || 0);
+	var total = left + right;
+	if (total < 1) return 0;
+	var imbalance = (left - right) / total;
+	if (Math.abs(imbalance) <= MOTOR_TURN_DEADZONE) return 0;
+	return Math.max(-MOTOR_TURN_MAX_OFFSET,
+		Math.min(MOTOR_TURN_MAX_OFFSET, imbalance * 0.24));
+}
+
 /**
- * Pure extraction of food-seeking steering logic (main.js ~lines 859-862).
- * Returns the computed targetDir and seekStrength.
+ * Pure food-seeking steering with a bounded per-tick turn and rear-target
+ * hysteresis. Returns targetDir, seekStrength, turn, and angleDiff.
  */
-function computeFoodSeekDir(flyX, flyY, foodX, foodY, hunger, facingDirVal) {
+var FOOD_SEEK_MAX_TURN = 0.75;
+function computeFoodSeekDir(flyX, flyY, foodX, foodY, hunger, facingDirVal, previousTurnSign) {
 	var foodAngle = Math.atan2(-(foodY - flyY), foodX - flyX);
 	var seekStrength = Math.min(1, hunger);
 	var angleDiffToFood = normalizeAngle(foodAngle - facingDirVal);
-	var targetDir = facingDirVal + angleDiffToFood * seekStrength;
-	return { targetDir: targetDir, seekStrength: seekStrength };
+	var desiredTurn = angleDiffToFood * seekStrength;
+	var turnSign = 0;
+	var rearTarget = Math.abs(angleDiffToFood) > Math.PI - 0.25;
+	if ((previousTurnSign === -1 || previousTurnSign === 1) &&
+		Math.abs(angleDiffToFood) > Math.PI - 0.55) {
+		// Keep the chosen side while the target crosses the directly-behind seam.
+		turnSign = previousTurnSign;
+	} else if (rearTarget) {
+		turnSign = angleDiffToFood < 0 ? -1 : 1;
+	}
+	var turnMagnitude = Math.min(FOOD_SEEK_MAX_TURN, Math.abs(desiredTurn));
+	var turn = turnSign ? turnSign * turnMagnitude :
+		Math.max(-FOOD_SEEK_MAX_TURN, Math.min(FOOD_SEEK_MAX_TURN, desiredTurn));
+	return {
+		targetDir: facingDirVal + turn,
+		seekStrength: seekStrength,
+		turn: turn,
+		angleDiff: angleDiffToFood,
+		turnSign: turnSign
+	};
 }
 
 /**

@@ -19,10 +19,10 @@
     if (calendarContent === null) return;
     if (calendarContent.classList.contains('collapsed')) {
       calendarContent.classList.remove('collapsed');
-      calendarToggle.textContent = 'Hide';
+      calendarToggle.textContent = 'Ocultar';
     } else {
       calendarContent.classList.add('collapsed');
-      calendarToggle.textContent = 'Show';
+      calendarToggle.textContent = 'Mostrar';
     }
   }
 
@@ -46,22 +46,23 @@
 
   function renderCalendar() {
     if (calendarContent === null) return;
-    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     var monthName = monthNames[currentMonth.getMonth()];
     var year = currentMonth.getFullYear();
 
     var navHtml = '<div class="cal-nav">' +
-      '<button class="cal-nav-btn" id="cal-prev">&lt;</button>' +
-      '<span class="cal-nav-title">' + monthName + ' ' + year + '</span>' +
-      '<button class="cal-nav-btn" id="cal-next">&gt;</button>' +
+      '<button class="cal-nav-btn" id="cal-prev" title="Mes anterior" aria-label="Mes anterior">&lt;</button>' +
+      '<span class="cal-nav-title">' + monthName + ' de ' + year + '</span>' +
+      '<button class="cal-nav-btn" id="cal-next" title="Mes siguiente" aria-label="Mes siguiente">&gt;</button>' +
       '</div>';
 
     var gridHtml = '<div class="cal-grid">' +
-      '<div class="cal-dow">Su</div><div class="cal-dow">Mo</div><div class="cal-dow">Tu</div>' +
-      '<div class="cal-dow">We</div><div class="cal-dow">Th</div><div class="cal-dow">Fr</div>' +
-      '<div class="cal-dow">Sa</div>';
+      '<div class="cal-dow" title="Lunes">Lun</div><div class="cal-dow" title="Martes">Mar</div><div class="cal-dow" title="Miércoles">Mié</div>' +
+      '<div class="cal-dow" title="Jueves">Jue</div><div class="cal-dow" title="Viernes">Vie</div><div class="cal-dow" title="Sábado">Sáb</div>' +
+      '<div class="cal-dow" title="Domingo">Dom</div>';
 
-    var firstDayOfWeek = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+
+    var firstDayOfWeek = (new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay() + 6) % 7;
     var daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
 
     for (var i = 0; i < firstDayOfWeek; i++) {
@@ -88,9 +89,9 @@
         '<div class="cal-day">' + day + '</div>' +
         (score ? '<div class="cal-score">' + Math.round(score.composite_score) + '</div>' +
           '<div class="cal-details">' +
-            '<span title="Incidentes">' + score.fear_incidents + 'i</span>' +
-            '<span title="Alimentars">' + score.total_feeds + 'f</span>' +
-            '<span title="Avg Hunger">' + (score.avg_hunger !== null ? score.avg_hunger.toFixed(1) : '-') + 'h</span>' +
+            '<span title="Incidentes de miedo">' + score.fear_incidents + 'i</span>' +
+            '<span title="Comidas">' + score.total_feeds + 'f</span>' +
+            '<span title="Hambre media">' + (score.avg_hunger !== null ? score.avg_hunger.toLocaleString('es-ES', {minimumFractionDigits: 1, maximumFractionDigits: 1}) : '-') + 'h</span>' +
           '</div>' : '') +
         '</div>';
     }
@@ -121,7 +122,7 @@
     filterAlimentarToDate(dateStr);
   }
 
-  function buildEntryEl(entry) {
+  function buildEntryEl(entry, includeReasoning) {
     var kind = entry.kind;
     var action = entry.name;
     var params = entry.params;
@@ -146,26 +147,29 @@
       icon = {place_food:'F', clear_food:'X', set_light:'L', set_temp:'T', touch:'H', blow_wind:'W'}[action] || '*';
     }
 
-    var timeStr = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    var timeStr = new Date(timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     var desc;
     if (kind === 'incident') {
-      desc = reasoning;
+      desc = {
+        scared_the_fly: 'La mosca se ha sobresaltado.',
+        forgot_to_feed: 'La mosca necesita alimento.'
+      }[action] || 'Se ha registrado una incidencia.';
     } else {
       var p = {};
       try { if (params) p = JSON.parse(params); } catch (e) { /* ignore */ }
       switch (action) {
-        case 'place_food': desc = 'Placed food at (' + Math.round(p.x || 0) + ', ' + Math.round(p.y || 0) + ')'; break;
-        case 'clear_food': desc = 'Cleared all food'; break;
-        case 'set_light': desc = 'Set light to ' + (p.level || 'unknown'); break;
-        case 'set_temp': desc = 'Set temp to ' + (p.level || 'unknown'); break;
-        case 'touch': desc = 'Tocared fly'; break;
-        case 'blow_wind': desc = 'Blew wind'; break;
+        case 'place_food': desc = 'Se ha colocado comida en (' + Math.round(p.x || 0) + ', ' + Math.round(p.y || 0) + ')'; break;
+        case 'clear_food': desc = 'Se ha retirado toda la comida'; break;
+        case 'set_light': desc = 'La luz se ha ajustado a ' + ({bright:'brillante',dim:'tenue',dark:'oscura'}[p.level] || p.level || 'desconocida'); break;
+        case 'set_temp': desc = 'La temperatura se ha ajustado a ' + ({neutral:'neutra',warm:'cálida',cool:'fría'}[p.level] || p.level || 'desconocida'); break;
+        case 'touch': desc = 'Se ha tocado la mosca'; break;
+        case 'blow_wind': desc = 'Se ha soplado aire'; break;
         default: desc = action;
       }
     }
 
-    var reasoningText = kind === 'incident' ? '' : (reasoning || '');
+    var reasoningText = kind === 'incident' || includeReasoning === false ? '' : (reasoning || '');
 
     var el = document.createElement('div');
     el.className = 'activity-entry activity-' + colorClass;
@@ -178,43 +182,77 @@
     return el;
   }
 
+  function renderCalendarActivity(entries, heading, emptyMessage) {
+    if (calendarContent === null) return;
+    var previous = calendarContent.querySelector('.cal-day-activity');
+    if (previous) previous.remove();
+
+    var section = document.createElement('div');
+    section.className = 'cal-day-activity activity-feed';
+    section.setAttribute('aria-live', 'polite');
+    var title = document.createElement('div');
+    title.className = 'cal-feed-date-header';
+    title.textContent = heading;
+    section.appendChild(title);
+
+    if (!entries || entries.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'cal-no-activity';
+      empty.textContent = emptyMessage;
+      section.appendChild(empty);
+    } else {
+      for (var i = 0; i < entries.length; i++) {
+        section.appendChild(buildEntryEl(entries[i], false));
+      }
+    }
+    calendarContent.appendChild(section);
+  }
+
   function filterAlimentarToDate(dateStr) {
     fetch(API_URL + '/calendar/day-activity?date=' + dateStr)
       .then(function(res) { return res.json(); })
       .then(function(data) {
+        var dateParts = dateStr.split('-');
+        var dateLabel = dateParts.length === 3 ? dateParts[2] + '/' + dateParts[1] + '/' + dateParts[0] : dateStr;
+        renderCalendarActivity(data, 'Registro del día ' + dateLabel, 'No hay acciones registradas ese día.');
         var feedList = document.getElementById('activity-feed-list');
         if (!feedList) return;
         feedList.innerHTML = '';
         if (data.length === 0) {
-          feedList.innerHTML = '<div class="cal-no-activity">No activity on ' + dateStr + '</div>';
+          feedList.innerHTML = '<div class="cal-no-activity">No hay actividad el ' + dateLabel + '</div>';
           return;
         }
         var header = document.createElement('div');
         header.className = 'cal-feed-date-header';
-        header.textContent = 'Actividad para ' + dateStr;
+        header.textContent = 'Registro del día ' + dateLabel;
         feedList.appendChild(header);
         for (var i = 0; i < data.length; i++) {
           feedList.appendChild(buildEntryEl(data[i]));
         }
       })
       .catch(function(err) {
+        var dateParts = dateStr.split('-');
+        var dateLabel = dateParts.length === 3 ? dateParts[2] + '/' + dateParts[1] + '/' + dateParts[0] : dateStr;
+        renderCalendarActivity([], 'Registro del día ' + dateLabel, 'No se pudo cargar el registro.');
         console.warn('[calendar] day-activity fetch error:', err.message);
       });
   }
 
   function restoreFullAlimentar() {
     var feedList = document.getElementById('activity-feed-list');
-    if (!feedList) return;
     fetch(API_URL + '/activity/recent')
       .then(function(res) { return res.json(); })
       .then(function(data) {
+        renderCalendarActivity(data, 'Acciones recientes', 'Aún no hay acciones recientes.');
+        if (!feedList) return;
         feedList.innerHTML = '';
         for (var i = 0; i < data.length; i++) {
           feedList.appendChild(buildEntryEl(data[i]));
         }
       })
       .catch(function() {
-        feedList.innerHTML = '<div class="cal-no-activity">Could not reload feed</div>';
+        if (feedList) feedList.innerHTML = '<div class="cal-no-activity">No se pudo actualizar el registro</div>';
+        renderCalendarActivity([], 'Acciones recientes', 'No se pudo actualizar el registro.');
       });
   }
 

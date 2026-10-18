@@ -11,10 +11,10 @@
   "group_sizes": [
     11487,
     0,
-    82318,
+    70049,
     1793,
     0,
-    1907,
+    14152,
     1851,
     430,
     453,
@@ -45,17 +45,17 @@
     65,
     131,
     3581,
-    0,
+    18,
     46,
     0,
     34,
     0,
     0,
+    171,
     0,
     0,
     0,
-    0,
-    0,
+    28,
     4,
     0,
     0,
@@ -69,7 +69,7 @@
     40,
     8,
     0,
-    21955,
+    21762,
     0,
     0
   ],
@@ -90,7 +90,7 @@
       "id": 2,
       "name": "VIS_ME",
       "region": "sensory",
-      "neuron_count": 82318
+      "neuron_count": 70049
     },
     {
       "id": 3,
@@ -108,7 +108,7 @@
       "id": 5,
       "name": "VIS_LPTC",
       "region": "sensory",
-      "neuron_count": 1907
+      "neuron_count": 14152
     },
     {
       "id": 6,
@@ -294,7 +294,7 @@
       "id": 36,
       "name": "CLOCK_DN",
       "region": "central",
-      "neuron_count": 0
+      "neuron_count": 18
     },
     {
       "id": 37,
@@ -330,7 +330,7 @@
       "id": 42,
       "name": "DN_WALK",
       "region": "motor",
-      "neuron_count": 0
+      "neuron_count": 171
     },
     {
       "id": 43,
@@ -354,7 +354,7 @@
       "id": 46,
       "name": "DN_STARTLE",
       "region": "motor",
-      "neuron_count": 0
+      "neuron_count": 28
     },
     {
       "id": 47,
@@ -438,7 +438,7 @@
       "id": 60,
       "name": "GENERIC_CENTRAL",
       "region": "central",
-      "neuron_count": 21955
+      "neuron_count": 21762
     },
     {
       "id": 61,

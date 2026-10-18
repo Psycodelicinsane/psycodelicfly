@@ -22,8 +22,8 @@ var HIGHLIGHT_FADE_MS = 300;
 
 var REGION_DEFS = [
     {
-        name: 'Lóbulos Ópticos',
-        description: 'Procesamiento visual — detección de movimiento, color y flujo óptico',
+        name: 'Lóbulos ópticos',
+        description: 'Procesamiento visual: detección del movimiento, el color y el flujo óptico',
         type: 'sensory',
         neurons: ['VIS_R1R6', 'VIS_R7R8', 'VIS_ME', 'VIS_LO', 'VIS_LC', 'VIS_LPTC'],
         meshDefs: [
@@ -32,8 +32,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Lóbulos Antennales',
-        description: 'Procesamiento olfativo — detección de olores de comida y peligro',
+        name: 'Lóbulos antenales',
+        description: 'Procesamiento olfativo: detección de olores asociados con comida y peligro',
         type: 'sensory',
         neurons: ['OLF_ORN_FOOD', 'OLF_ORN_DANGER', 'OLF_LN', 'OLF_PN'],
         meshDefs: [
@@ -42,8 +42,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Cuerpos Hongos',
-        description: 'Aprendizaje y memoria — memorias olfativas asociativas, recompensa y castigo',
+        name: 'Cuerpos fungiformes',
+        description: 'Aprendizaje y memoria: asociaciones entre olores, recompensas y castigos',
         type: 'central',
         neurons: ['MB_KC', 'MB_APL', 'MB_MBON_APP', 'MB_MBON_AV', 'MB_DAN_REW', 'MB_DAN_PUN'],
         meshDefs: [
@@ -54,8 +54,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Complejo Central',
-        description: 'Navegación — dirección, integración de trayectoria y coordinación motriz',
+        name: 'Complejo central',
+        description: 'Navegación: orientación, integración de trayectoria y coordinación motora',
         type: 'central',
         neurons: ['CX_EPG', 'CX_PFN', 'CX_FC', 'CX_HDELTA', 'CLOCK_DN'],
         meshDefs: [
@@ -63,8 +63,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Cuerno Lateral',
-        description: 'Respuestas innatas a olores — comportamientos cableados de aproximación y evitación',
+        name: 'Cuerno lateral',
+        description: 'Respuestas innatas a los olores: aproximación o evitación',
         type: 'central',
         neurons: ['LH_APP', 'LH_AV'],
         meshDefs: [
@@ -73,8 +73,8 @@ var REGION_DEFS = [
         ]
     },
     {
-        name: 'Zona Subesofágica',
-        description: 'Centro de mando de alimentación y aseo — procesamiento del gusto y comandos motores',
+        name: 'Zona subesofágica',
+        description: 'Control de la alimentación y el aseo: procesamiento del gusto y órdenes motoras',
         type: 'central',
         neurons: ['SEZ_FEED', 'SEZ_GROOM', 'SEZ_WATER', 'GUS_GRN_SWEET', 'GUS_GRN_BITTER', 'GUS_GRN_WATER', 'GNG_DESC'],
         meshDefs: [
@@ -83,7 +83,7 @@ var REGION_DEFS = [
     },
     {
         name: 'VNC / Motor',
-        description: 'Salida motora — locomoción, vuelo y comandos de movimiento corporal',
+        description: 'Salida motora: locomoción, vuelo y movimiento corporal',
         type: 'motor',
         neurons: ['DN_WALK', 'DN_FLIGHT', 'DN_TURN', 'DN_BACKUP', 'DN_STARTLE', 'VNC_CPG'],
         collectMNPrefix: true,
@@ -93,7 +93,7 @@ var REGION_DEFS = [
     },
     {
         name: 'Termosensorial',
-        description: 'Detección de temperatura — calor y frío',
+        description: 'Detección de la temperatura: calor y frío',
         type: 'sensory',
         neurons: ['THERMO_WARM', 'THERMO_COOL'],
         meshDefs: [
@@ -102,7 +102,7 @@ var REGION_DEFS = [
     },
     {
         name: 'Mecanosensorial',
-        description: 'Tacto y propiocepción — detección de cerdas, viento y posición corporal',
+        description: 'Tacto y propiocepción: contacto, viento y posición corporal',
         type: 'sensory',
         neurons: ['MECH_BRISTLE', 'MECH_JO', 'MECH_CHORD', 'ANTENNAL_MECH', 'NOCI'],
         meshDefs: [
@@ -111,7 +111,7 @@ var REGION_DEFS = [
     },
     {
         name: 'Impulsos',
-        description: 'Estados motivacionales internos — hambre, miedo, fatiga, curiosidad, impulso de aseo',
+        description: 'Estados motivacionales: hambre, miedo, fatiga, curiosidad e impulso de aseo',
         type: 'drives',
         neurons: ['DRIVE_HUNGER', 'DRIVE_FEAR', 'DRIVE_FATIGUE', 'DRIVE_CURIOSITY', 'DRIVE_GROOM'],
         meshDefs: [
@@ -266,34 +266,36 @@ window.Brain3D = {
     },
 
     show: function () {
-        if (Brain3D._initFailed) return;
+        Brain3D._container = document.getElementById('brain3d-overlay');
+        if (!Brain3D._container) return false;
+        Brain3D._container.classList.add('brain3d-open');
+
+        var fallback = document.getElementById('brain3d-unavailable');
+        if (Brain3D._initFailed) {
+            if (fallback) fallback.hidden = false;
+            Brain3D.active = false;
+            return false;
+        }
+        if (Brain3D.active && Brain3D._initialized) {
+            if (fallback) fallback.hidden = true;
+            Brain3D._onResize();
+            return true;
+        }
         if (!Brain3D._initialized) {
-            Brain3D._container = document.getElementById('brain3d-overlay');
-            Brain3D._container.style.display = 'flex';
             Brain3D.init();
             if (!Brain3D._initialized) {
-                Brain3D._container.style.display = 'none';
+                if (fallback) fallback.hidden = false;
                 Brain3D.active = false;
-                return;
+                return false;
             }
-            // Add header with close button
-            var header = document.createElement('div');
-            header.className = 'brain3d-header';
-            header.innerHTML = '<span class="brain3d-title">&#129504; Cerebro 3D &mdash; PsycodelicMosca</span><button class="brain3d-close-btn" id="brain3d-close-btn">&#10005;</button>';
-            Brain3D._container.insertBefore(header, Brain3D._container.firstChild);
-            document.getElementById('brain3d-close-btn').addEventListener('click', function () {
-                Brain3D.hide();
-                var btn = document.getElementById('brain3dBtn');
-                if (btn) btn.classList.remove('active');
-            });
-        } else {
-            Brain3D._container.style.display = 'flex';
         }
+        if (fallback) fallback.hidden = true;
         Brain3D.active = true;
         window.addEventListener('resize', Brain3D._onResize);
         Brain3D._renderer.domElement.addEventListener('mouseleave', Brain3D._onMouseLeave);
         Brain3D._onResize();
         Brain3D._renderLoop();
+        return true;
     },
 
     hide: function () {
@@ -302,8 +304,10 @@ window.Brain3D = {
             Brain3D._renderer.domElement.removeEventListener('mouseleave', Brain3D._onMouseLeave);
         }
         if (Brain3D._container) {
-            Brain3D._container.style.display = 'none';
+            Brain3D._container.classList.remove('brain3d-open');
         }
+        var fallback = document.getElementById('brain3d-unavailable');
+        if (fallback) fallback.hidden = true;
         Brain3D.active = false;
         if (Brain3D._tooltipEl) {
             Brain3D._tooltipEl.style.display = 'none';
@@ -410,12 +414,13 @@ window.Brain3D = {
                     regionPopTotal += (neuronPopulations[region.neurons[p]] || 0);
                 }
             }
+            var regionTypeLabels = { sensory: 'Sensorial', central: 'Central', drives: 'Impulsos', motor: 'Motor' };
             var html = '<div class="b3d-tip-name">' + region.name + '</div>';
             html += '<div class="b3d-tip-desc">' + region.description + '</div>';
             if (regionPopTotal > 0) {
-                html += '<div class="b3d-tip-pop" style="font-size:0.7rem;color:#8892a4;margin:2px 0 4px;">' + region.neurons.length + ' grupos que representan ~' + regionPopTotal.toLocaleString() + ' neurons</div>';
+                html += '<div class="b3d-tip-pop" style="font-size:0.7rem;color:#8892a4;margin:2px 0 4px;">' + region.neurons.length + ' grupos que representan aproximadamente ' + regionPopTotal.toLocaleString('es-ES') + ' neuronas</div>';
             }
-            html += '<div class="b3d-tip-type">' + region.type.charAt(0).toUpperCase() + region.type.slice(1) + '</div>';
+            html += '<div class="b3d-tip-type">' + (regionTypeLabels[region.type] || region.type) + '</div>';
             html += '<div class="b3d-tip-neurons">';
             for (var i = 0; i < region.neurons.length; i++) {
                 var nName = region.neurons[i];

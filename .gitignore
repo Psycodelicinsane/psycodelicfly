@@ -2,6 +2,8 @@ weights.txt
 extract_weights_to_json.py
 .vscode/
 node_modules/
+__pycache__/
+*.py[cod]
 caretaker.log
 caretaker-decisions.log
 data/

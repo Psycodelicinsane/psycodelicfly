@@ -40,7 +40,13 @@ function withMockedRandom(mockValue, fn) {
 
 // Mutable test state (these globals are used by the shared
 // functions in fly-logic.js: evaluateBehaviorEntry, isCoolingDown, hasNearbyFood)
-var behavior = { current: 'idle', enterTime: 0, cooldowns: {} };
+var behavior = {
+	current: 'idle', enterTime: 0, cooldowns: {},
+	startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0, startleRecovery: false,
+	touchEscapePending: false, touchGroomPending: false, touchEscapeDir: null, groomLocation: null, burstDir: 0,
+	turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
+	locomotionSpeedCommand: 0
+};
 var food = [];
 var fly = { x: 400, y: 300 };
 
@@ -80,7 +86,13 @@ function resetBrainState() {
 		curiosity: 0.5,
 		groom: 0.1,
 	};
-	behavior = { current: 'idle', enterTime: 0, cooldowns: {} };
+	behavior = {
+		current: 'idle', enterTime: 0, cooldowns: {},
+		startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0, startleRecovery: false,
+		touchEscapePending: false, touchGroomPending: false, touchEscapeDir: null, groomLocation: null, burstDir: 0,
+		turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
+		locomotionSpeedCommand: 0
+	};
 	food = [];
 	fly = { x: 400, y: 300 };
 }
@@ -174,6 +186,1350 @@ function test_fear_spikes_on_touch() {
 	BRAIN.stimulate.touch = true;
 	BRAIN.updateDrives();
 	assertClose(BRAIN.drives.fear, 0.255, 0.0001, 'fear spike on touch');
+}
+
+function countLegacyTouchStimuli(location) {
+	resetBrainState();
+	BRAIN.stimulate.touch = true;
+	BRAIN.stimulate.touchLocation = location;
+	BRAIN.stimulate.lightLevel = 0;
+	var bristleCount = 0;
+	var originalAccumulate = BRAIN.dendriteAccumulate;
+	var originalAccumulateScaled = BRAIN.dendriteAccumulateScaled;
+	var originalRunConnectome = BRAIN.runconnectome;
+	BRAIN.dendriteAccumulate = function (name) {
+		if (name === 'MECH_BRISTLE') bristleCount++;
+	};
+	BRAIN.dendriteAccumulateScaled = function () {};
+	BRAIN.runconnectome = function () {};
+	try {
+		BRAIN.update();
+	} finally {
+		BRAIN.dendriteAccumulate = originalAccumulate;
+		BRAIN.dendriteAccumulateScaled = originalAccumulateScaled;
+		BRAIN.runconnectome = originalRunConnectome;
+	}
+	return bristleCount;
+}
+
+function test_legacy_connectome_touch_location_boosts_head_and_thorax() {
+	assertEqual(countLegacyTouchStimuli('head'), 2, 'head touch gets the stronger mechanosensory input');
+	assertEqual(countLegacyTouchStimuli('thorax'), 2, 'thorax touch gets the stronger mechanosensory input');
+	assertEqual(countLegacyTouchStimuli('cabeza'), 2, 'legacy Spanish head alias gets the stronger input');
+	assertEqual(countLegacyTouchStimuli('torax'), 2, 'legacy Spanish thorax alias gets the stronger input');
+	assertEqual(countLegacyTouchStimuli('abdomen'), 1, 'abdomen touch gets the regular mechanosensory input');
+	assertEqual(countLegacyTouchStimuli('leg'), 1, 'leg touch gets the regular mechanosensory input');
+}
+
+function test_touch_starts_visible_cleaning_feedback_for_head_and_abdomen() {
+	resetBrainState();
+	anim.groomFeedbackUntil = 0;
+	anim.groomFeedbackLocation = null;
+	anim.groomPhase = 5;
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+	touchResetTime = 0;
+	applyTouchTool(fly.x, fly.y - 25);
+	assertEqual(BRAIN.stimulate.touchLocation, 'head', 'click over the head is classified correctly');
+	assertEqual(anim.groomPhase, 0, 'face-cleaning cycle starts from its first stroke');
+	assertTrue(anim.groomFeedbackUntil > Date.now(), 'head touch schedules visible cleaning feedback');
+	assertEqual(anim.groomFeedbackLocation, 'head', 'head touch selects the front pair');
+
+	resetBrainState();
+	anim.groomFeedbackUntil = 0;
+	anim.groomFeedbackLocation = null;
+	anim.groomPhase = 5;
+	touchTimestamps.length = 0;
+	applyTouchTool(fly.x, fly.y + 25);
+	assertEqual(BRAIN.stimulate.touchLocation, 'abdomen', 'click over abdomen remains a distinct interaction');
+	assertTrue(anim.groomFeedbackUntil > Date.now(), 'abdomen touch also schedules a visible cleaning gesture');
+	assertEqual(anim.groomFeedbackLocation, 'abdomen', 'abdomen cleaning selects the rear leg pair');
+}
+
+function test_single_touch_interrupts_flight_for_visible_targeted_grooming() {
+	resetBrainState();
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - 100;
+	behavior.cooldowns = {};
+	globalThis.speed = 2.0;
+	globalThis.speedChangeInterval = 0.12;
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+	anim.groomBlend = 0;
+	anim.groomFeedbackUntil = 0;
+	anim.groomFeedbackLocation = null;
+
+	try {
+		applyTouchTool(fly.x, fly.y - 25);
+		assertEqual(behavior.current, 'groom',
+			'a deliberate single touch interrupts airborne locomotion instead of waiting for the brain tick');
+		assertEqual(behavior.groomLocation, 'head', 'the immediate grooming state keeps the touched body part');
+		assertTrue(BRAIN._isGrooming, 'the behavior flags enter targeted grooming immediately');
+		assertTrue(anim.groomFeedbackUntil > Date.now(), 'the visible cleaning stroke starts on contact');
+		assertTrue(behavior.cooldowns.fly > Date.now(), 'the same neural flight spike cannot instantly restart flight');
+
+		applyBehaviorMovement(1);
+		assertEqual(globalThis.targetSpeed, 0, 'the first post-touch frame clears the stale flight target');
+		assertClose(globalThis.speedChangeInterval, 0, 0.000001,
+			'the first post-touch frame removes stale flight acceleration');
+		assertTrue(globalThis.speed < 2.0, 'the fly begins braking smoothly while it cleans');
+	} finally {
+		resetBrainState();
+		globalThis.speed = 0;
+		globalThis.speedChangeInterval = 0;
+	}
+}
+
+function test_clicking_fly_with_food_tool_triggers_cleaning_not_food_placement() {
+	resetBrainState();
+	var originalTool = globalThis.activeTool;
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - 100;
+	behavior.cooldowns = {};
+	globalThis.activeTool = 'feed';
+	touchTimestamps.length = 0;
+	var foodBefore = food.length;
+	var ripplesBefore = ripples.length;
+
+	try {
+		handleCanvasMousedown({ clientX: fly.x, clientY: fly.y });
+		assertEqual(behavior.current, 'groom',
+			'a direct click on the fly cleans it even if Comida is selected');
+		assertEqual(food.length, foodBefore, 'clicking the fly does not place food inside its body');
+		assertEqual(ripples.length, ripplesBefore + 1, 'the touch still gets the usual contact ripple');
+	} finally {
+		globalThis.activeTool = originalTool;
+		resetBrainState();
+	}
+}
+
+function test_default_toolbar_tool_is_touch() {
+	assertEqual(activeTool, 'touch', 'the JavaScript tool state defaults to Tocar');
+	assertEqual(globalThis.__toolbarDefaultTool, 'touch', 'the Items menu marks Tocar as active in the HTML');
+	assertEqual(globalThis.__toolbarDefaultLabel, 'Tocar', 'the Items trigger shows Tocar on load');
+}
+
+function test_canvas_touch_tool_contacts_the_fly() {
+	resetBrainState();
+	var originalTool = activeTool;
+	var originalFacing = facingDir;
+	var ripplesBefore = ripples.length;
+	activeTool = 'touch';
+	behavior.current = 'walk';
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+	try {
+		handleCanvasMousedown({ clientX: fly.x, clientY: fly.y - 25 });
+		assertTrue(BRAIN.stimulate.touch, 'the selected Tocar tool sends contact to the brain');
+		assertEqual(BRAIN.stimulate.touchLocation, 'head', 'the canvas event retains the touched body location');
+		assertEqual(ripples.length, ripplesBefore + 1, 'a real contact gets a ripple');
+	} finally {
+		activeTool = originalTool;
+		facingDir = originalFacing;
+		touchTimestamps.length = 0;
+		resetBrainState();
+	}
+}
+
+function test_touch_tool_ignores_empty_scene_clicks() {
+	resetBrainState();
+	var originalTool = activeTool;
+	var ripplesBefore = ripples.length;
+	var foodBefore = food.length;
+	activeTool = 'touch';
+	try {
+		handleCanvasMousedown({ clientX: fly.x + 100, clientY: fly.y });
+		assertEqual(BRAIN.stimulate.touch, false, 'touching the empty scene does not stimulate the fly');
+		assertEqual(ripples.length, ripplesBefore, 'an empty-scene click does not show a false contact ripple');
+		assertEqual(food.length, foodBefore, 'the Tocar tool does not place food on the empty scene');
+	} finally {
+		activeTool = originalTool;
+		while (ripples.length > ripplesBefore) ripples.pop();
+		resetBrainState();
+	}
+}
+
+function test_tapping_a_spread_wing_during_flight_counts_as_touch() {
+	resetBrainState();
+	var originalFacing = facingDir;
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - 100;
+	behavior.cooldowns = {};
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+
+	applyTouchTool(fly.x + 58, fly.y);
+	assertTrue(BRAIN.stimulate.touch, 'a tap on the visible spread wing is accepted as contact');
+	assertEqual(behavior.current, 'groom', 'wing contact during flight initiates the normal cleaning action');
+	assertEqual(behavior.groomLocation, 'leg', 'the touched wing-side appendage is mapped to a leg-cleaning cue');
+	resetBrainState();
+	facingDir = originalFacing;
+}
+
+function test_single_touch_interrupts_startle_burst_and_returns_to_grooming() {
+	resetBrainState();
+	var originalFacing = facingDir;
+	behavior.current = 'startle';
+	behavior.enterTime = Date.now() - 100;
+	behavior.startlePhase = 'burst';
+	behavior.startleBurstEnd = Date.now() + 300;
+	behavior.cooldowns = {};
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+	anim.groomBlend = 0;
+	anim.groomFeedbackUntil = 0;
+	anim.groomFeedbackLocation = null;
+
+	try {
+		applyTouchTool(fly.x, fly.y - 25);
+		assertEqual(behavior.current, 'groom',
+			'a deliberate single touch can stop a flight-like escape burst and resume cleaning');
+		assertEqual(behavior.startlePhase, 'none', 'the old escape burst is cancelled by the cleaning touch');
+		assertEqual(behavior.groomLocation, 'head', 'the head touch still selects the front-leg cleaning pose');
+		assertTrue(anim.groomFeedbackUntil > Date.now(), 'the cleaning animation remains active immediately');
+	} finally {
+		facingDir = originalFacing;
+		resetBrainState();
+	}
+}
+
+function test_repeated_touch_forces_fast_escape_out_of_grooming() {
+	resetBrainState();
+	var now = Date.now();
+	behavior.current = 'groom';
+	behavior.enterTime = now - 100;
+	behavior.cooldowns = {};
+	behavior.startlePhase = 'none';
+	behavior.startleBurstEnd = 0;
+	behavior.touchEscapePending = false;
+	anim.groomBlend = 0.8;
+	anim.groomFeedbackUntil = now + 1000;
+	anim.groomFeedbackLocation = 'abdomen';
+	anim.groomPoseLocation = 'abdomen';
+	touchTimestamps.length = 0;
+	touchResetTime = 0;
+
+	var originalFacing = facingDir;
+	facingDir = Math.PI / 2;
+	var contactX = fly.x;
+	var contactY = fly.y - 25;
+	applyTouchTool(contactX, contactY);
+	applyTouchTool(contactX, contactY);
+	applyTouchTool(contactX, contactY);
+
+	assertTrue(BRAIN.stimulate.nociception, 'three quick taps still send the pain stimulus to the connectome');
+	assertEqual(behavior.current, 'startle', 'rapid taps interrupt the long grooming minimum immediately');
+	assertEqual(behavior.startlePhase, 'freeze', 'escape begins with only a brief startle pause');
+	assertTrue(behavior.startleFreezeEnd <= Date.now() + 100,
+		'the freeze does not hold the fly in a slow grooming response');
+	assertEqual(behavior.touchEscapePending, false, 'the urgent escape request is consumed once');
+	assertEqual(anim.groomFeedbackUntil, 0, 'rapid taps cancel the lingering cleaning animation');
+	assertEqual(anim.groomFeedbackLocation, null, 'the escape no longer targets a cleaning pose');
+	assertEqual(anim.groomBlend, 0, 'the legs leave the grooming pose for the escape');
+	assertEqual(touchTimestamps.length, 0, 'the rapid-tap window resets after triggering escape');
+	assertClose(normalizeAngle(behavior.burstDir - (-Math.PI / 2)), 0, 0.000001,
+		'the fly chooses a direction away from the tapped head instead of an arbitrary full spin');
+	facingDir = originalFacing;
+}
+
+function test_three_taps_force_escape_even_during_startle_cooldown() {
+	resetBrainState();
+	var now = Date.now();
+	var originalFacing = facingDir;
+	var originalTool = activeTool;
+	behavior.current = 'groom';
+	behavior.enterTime = now - 100;
+	behavior.cooldowns = { startle: now + 5000 };
+	behavior.startlePhase = 'none';
+	behavior.startleBurstEnd = 0;
+	behavior.touchEscapePending = false;
+	touchTimestamps.length = 0;
+	facingDir = Math.PI / 2;
+	activeTool = 'feed';
+
+	var contactX = fly.x;
+	var contactY = fly.y - 25;
+	var foodBefore = food.length;
+	try {
+		handleCanvasMousedown({ clientX: contactX, clientY: contactY });
+		handleCanvasMousedown({ clientX: contactX, clientY: contactY });
+		handleCanvasMousedown({ clientX: contactX, clientY: contactY });
+
+		assertEqual(behavior.current, 'startle',
+			'three real canvas taps cause pain escape even during the neural startle cooldown');
+		assertEqual(behavior.startlePhase, 'freeze', 'the forced response enters the normal escape sequence');
+		assertEqual(behavior.touchEscapePending, false, 'the touch-triggered escape request is consumed');
+		assertEqual(food.length, foodBefore, 'touching the fly with Comida selected does not place food');
+		assertClose(normalizeAngle(behavior.burstDir - (-Math.PI / 2)), 0, 0.000001,
+			'the cooldown-bypassing escape still points away from the touch');
+
+		behavior.startleFreezeEnd = Date.now() - 1;
+		applyBehaviorMovement(1);
+		assertEqual(behavior.startlePhase, 'orient', 'the pain escape leaves its brief freeze promptly');
+		facingDir = behavior.burstDir;
+		targetDir = behavior.burstDir;
+		assertTrue(tryBeginStartleBurst(behavior, facingDir, targetDir, Date.now()),
+			'the aligned escape starts its burst');
+		speed = 0;
+		applyBehaviorMovement(1);
+		assertEqual(behavior.startlePhase, 'burst', 'the escape reaches the moving burst phase');
+		assertEqual(targetSpeed, 3, 'the escape burst commands a brisk run');
+		assertTrue(speedChangeInterval > 0, 'the escape burst accelerates the fly away');
+	} finally {
+		activeTool = originalTool;
+		facingDir = originalFacing;
+		touchTimestamps.length = 0;
+		resetBrainState();
+	}
+}
+
+function captureGroomingLegs(state, location, phase, touchFeedback) {
+	var originalCtx = globalThis.ctx;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
+	var rawCalls = [];
+	var path = [];
+	var styles = {};
+	var nowSeconds = Date.now() / 1000;
+	behavior.current = state;
+	behavior.groomLocation = location;
+	behavior.startlePhase = 'freeze';
+	anim.groomPhase = phase;
+	anim.groomBlend = 1;
+	anim.groomPoseLocation = location;
+	anim.groomFeedbackUntil = touchFeedback ? Date.now() + 1000 : 0;
+	anim.groomFeedbackLocation = location;
+	anim.legJitter = [0, 0, 0, 0, 0, 0];
+	anim.legJitterTarget = [0, 0, 0, 0, 0, 0];
+	anim.legJitterTimer = nowSeconds;
+	anim.legJitterNextInterval = 1000;
+	anim.wingMicro = 0;
+	anim.wingMicroTarget = 0;
+	anim.wingMicroTimer = nowSeconds;
+	anim.wingMicroNextInterval = 1000;
+	globalThis.ctx = new Proxy({}, {
+		get: function (_target, name) {
+			if (name === 'beginPath') return function () { path = []; };
+			if (name === 'moveTo' || name === 'lineTo') {
+				return function (x, y) { path.push([x, y]); };
+			}
+			if (name === 'stroke') {
+				return function () {
+					if (path.length > 1) {
+						rawCalls.push({ path: path.slice(), strokeStyle: styles.strokeStyle, lineWidth: styles.lineWidth });
+					}
+				};
+			}
+			return function () {};
+		},
+		set: function (_target, name, value) { styles[name] = value; return true; }
+	});
+	try {
+		drawLegs(state, 1);
+	} finally {
+		globalThis.ctx = originalCtx;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
+	}
+	var macroCalls = [];
+	for (var legIdx = 0; legIdx < 6; legIdx++) {
+		var legCalls = rawCalls.slice(legIdx * 11, (legIdx + 1) * 11);
+		macroCalls.push({
+			path: [legCalls[0].path[0], legCalls[2].path[1]],
+			strokeStyle: legCalls[2].strokeStyle,
+			lineWidth: legCalls[2].lineWidth
+		});
+		macroCalls.push(legCalls[3]);
+		macroCalls.push({
+			path: [legCalls[4].path[0], legCalls[9].path[1]],
+			strokeStyle: legCalls[4].strokeStyle,
+			lineWidth: legCalls[4].lineWidth
+		});
+	}
+	macroCalls.rawCalls = rawCalls;
+	return macroCalls;
+}
+
+function assertAnatomicalLegSegments(calls, description) {
+	assertEqual(calls.length, 18, description + ': all six legs retain their three macro pose endpoints');
+	var rawCalls = calls.rawCalls;
+	assertEqual(rawCalls.length, 66, description + ': each leg draws ten anatomical segments and paired claws');
+	var lengths = [BODY.legCoxaLength, BODY.legTrochanterLength, BODY.legFemurLength, BODY.legSeg2]
+		.concat(BODY.legTarsomereLengths, [BODY.legPretarsusLength]);
+	var widths = [0.88, 0.72, 1.05, 0.76, 0.62, 0.58, 0.53, 0.47, 0.41, 0.30];
+	assertClose(BODY.legCoxaLength + BODY.legTrochanterLength + BODY.legFemurLength,
+		BODY.legSeg1, 0.000001, description + ': the proximal chain keeps the former eight-pixel reach');
+	assertClose(BODY.legTarsomereLengths.reduce(function (sum, length) { return sum + length; }, 0) +
+		BODY.legPretarsusLength, BODY.legSeg3, 0.000001,
+		description + ': the five tarsomeres and pretarsus keep the former six-pixel reach');
+	for (var legIdx = 0; legIdx < 6; legIdx++) {
+		for (var segmentIdx = 0; segmentIdx < lengths.length; segmentIdx++) {
+			var segment = rawCalls[legIdx * 11 + segmentIdx];
+			assertEqual(segment.path.length, 2, description + ': each cuticle link has a clean endpoint');
+			assertClose(Math.hypot(segment.path[1][0] - segment.path[0][0], segment.path[1][1] - segment.path[0][1]),
+				lengths[segmentIdx], 0.000001, description + ': articulated link preserves its measured length');
+			assertEqual(segment.strokeStyle, '#3d2e1a', description + ': leg segments keep their dark chitin color');
+			assertClose(segment.lineWidth, widths[segmentIdx], 0.000001,
+				description + ': femur-to-foot cuticle tapers progressively');
+		}
+		var claws = rawCalls[legIdx * 11 + 10];
+		assertEqual(claws.path.length, 4, description + ': pretarsus terminates in two short claws');
+		assertEqual(claws.strokeStyle, '#3d2e1a', description + ': claws keep the same natural cuticle color');
+		assertClose(claws.lineWidth, 0.18, 0.000001, description + ': terminal claws stay finer than the tarsus');
+	}
+	assertEqual(BODY.legTarsomereLengths.length, 5, description + ': the tarsus is divided into five tarsomeres');
+	assertTrue(BODY.legTarsomereLengths[0] > BODY.legTarsomereLengths[4],
+		description + ': distal tarsomeres taper toward the pretarsus');
+}
+
+function test_original_leg_colors_are_dark_chitin() {
+	assertEqual(COLORS.leg, '#3d2e1a', 'original legs keep their dark brown cuticle');
+	assertEqual(COLORS.legJoint, '#382718', 'leg joints stay dark and do not read as yellow dots');
+}
+
+function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
+	resetBrainState();
+	// Touch-triggered cleaning can run while the connectome is still in startle.
+	var faceA = captureGroomingLegs('startle', 'head', 0.35, true);
+	assertAnatomicalLegSegments(faceA, 'face washing');
+
+	var faceB = captureGroomingLegs('startle', 'head', 1.1, true);
+	assertTrue(Math.hypot(faceB[2].path[1][0] - faceA[2].path[1][0],
+		faceB[2].path[1][1] - faceA[2].path[1][1]) > 0.1,
+		'the front tarsi continue rubbing across the face');
+	var frontFemur = faceA[3];
+	var frontTibia = faceA[4];
+	var frontTarsus = faceA[5];
+	var upperAngle = Math.atan2(frontFemur.path[1][1] - frontFemur.path[0][1],
+		frontFemur.path[1][0] - frontFemur.path[0][0]);
+	var forearmAngle = Math.atan2(frontTibia.path[1][1] - frontTibia.path[0][1],
+		frontTibia.path[1][0] - frontTibia.path[0][0]);
+	assertTrue(Math.abs(normalizeAngle(forearmAngle - upperAngle)) > 1.8,
+		'the front tibia bends at the knee like an elbow instead of reaching straight down');
+	assertTrue(frontTarsus.path[1][1] < -25 && Math.abs(frontTarsus.path[1][0]) < 10,
+		'the fine front tarsus reaches the forehead and eye edge to wash the face');
+	var activeFaceGroom = captureGroomingLegs('groom', 'head', 0.35, false);
+	for (var segment = 0; segment < 18; segment++) {
+		for (var point = 0; point < 2; point++) {
+			assertClose(activeFaceGroom[segment].path[point][0], faceA[segment].path[point][0], 0.000001,
+				'connectome grooming and touch feedback use the same original leg pose');
+			assertClose(activeFaceGroom[segment].path[point][1], faceA[segment].path[point][1], 0.000001,
+				'connectome grooming and touch feedback preserve the original articulation');
+		}
+	}
+
+	var abdomenA = captureGroomingLegs('startle', 'abdomen', 0.35, true);
+	assertAnatomicalLegSegments(abdomenA, 'abdomen cleaning');
+	var rearFemur = abdomenA[15];
+	var rearTibia = abdomenA[16];
+	var rearTarsus = abdomenA[17];
+	var rearUpperAngle = Math.atan2(rearFemur.path[1][1] - rearFemur.path[0][1],
+		rearFemur.path[1][0] - rearFemur.path[0][0]);
+	var rearForearmAngle = Math.atan2(rearTibia.path[1][1] - rearTibia.path[0][1],
+		rearTibia.path[1][0] - rearTibia.path[0][0]);
+	assertTrue(rearFemur.path[1][0] - rearFemur.path[0][0] > 5 &&
+		Math.abs(normalizeAngle(rearForearmAngle - rearUpperAngle)) > 1.0,
+		'the rear leg forms a visible bent elbow outside the abdomen');
+	assertTrue(rearTarsus.path[1][1] > 10 && rearTarsus.path[1][1] < 22 &&
+		rearTarsus.path[1][0] > 5 && rearTarsus.path[1][0] < 14,
+		'the rear tarsus reaches the abdomen edge for a readable belly-washing stroke');
+	var abdomenB = captureGroomingLegs('startle', 'abdomen', 2.7, true);
+	assertTrue(Math.hypot(abdomenB[14].path[1][0] - abdomenA[14].path[1][0],
+		abdomenB[14].path[1][1] - abdomenA[14].path[1][1]) > 0.1,
+		'the original rear legs keep their abdomen-grooming motion');
+}
+
+function test_thorax_grooming_hind_tarsi_brush_the_shell_in_alternating_strokes() {
+	var thoraxA = captureGroomingLegs('startle', 'thorax', 0.35, true);
+	assertAnatomicalLegSegments(thoraxA, 'thorax cleaning');
+	var leftFemur = thoraxA[12];
+	var leftTibia = thoraxA[13];
+	var leftTarsus = thoraxA[14];
+	var rightFemur = thoraxA[15];
+	var rightTibia = thoraxA[16];
+	var rightTarsus = thoraxA[17];
+	var leftFemurAngle = Math.atan2(leftFemur.path[1][1] - leftFemur.path[0][1],
+		leftFemur.path[1][0] - leftFemur.path[0][0]);
+	var leftTibiaAngle = Math.atan2(leftTibia.path[1][1] - leftTibia.path[0][1],
+		leftTibia.path[1][0] - leftTibia.path[0][0]);
+	var leftTarsusAngle = Math.atan2(leftTarsus.path[1][1] - leftTarsus.path[0][1],
+		leftTarsus.path[1][0] - leftTarsus.path[0][0]);
+	var rightFemurAngle = Math.atan2(rightFemur.path[1][1] - rightFemur.path[0][1],
+		rightFemur.path[1][0] - rightFemur.path[0][0]);
+	var rightTibiaAngle = Math.atan2(rightTibia.path[1][1] - rightTibia.path[0][1],
+		rightTibia.path[1][0] - rightTibia.path[0][0]);
+	assertTrue(Math.abs(normalizeAngle(leftTibiaAngle - leftFemurAngle)) > 1.0 &&
+		Math.abs(normalizeAngle(rightTibiaAngle - rightFemurAngle)) > 1.0,
+		'thorax cleaning visibly folds both hind legs at their knees');
+	assertTrue(Math.abs(normalizeAngle(leftTarsusAngle - leftTibiaAngle)) > 2.0,
+		'the fine tarsus curls back toward the thorax instead of pointing away from it');
+	assertTrue(leftTarsus.path[1][0] < -10 && leftTarsus.path[1][0] > -14 &&
+		leftTarsus.path[1][1] > -11 && leftTarsus.path[1][1] < -6,
+		'the left tarsus reaches the outer thorax margin to brush the shell');
+	assertTrue(rightTarsus.path[1][0] > 10 && rightTarsus.path[1][0] < 14 &&
+		rightTarsus.path[1][1] > -11 && rightTarsus.path[1][1] < -6,
+		'the right tarsus mirrors the contact pose on the opposite thorax edge');
+
+	var thoraxB = captureGroomingLegs('startle', 'thorax', 2.7, true);
+	var leftStrokeDx = thoraxB[14].path[1][0] - leftTarsus.path[1][0];
+	var leftStrokeDy = thoraxB[14].path[1][1] - leftTarsus.path[1][1];
+	var rightStrokeDx = thoraxB[17].path[1][0] - rightTarsus.path[1][0];
+	var rightStrokeDy = thoraxB[17].path[1][1] - rightTarsus.path[1][1];
+	assertTrue(Math.hypot(leftStrokeDx, leftStrokeDy) > 0.5 &&
+		Math.hypot(rightStrokeDx, rightStrokeDy) > 0.5,
+		'the hind legs sweep back and forth over the thorax instead of holding a static pose');
+	assertTrue(leftStrokeDx * -rightStrokeDx + leftStrokeDy * rightStrokeDy < 0,
+		'the left and right thorax strokes alternate instead of sweeping in sync');
+}
+
+function test_proboscis_reach_uses_face_position_food_radius_and_orientation() {
+	var originalBaseY = BODY.proboscisBaseY;
+	var originalLength = BODY.proboscisLength;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalFacing = facingDir;
+	try {
+		BODY.proboscisBaseY = -30.8;
+		BODY.proboscisLength = 9;
+		fly.x = 400;
+		fly.y = 300;
+		facingDir = Math.PI / 2;
+		assertTrue(isFoodInFrontOfProboscis({ x: 400, y: 250, radius: 10 }),
+			'food above the fly is in front of its mouth when it faces up');
+		assertTrue(!isFoodInFrontOfProboscis({ x: 400, y: 350, radius: 10 }),
+			'food behind the fly is not treated as a mouth target');
+		assertTrue(!isFoodInFrontOfProboscis({ x: 450, y: 300, radius: 10 }),
+			'sideways food does not make the proboscis extend before the fly turns');
+		assertTrue(!isFoodInFrontOfProboscis({ x: 420, y: 270, radius: 10 }),
+			'food almost beside the mouth stays hidden until the fly aligns its head');
+		assertTrue(isFoodInFrontOfProboscis({ x: 412, y: 253, radius: 10 }),
+			'food aligned within the forward mouth cone can trigger a tasting extension');
+		facingDir = 0;
+		assertTrue(isFoodInFrontOfProboscis({ x: 450, y: 300, radius: 10 }),
+			'food to the right becomes front-facing after the fly turns right');
+		assertTrue(!isFoodInFrontOfProboscis({ x: 350, y: 300, radius: 10 }),
+			'food to the left is behind after the fly turns right');
+		facingDir = Math.PI / 2;
+		assertTrue(isFoodWithinProboscisReach({ x: 400, y: 251, radius: 10 }),
+			'a full-sized food item is reachable at the front of the shorter mouthpart');
+		assertTrue(!isFoodWithinProboscisReach({ x: 400, y: 250, radius: 10 }),
+			'food just beyond the shorter proboscis range is not treated as contact');
+		assertTrue(isFoodWithinProboscisReach({ x: 400, y: 260, radius: 1 }),
+			'the contact range follows food as it shrinks');
+		assertTrue(!isFoodWithinProboscisReach({ x: 450, y: 300, radius: 10 }),
+			'a food item beside the fly is not falsely treated as reachable before it turns');
+	} finally {
+		BODY.proboscisBaseY = originalBaseY;
+		BODY.proboscisLength = originalLength;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		facingDir = originalFacing;
+	}
+}
+
+function test_feed_approach_stops_at_proboscis_reach_distance() {
+	var originalState = behavior.current;
+	var originalFood = food;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.foodSeekTurnSign = 0;
+		behavior.current = 'feed';
+		fly.x = 400;
+		fly.y = 300;
+		facingDir = Math.PI / 2;
+		globalThis.speed = 0;
+		food = [{ x: 400, y: 250, radius: 10 }];
+		computeMovementForBehavior();
+		assertClose(globalThis.targetSpeed, 0.25, 0.000001,
+			'the fly keeps approaching until the shorter mouthpart can reach food');
+
+		food = [{ x: 400, y: 251, radius: 10 }];
+		computeMovementForBehavior();
+		assertEqual(globalThis.targetSpeed, 0,
+			'the body stops at the proboscis contact distance instead of covering the food');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		food = originalFood;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		facingDir = originalFacing;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_proboscis_begins_during_feed_approach_and_extends_further_at_contact() {
+	var originalState = behavior.current;
+	var originalFood = food;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalFacing = facingDir;
+	var originalContact = BRAIN.stimulate.foodContact;
+	var originalExtend = anim.proboscisExtend;
+	var originalWingSpread = anim.wingSpread;
+	var originalGroomPhase = anim.groomPhase;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
+	var originalGroomFeedback = anim.groomFeedbackUntil;
+	var originalBaseY = BODY.proboscisBaseY;
+	var originalLength = BODY.proboscisLength;
+	try {
+		BODY.proboscisBaseY = -30.8;
+		BODY.proboscisLength = 9;
+		fly.x = 400;
+		fly.y = 300;
+		facingDir = Math.PI / 2;
+		behavior.current = 'feed';
+		anim.proboscisExtend = 0;
+		anim.groomFeedbackUntil = 0;
+		BRAIN.stimulate.foodContact = false;
+
+		food = [{ x: 400, y: 350, radius: 10 }];
+		updateAnimForBehavior(1);
+		assertEqual(anim.proboscisExtend, 0,
+			'the proboscis stays retracted instead of pointing toward food behind the abdomen');
+
+		food = [{ x: 412, y: 253, radius: 10 }];
+		updateAnimForBehavior(1);
+		assertClose(anim.proboscisExtend, 0.06, 0.000001,
+			'the mouth starts to peek out toward front-aligned food during the approach');
+
+		food = [{ x: 400, y: 251, radius: 10 }];
+		updateAnimForBehavior(1);
+		assertClose(anim.proboscisExtend, 0.154, 0.000001,
+			'the proboscis extends further once its mouth can reach the food');
+
+		behavior.current = 'idle';
+		anim.proboscisExtend = 0;
+		food = [{ x: 400, y: 250, radius: 10 }];
+		updateAnimForBehavior(1);
+		assertEqual(anim.proboscisExtend, 0,
+			'nearby food alone does not extend the proboscis outside feeding behavior');
+
+		behavior.current = 'groom';
+		anim.proboscisExtend = 0.5;
+		food = [];
+		updateAnimForBehavior(1);
+		assertClose(anim.proboscisExtend, 0.45, 0.000001,
+			'the existing easing smoothly retracts mouthparts after feeding ends');
+	} finally {
+		behavior.current = originalState;
+		food = originalFood;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		facingDir = originalFacing;
+		BRAIN.stimulate.foodContact = originalContact;
+		anim.proboscisExtend = originalExtend;
+		anim.wingSpread = originalWingSpread;
+		anim.groomPhase = originalGroomPhase;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
+		anim.groomFeedbackUntil = originalGroomFeedback;
+		BODY.proboscisBaseY = originalBaseY;
+		BODY.proboscisLength = originalLength;
+	}
+}
+function test_abdomen_grooming_flexes_cutout_during_behavior_and_touch_feedback() {
+	var originalCtx = globalThis.ctx;
+	var originalState = behavior.current;
+	var originalLocation = behavior.groomLocation;
+	var originalPhase = anim.groomPhase;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
+	var originalFeedbackUntil = anim.groomFeedbackUntil;
+	var originalFeedbackLocation = anim.groomFeedbackLocation;
+	var originalReady = globalThis.flyBodyAssetReady;
+	var originalAsset = globalThis.flyBodyAsset;
+	var rotations = [];
+	var translations = [];
+	var imageArgs = [];
+	globalThis.flyBodyAssetReady = true;
+	globalThis.flyBodyAsset = { naturalWidth: 454, naturalHeight: 1284 };
+	globalThis.ctx = new Proxy({}, {
+		get: function (_target, name) {
+			if (name === 'rotate') return function (angle) { rotations.push(angle); };
+			if (name === 'translate') return function (x, y) { translations.push([x, y]); };
+			if (name === 'drawImage') return function () { imageArgs.push(Array.prototype.slice.call(arguments)); };
+			return function () {};
+		},
+		set: function () { return true; }
+	});
+	try {
+		anim.groomPhase = Math.PI / 1.6;
+		anim.groomBlend = 1;
+		anim.groomPoseLocation = 'abdomen';
+		behavior.current = 'groom';
+		behavior.groomLocation = 'abdomen';
+		anim.groomFeedbackUntil = 0;
+		drawPhotorealBody();
+		assertClose(rotations[0], 0.0096, 0.000001,
+			'connectome abdomen grooming uses a subtle flex without hanging away from the thorax');
+		assertEqual(translations.length, 2, 'the abdomen rotates around the split without shifting the hinge');
+		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
+			'the abdomen hinge stays connected to the thorax');
+		assertEqual(imageArgs.length, 2, 'the photo body is split into a thorax and an overlapping abdomen');
+		var sourceSplitY = Math.round(1284 * 0.57);
+		var overlapCanvas = (sourceSplitY - imageArgs[1][2]) * (BODY.bodySpriteHeight / 1284);
+		var halfBodyWidth = 454 * (BODY.bodySpriteHeight / 1284) / 2;
+		var edgeRotationShift = halfBodyWidth * Math.abs(Math.sin(rotations[0]));
+		assertTrue(overlapCanvas > edgeRotationShift,
+			'the overlapping abdomen strip covers rotational edge movement and prevents a visible cut');
+
+		rotations = [];
+		translations = [];
+		imageArgs = [];
+		behavior.current = 'startle';
+		anim.groomFeedbackUntil = Date.now() + 1000;
+		anim.groomFeedbackLocation = 'abdomen';
+		drawPhotorealBody();
+		assertClose(rotations[0], 0.0096, 0.000001,
+			'abdomen touch feedback uses the same subtle, connected hinge');
+		assertClose(translations[0][1] + translations[1][1], 0, 0.000001,
+			'touch-triggered belly cleaning does not pull the abdomen off the shell');
+
+		rotations = [];
+		translations = [];
+		behavior.current = 'groom';
+		behavior.groomLocation = 'thorax';
+		anim.groomPoseLocation = 'thorax';
+		anim.groomFeedbackUntil = 0;
+		drawPhotorealBody();
+		assertEqual(rotations.length, 0, 'thorax cleaning does not curl the abdomen cutout');
+		assertEqual(translations.length, 0, 'thorax cleaning leaves the abdomen joint closed');
+	} finally {
+		globalThis.ctx = originalCtx;
+		behavior.current = originalState;
+		behavior.groomLocation = originalLocation;
+		anim.groomPhase = originalPhase;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
+		anim.groomFeedbackUntil = originalFeedbackUntil;
+		anim.groomFeedbackLocation = originalFeedbackLocation;
+		globalThis.flyBodyAssetReady = originalReady;
+		globalThis.flyBodyAsset = originalAsset;
+	}
+}
+
+function test_groom_pose_blends_in_and_out_without_snapping() {
+	var originalState = behavior.current;
+	var originalLocation = behavior.groomLocation;
+	var originalBlend = anim.groomBlend;
+	var originalPoseLocation = anim.groomPoseLocation;
+	var originalFeedbackUntil = anim.groomFeedbackUntil;
+	var originalFeedbackLocation = anim.groomFeedbackLocation;
+	var originalPhase = anim.groomPhase;
+	var originalWingSpread = anim.wingSpread;
+	var originalProboscisExtend = anim.proboscisExtend;
+	try {
+		behavior.current = 'groom';
+		behavior.groomLocation = 'head';
+		anim.groomFeedbackUntil = 0;
+		anim.groomBlend = 0;
+		updateAnimForBehavior(1);
+		assertClose(anim.groomBlend, 0.14, 0.000001,
+			'face washing eases the front-leg pose in over several frames');
+		assertEqual(anim.groomPoseLocation, 'head', 'the eased pose retains its face-cleaning target');
+
+		var blendedIn = anim.groomBlend;
+		behavior.current = 'idle';
+		updateAnimForBehavior(1);
+		assertTrue(anim.groomBlend > 0 && anim.groomBlend < blendedIn,
+			'leaving grooming eases the legs back to their resting pose');
+
+		behavior.current = 'startle';
+		anim.groomBlend = 0;
+		anim.groomFeedbackUntil = Date.now() + 1000;
+		anim.groomFeedbackLocation = 'abdomen';
+		updateAnimForBehavior(1);
+		assertClose(anim.groomBlend, 0.14, 0.000001,
+			'touch-triggered belly washing uses the same smooth pose transition');
+		assertEqual(anim.groomPoseLocation, 'abdomen',
+			'touch feedback keeps its selected belly-cleaning target while blending');
+	} finally {
+		behavior.current = originalState;
+		behavior.groomLocation = originalLocation;
+		anim.groomBlend = originalBlend;
+		anim.groomPoseLocation = originalPoseLocation;
+		anim.groomFeedbackUntil = originalFeedbackUntil;
+		anim.groomFeedbackLocation = originalFeedbackLocation;
+		anim.groomPhase = originalPhase;
+		anim.wingSpread = originalWingSpread;
+		anim.proboscisExtend = originalProboscisExtend;
+	}
+}
+
+function test_photoreal_body_and_proboscis_render_smoke() {
+	resetBrainState();
+	globalThis.flyBodyAssetReady = true;
+	globalThis.flyBodyAsset = { naturalWidth: 454, naturalHeight: 1284 };
+	BODY.bodySpriteHeight = 64;
+	BODY.bodySpriteTop = -32;
+	BODY.proboscisBaseY = -30.8;
+	BODY.proboscisLength = 9;
+	globalThis.__canvasDrawCalls = 0;
+	drawPhotorealBody();
+	var bodyCalls = globalThis.__canvasDrawCalls;
+	assertTrue(bodyCalls >= 2, 'photo body draws its head/thorax and articulated abdomen texture');
+
+	food = [{ x: fly.x, y: fly.y - 50, radius: 10 }];
+	facingDir = Math.PI / 2;
+	drawProboscis(1);
+	assertTrue(globalThis.__canvasDrawCalls > bodyCalls, 'feeding proboscis draws its tube and labella');
+}
+
+function test_proboscis_stays_hidden_when_there_is_no_food_target() {
+	var originalFood = food;
+	var before = globalThis.__canvasDrawCalls;
+	try {
+		food = [];
+		drawProboscis(1);
+		assertEqual(globalThis.__canvasDrawCalls, before,
+			'the feeding tube cannot appear when there is no food to reach');
+	} finally {
+		food = originalFood;
+	}
+}
+
+function test_food_uses_photoreal_top_down_honey_asset_and_shrinks_with_feeding() {
+	var originalFood = food;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalAssetReady = globalThis.honeyDropAssetReady;
+	var originalAsset = globalThis.honeyDropAsset;
+	var originalMethodCalls = globalThis.__canvasMethodCalls;
+	var originalDrawCalls = globalThis.__canvasDrawCalls;
+	try {
+		food = [{ x: 300, y: 300, radius: 10 }];
+		fly.x = 40;
+		fly.y = 40;
+		globalThis.honeyDropAssetReady = true;
+		globalThis.honeyDropAsset = { naturalWidth: 512, naturalHeight: 512 };
+		globalThis.__canvasMethodCalls = {};
+		globalThis.__canvasDrawCalls = 0;
+		drawFood();
+		assertEqual(globalThis.__canvasMethodCalls.drawImage, 1,
+			'the food is rendered from the photoreal top-down honey cutout');
+		assertTrue((globalThis.__canvasMethodCalls.ellipse || 0) >= 1,
+			'a subtle contact shadow anchors the glossy droplet to the scene');
+		assertTrue((globalThis.__canvasMethodCalls.fill || 0) >= 1,
+			'the food retains its soft shadow while the photo asset is drawn');
+	} finally {
+		food = originalFood;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		globalThis.honeyDropAssetReady = originalAssetReady;
+		globalThis.honeyDropAsset = originalAsset;
+		globalThis.__canvasMethodCalls = originalMethodCalls;
+		globalThis.__canvasDrawCalls = originalDrawCalls;
+	}
+}
+
+function test_proboscis_is_thin_and_stays_under_the_front_shell() {
+	var originalCtx = globalThis.ctx;
+	var originalFood = food;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalFacing = facingDir;
+	var originalBaseY = BODY.proboscisBaseY;
+	var originalBodyTop = BODY.bodySpriteTop;
+	var originalLength = BODY.proboscisLength;
+	var styles = {};
+	var path = [];
+	var strokes = [];
+	var ellipses = [];
+	var fills = [];
+	globalThis.ctx = new Proxy({}, {
+		get: function (_target, name) {
+			if (name === 'createLinearGradient') {
+				return function () { return { addColorStop: function () {} }; };
+			}
+			if (name === 'beginPath') return function () { path = []; };
+			if (name === 'moveTo') return function (x, y) { path.push({ type: 'move', x: x, y: y }); };
+			if (name === 'lineTo') return function (x, y) { path.push({ type: 'line', x: x, y: y }); };
+			if (name === 'closePath') return function () { path.push({ type: 'close' }); };
+			if (name === 'quadraticCurveTo') {
+				return function (cpx, cpy, x, y) {
+					path.push({ type: 'curve', cpx: cpx, cpy: cpy, x: x, y: y });
+				};
+			}
+			if (name === 'stroke') {
+				return function () {
+					strokes.push({ path: path.slice(), width: styles.lineWidth, color: styles.strokeStyle });
+				};
+			}
+			if (name === 'fill') {
+				return function () { fills.push({ path: path.slice(), style: styles.fillStyle }); };
+			}
+			if (name === 'ellipse') {
+				return function (x, y, radiusX, radiusY) {
+					ellipses.push({ x: x, y: y, radiusX: radiusX, radiusY: radiusY });
+				};
+			}
+			return function () {};
+		},
+		set: function (_target, name, value) { styles[name] = value; return true; }
+	});
+	try {
+		fly.x = 400;
+		fly.y = 300;
+		facingDir = Math.PI / 2;
+		BODY.proboscisBaseY = -30.8;
+		BODY.bodySpriteTop = -32;
+		BODY.proboscisLength = 9;
+		food = [{ x: 400, y: 250, radius: 10 }];
+		drawProboscis(1);
+		var fullStrokes = strokes.slice();
+		var fullFills = fills.slice();
+		assertEqual(fullStrokes.length, 3, 'the complete mouthpart uses a slim sheath, core and highlight');
+		assertEqual(fullFills.length, 3, 'the tapered tube and its paired labella use filled, natural shapes');
+		assertEqual(fullFills[0].path.filter(function (step) { return step.type === 'curve'; }).length, 2,
+			'the mouth tube narrows along a curved, tapered silhouette');
+		assertTrue(fullFills[0].path.some(function (step) { return step.type === 'line'; }),
+			'the tapered rostrum closes its narrow tip instead of drawing a round wire');
+		assertClose(fullStrokes[0].path[0].x, 0, 0.000001, 'mouth roots at the center of the face');
+		assertClose(fullStrokes[0].path[0].y, -30.8, 0.000001, 'mouth attachment sits at the lower front of the head');
+		assertTrue(fullStrokes[0].path[1].y < BODY.bodySpriteTop,
+			'the tip extends beyond the head silhouette while its root stays under the shell');
+		assertClose(fullStrokes[0].width, 1.05, 0.000001, 'the dark sheath stays short and fine');
+		assertClose(fullStrokes[1].width, 0.56, 0.000001, 'warm proboscis core is finer than the sheath');
+		assertClose(fullStrokes[2].width, 0.18, 0.000001, 'the reflected highlight is hair-thin');
+		assertEqual(ellipses.length, 4, 'the exposed tip retains small paired labella without a bulb');
+
+		strokes.length = 0;
+		drawProboscis(0.5);
+		var partialStrokes = strokes.slice();
+		assertEqual(partialStrokes.length, 3, 'the approach pose draws one complete tube underneath the shell');
+		assertEqual(fills.length, 6, 'the tapered tube and labella remain present during the approach');
+		assertTrue(partialStrokes[0].path[1].y < BODY.bodySpriteTop,
+			'the partial approach extension peeks out beyond the face');
+		assertTrue(partialStrokes[0].path[1].y > fullStrokes[0].path[1].y,
+			'the approach pose is shorter than the full contact extension');
+		assertEqual(ellipses.length, 8, 'labella remain on the same under-body layer during approach');
+
+		food = [{ x: 400, y: 350, radius: 10 }];
+		strokes.length = 0;
+		ellipses.length = 0;
+		fills.length = 0;
+		drawProboscis(1);
+		assertEqual(strokes.length, 0, 'a rear food target cannot draw a tube through the abdomen');
+		assertEqual(ellipses.length, 0, 'labella stay hidden when food is behind the fly');
+		assertEqual(fills.length, 0, 'the tapered mouthpart also stays hidden for food behind the fly');
+	} finally {
+		globalThis.ctx = originalCtx;
+		food = originalFood;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		facingDir = originalFacing;
+		BODY.proboscisBaseY = originalBaseY;
+		BODY.bodySpriteTop = originalBodyTop;
+		BODY.proboscisLength = originalLength;
+	}
+}
+
+function test_antennae_use_dark_tapered_aristae_without_bright_bulbs() {
+	var oldMethodCalls = globalThis.__canvasMethodCalls;
+	var oldWind = BRAIN.stimulate.wind;
+	globalThis.__canvasMethodCalls = {};
+	try {
+		var now = Date.now() / 1000;
+		anim.antennaTimer = now;
+		anim.antennaNextInterval = 1000;
+		anim.antennaTwitchL = 0;
+		anim.antennaTwitchR = 0;
+		anim.antennaTargetL = 0;
+		anim.antennaTargetR = 0;
+		BRAIN.stimulate.wind = false;
+		drawAntennae(now, 1);
+		assertEqual(globalThis.__canvasMethodCalls.arc || 0, 0,
+			'antennae use fine aristae rather than round yellow bulbs');
+		assertEqual(globalThis.__canvasMethodCalls.quadraticCurveTo, 4,
+			'both antennae retain curved basal segments and aristae');
+		assertEqual(globalThis.__canvasMethodCalls.lineTo, 6,
+			'both aristae retain three fine branches for realistic texture');
+		assertEqual(COLORS.antenna, '#302015', 'antennae stay a natural, dark brown');
+	} finally {
+		globalThis.__canvasMethodCalls = oldMethodCalls;
+		BRAIN.stimulate.wind = oldWind;
+	}
+}
+
+function captureGroundGrid(zoom, panXValue, panYValue, lightLevel) {
+	var originalCtx = globalThis.ctx;
+	var originalZoom = globalThis.zoomLevel;
+	var originalPanX = globalThis.panX;
+	var originalPanY = globalThis.panY;
+	var originalLight = BRAIN.stimulate.lightLevel;
+	var styles = {};
+	var path = [];
+	var strokes = [];
+	var labels = [];
+	var clipRects = [];
+	var clipCalls = 0;
+	var saveCalls = 0;
+	var restoreCalls = 0;
+	globalThis.zoomLevel = zoom;
+	globalThis.panX = panXValue;
+	globalThis.panY = panYValue;
+	BRAIN.stimulate.lightLevel = lightLevel;
+	globalThis.ctx = new Proxy({}, {
+		get: function (_target, name) {
+			if (name === 'save') return function () { saveCalls++; };
+			if (name === 'restore') return function () { restoreCalls++; };
+			if (name === 'beginPath') return function () { path = []; };
+			if (name === 'moveTo' || name === 'lineTo') {
+				return function (x, y) { path.push([x, y]); };
+			}
+			if (name === 'rect') {
+				return function (x, y, width, height) { clipRects.push([x, y, width, height]); };
+			}
+			if (name === 'clip') return function () { clipCalls++; };
+			if (name === 'stroke') {
+				return function () {
+					strokes.push({
+						path: path.slice(),
+						strokeStyle: styles.strokeStyle,
+						lineWidth: styles.lineWidth
+					});
+				};
+			}
+			if (name === 'fillText') {
+				return function (text, x, y) {
+					labels.push({ text: String(text), x: x, y: y, fillStyle: styles.fillStyle });
+				};
+			}
+			return function () {};
+		},
+		set: function (_target, name, value) { styles[name] = value; return true; }
+	});
+	try {
+		drawGroundGrid();
+	} finally {
+		globalThis.ctx = originalCtx;
+		globalThis.zoomLevel = originalZoom;
+		globalThis.panX = originalPanX;
+		globalThis.panY = originalPanY;
+		BRAIN.stimulate.lightLevel = originalLight;
+	}
+	return { strokes: strokes, labels: labels, clipRects: clipRects, clipCalls: clipCalls, saveCalls: saveCalls, restoreCalls: restoreCalls };
+}
+
+function gridSegments(stroke) {
+	var segments = [];
+	for (var i = 0; i + 1 < stroke.path.length; i += 2) {
+		segments.push([stroke.path[i], stroke.path[i + 1]]);
+	}
+	return segments;
+}
+
+function test_ground_grid_uses_50px_world_spacing_and_250px_references() {
+	var grid = captureGroundGrid(1, 0, 0, 0.8);
+	assertEqual(grid.clipRects.length, 1, 'the grid clips its drawing to the play area');
+	assertEqual(grid.clipCalls, 1, 'the canvas clip is applied before drawing the grid');
+	assertEqual(grid.saveCalls, 1, 'grid drawing isolates its canvas state');
+	assertEqual(grid.restoreCalls, 1, 'the clip is released before later objects draw');
+	assertEqual(grid.clipRects[0].join(','), '0,44,800,506',
+		'grid clipping excludes the toolbar and lower panel');
+	var minor = grid.strokes[0];
+	var major = grid.strokes[1];
+	var verticalMinor = gridSegments(minor).filter(function (segment) {
+		return segment[0][0] === segment[1][0];
+	});
+	var verticalMajor = gridSegments(major).filter(function (segment) {
+		return segment[0][0] === segment[1][0];
+	});
+	assertEqual(verticalMinor.length, 17, '50 px vertical grid spans the 800 px viewport');
+	for (var i = 0; i < verticalMinor.length; i++) {
+		assertClose(verticalMinor[i][0][0], i * 50, 0.000001,
+			'minor vertical grid lines remain aligned to 50 px world coordinates');
+	}
+	assertEqual(verticalMajor.length, 4, 'major grid references appear every 250 px');
+	for (var majorIdx = 0; majorIdx < verticalMajor.length; majorIdx++) {
+		assertEqual(verticalMajor[majorIdx][0][0] % 250, 0,
+			'major vertical references stay on 250 px coordinates');
+	}
+	assertEqual(minor.lineWidth, 0.7, 'minor line weight stays unobtrusive at 1x zoom');
+	assertTrue(minor.strokeStyle.indexOf('22, 37, 18') !== -1,
+		'the grid uses a muted dark tone on the bright floor');
+	assertClose(major.lineWidth, 1, 0.000001, 'major reference marks remain slightly stronger than minor lines');
+	var coordinateLabels = grid.labels.filter(function (label) { return /^-?\d+$/.test(label.text); });
+	assertTrue(coordinateLabels.length > 0, 'major grid coordinates are labeled');
+	for (var labelIdx = 0; labelIdx < coordinateLabels.length; labelIdx++) {
+		assertEqual(Number(coordinateLabels[labelIdx].text) % 250, 0,
+			'coordinate labels match the major reference spacing');
+	}
+	assertTrue(grid.labels.some(function (label) { return label.text === 'Cuadrícula: 50 px'; }),
+		'the grid includes its scale label');
+}
+
+function test_ground_grid_stays_world_anchored_when_panned_and_zoomed() {
+	var grid = captureGroundGrid(2, 40, -30, 0.2);
+	assertEqual(grid.clipRects.length, 1, 'zoomed grid keeps a single bounded clip region');
+	assertEqual(grid.clipRects[0].join(','), '180,187,400,253',
+		'panning and zooming transform the clip with the visible play area');
+	var minor = grid.strokes[0];
+	var major = grid.strokes[1];
+	var verticalMinor = gridSegments(minor).filter(function (segment) {
+		return segment[0][0] === segment[1][0];
+	});
+	var verticalMajor = gridSegments(major).filter(function (segment) {
+		return segment[0][0] === segment[1][0];
+	});
+	assertTrue(verticalMinor.length > 0, 'panning and zooming still leave the grid visible');
+	for (var i = 0; i < verticalMinor.length; i++) {
+		assertEqual(verticalMinor[i][0][0] % 50, 0,
+			'pan and zoom do not detach the grid from world coordinates');
+		if (i > 0) {
+			assertClose(verticalMinor[i][0][0] - verticalMinor[i - 1][0][0], 50, 0.000001,
+				'world grid spacing remains 50 px after camera changes');
+		}
+	}
+	for (var majorIdx = 0; majorIdx < verticalMajor.length; majorIdx++) {
+		assertEqual(verticalMajor[majorIdx][0][0] % 250, 0,
+			'major references remain anchored every 250 px after camera changes');
+	}
+	assertClose(minor.lineWidth, 0.35, 0.000001, 'minor strokes preserve their screen weight at 2x zoom');
+	assertTrue(minor.strokeStyle.indexOf('232, 241, 210') !== -1,
+		'the subtle grid switches to a light tone on the darker floor');
+}
+
+function test_vector_body_fallback_uses_the_darker_photocuticle_filter() {
+	var originalCtx = globalThis.ctx;
+	var originalReady = globalThis.flyBodyAssetReady;
+	var originalAsset = globalThis.flyBodyAsset;
+	var originalLight = BRAIN.stimulate.lightLevel;
+	var originalDrawAbdomen = globalThis.drawAbdomen;
+	var originalDrawThorax = globalThis.drawThorax;
+	var originalDrawHead = globalThis.drawHead;
+	var originalDrawEyes = globalThis.drawEyes;
+	var drawnParts = [];
+	var styles = {};
+	globalThis.flyBodyAssetReady = false;
+	globalThis.flyBodyAsset = {};
+	globalThis.drawAbdomen = function () { drawnParts.push('abdomen'); };
+	globalThis.drawThorax = function () { drawnParts.push('thorax'); };
+	globalThis.drawHead = function () { drawnParts.push('head'); };
+	globalThis.drawEyes = function () { drawnParts.push('eyes'); };
+	BRAIN.stimulate.lightLevel = 1;
+	globalThis.ctx = new Proxy({}, {
+		get: function () { return function () {}; },
+		set: function (_target, name, value) { styles[name] = value; return true; }
+	});
+	try {
+		drawPhotorealBody();
+		assertEqual(styles.filter, 'brightness(0.66) saturate(0.88)',
+			'the canvas fallback stays as dark as the photoreal body at bright light');
+		assertEqual(drawnParts.join(','), 'abdomen,thorax,head,eyes',
+			'the fallback retains all four original body parts');
+	} finally {
+		globalThis.ctx = originalCtx;
+		globalThis.flyBodyAssetReady = originalReady;
+		globalThis.flyBodyAsset = originalAsset;
+		globalThis.drawAbdomen = originalDrawAbdomen;
+		globalThis.drawThorax = originalDrawThorax;
+		globalThis.drawHead = originalDrawHead;
+		globalThis.drawEyes = originalDrawEyes;
+		BRAIN.stimulate.lightLevel = originalLight;
+	}
+}
+
+function test_photoreal_wings_use_asset_on_both_sides() {
+	resetBrainState();
+	var originalWingReady = globalThis.flyWingAssetReady;
+	var originalWingAsset = globalThis.flyWingAsset;
+	var originalWingMicro = anim.wingMicro;
+	var originalWingSpread = anim.wingSpread;
+	globalThis.flyWingAssetReady = true;
+	globalThis.flyWingAsset = { naturalWidth: 765, naturalHeight: 1485 };
+	BODY.wingOffsetX = 7;
+	BODY.wingOffsetY = -8;
+	BODY.wingLength = 42;
+	BODY.wingWidth = 16;
+	anim.wingMicro = 0.5;
+	try {
+		anim.wingSpread = 0.25;
+		globalThis.__canvasImageDrawCalls = 0;
+		drawWing(-1);
+		drawWing(1);
+		assertEqual(globalThis.__canvasImageDrawCalls, 2, 'mirrored photoreal wing asset is drawn for both sides at rest');
+
+		anim.wingSpread = 1;
+		globalThis.__canvasImageDrawCalls = 0;
+		drawWing(-1);
+		drawWing(1);
+		assertEqual(globalThis.__canvasImageDrawCalls, 10,
+			'flight renders five translucent time-averaged samples for each wing');
+	} finally {
+		globalThis.flyWingAssetReady = originalWingReady;
+		globalThis.flyWingAsset = originalWingAsset;
+		anim.wingMicro = originalWingMicro;
+		anim.wingSpread = originalWingSpread;
+	}
+}
+
+function test_fly_render_layers_keep_body_anatomy_and_expose_touch_grooming() {
+	var originalDrawLegs = globalThis.drawLegs;
+	var originalDrawBody = globalThis.drawPhotorealBody;
+	var originalDrawAntennae = globalThis.drawAntennae;
+	var originalDrawProboscis = globalThis.drawProboscis;
+	var originalDrawMouth = globalThis.drawProboscisMouth;
+	var originalDrawWing = globalThis.drawWing;
+	var originalState = behavior.current;
+	var originalProboscis = anim.proboscisExtend;
+	var originalFeedbackUntil = anim.groomFeedbackUntil;
+	var originalFeedbackLocation = anim.groomFeedbackLocation;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
+	var order = [];
+
+	try {
+		behavior.current = 'feed';
+		anim.proboscisExtend = 1;
+		anim.groomFeedbackUntil = 0;
+		anim.groomFeedbackLocation = null;
+		anim.groomBlend = 0;
+		anim.groomPoseLocation = null;
+		globalThis.drawLegs = function () { order.push('legs'); };
+		globalThis.drawPhotorealBody = function () { order.push('body'); };
+		globalThis.drawAntennae = function () { order.push('antennae'); };
+		globalThis.drawProboscis = function () { order.push('proboscis-under-shell'); };
+		globalThis.drawProboscisMouth = function () { order.push('front-mouth'); };
+		globalThis.drawWing = function (side) { order.push(side < 0 ? 'wing-left' : 'wing-right'); };
+
+		drawFlyBody(1);
+		assertEqual(order.join(','), 'legs,proboscis-under-shell,body,front-mouth,antennae,wing-left,wing-right',
+			'normal and feeding poses keep the tube and resting legs beneath the photo shell');
+
+		order.length = 0;
+		behavior.current = 'fly';
+		anim.groomFeedbackUntil = Date.now() + 500;
+		anim.groomFeedbackLocation = 'head';
+		anim.groomPoseLocation = 'head';
+		anim.groomBlend = 0.5;
+		drawFlyBody(1);
+		assertEqual(order.join(','), 'proboscis-under-shell,body,legs,front-mouth,antennae,wing-left,wing-right',
+			'touch-triggered grooming legs render over the shell so their contact stroke remains visible in flight');
+	} finally {
+		globalThis.drawLegs = originalDrawLegs;
+		globalThis.drawPhotorealBody = originalDrawBody;
+		globalThis.drawAntennae = originalDrawAntennae;
+		globalThis.drawProboscis = originalDrawProboscis;
+		globalThis.drawProboscisMouth = originalDrawMouth;
+		globalThis.drawWing = originalDrawWing;
+		behavior.current = originalState;
+		anim.proboscisExtend = originalProboscis;
+		anim.groomFeedbackUntil = originalFeedbackUntil;
+		anim.groomFeedbackLocation = originalFeedbackLocation;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
+	}
+}
+
+function test_proboscis_mouth_opening_is_visible_at_anterior_head_edge() {
+	var originalCtx = globalThis.ctx;
+	var originalBaseY = BODY.proboscisBaseY;
+	var ellipses = [];
+	BODY.proboscisBaseY = -30.8;
+	globalThis.ctx = new Proxy({}, {
+		get: function (_target, name) {
+			if (name === 'ellipse') {
+				return function (x, y, radiusX, radiusY) {
+					ellipses.push({ x: x, y: y, radiusX: radiusX, radiusY: radiusY });
+				};
+			}
+			return function () {};
+		},
+		set: function () { return true; }
+	});
+	try {
+		drawProboscisMouth();
+		assertEqual(ellipses.length, 3, 'the mouth is formed from a natural lip, dark opening and tiny highlight');
+		assertClose(ellipses[0].x, 0, 0.000001, 'the oral opening stays centered at the front of the head');
+		assertClose(ellipses[0].y, -30.8, 0.000001, 'the mouth sits at the anterior edge, not over the abdomen');
+		assertTrue(ellipses[0].y < BODY.bodySpriteTop + 2,
+			'the opening remains close to the head silhouette where the proboscis emerges');
+	} finally {
+		globalThis.ctx = originalCtx;
+		BODY.proboscisBaseY = originalBaseY;
+	}
+}
+
+function test_wings_open_outward_instead_of_crossing_when_flying() {
+	var rightRest = computeWingRotation(1, 0, 0, 0);
+	var leftRest = computeWingRotation(-1, 0, 0, 0);
+	var rightFlight = computeWingRotation(1, 1, 0, 0);
+	var leftFlight = computeWingRotation(-1, 1, 0, 0);
+	assertClose(rightRest, -leftRest, 0.000001, 'resting wing angles mirror each other');
+	assertClose(rightFlight, -leftFlight, 0.000001, 'flight wing angles remain mirrored');
+	assertTrue(rightFlight < 0 && leftFlight > 0,
+		'full spread rotates each wing away from the body instead of inverting across it');
+	assertClose(computeWingAlpha(0), 0.50, 0.000001, 'wings are less transparent while remaining translucent at rest');
+	assertClose(computeWingAlpha(1), 0.75, 0.000001, 'wings remain translucent but are clearer in flight');
+}
+
+function test_flying_wings_render_a_symmetric_time_averaged_stroke() {
+	var resting = computeWingStrokeSamples(0.25);
+	var flying = computeWingStrokeSamples(1);
+	assertEqual(resting.length, 1, 'resting wings stay crisp instead of being drawn as a blur');
+	assertEqual(flying.length, 5, 'flight wings use a compact set of stroke-exposure samples');
+	assertClose(flying[0].offset, -flying[4].offset, 0.000001, 'outer stroke samples are mirrored');
+	assertClose(flying[1].offset, -flying[3].offset, 0.000001, 'inner stroke samples are mirrored');
+	assertClose(flying[2].offset, 0, 0.000001, 'the strongest sample stays at the mean wing pose');
+	assertClose(flying.reduce(function (sum, sample) { return sum + sample.opacity; }, 0), 1, 0.000001,
+		'sample opacity is normalized so the motion blur stays translucent');
+	assertTrue(flying[0].offset < 0 && flying[4].offset > 0,
+		'the flight stroke covers both sides of the mean wing position');
+}
+
+function test_center_camera_preserves_zoom_while_centering_fly() {
+	var zoom = 2.35;
+	var screenCenterX = 640;
+	var screenCenterY = 360;
+	var flyX = 210;
+	var flyY = 515;
+	var pan = computeCameraPan(flyX, flyY, zoom, screenCenterX, screenCenterY,
+		screenCenterX, screenCenterY);
+	var projectedX = screenCenterX + pan.x + zoom * (flyX - screenCenterX);
+	var projectedY = screenCenterY + pan.y + zoom * (flyY - screenCenterY);
+	assertClose(projectedX, screenCenterX, 0.000001, 'center button places the fly at viewport center');
+	assertClose(projectedY, screenCenterY, 0.000001, 'vertical centering uses the same camera transform');
+	assertClose(zoom, 2.35, 0.000001, 'centering does not reset or change the zoom');
+}
+
+function test_behavior_register_phrases_are_clear_spanish() {
+	assertEqual(describeFlyBehavior('phototaxis'), 'Responde a la iluminación ambiental uniforme.',
+		'uniform ambient illumination is not described as a positioned light target');
+	assertEqual(describeFlyBehavior('groom', 'head'), 'Se limpia la cara.', 'face wash gets a Spanish log entry');
+	assertEqual(describeFlyBehavior('groom', 'abdomen'), 'Se limpia el abdomen.', 'abdomen grooming is recorded explicitly');
+	assertEqual(describeFlyBehavior('feed'), 'Se alimenta.', 'feeding is logged in Spanish');
+}
+
+function test_photoreal_material_tracks_light_setting_while_staying_dark() {
+	resetBrainState();
+	BRAIN.stimulate.lightLevel = 1;
+	assertEqual(getFlyLightingFilter(), 'brightness(0.66) saturate(0.88)',
+		'bright setting keeps the photo materials dark while preserving chitin detail');
+	BRAIN.stimulate.lightLevel = 0.5;
+	assertEqual(getFlyLightingFilter(), 'brightness(0.55) saturate(0.80)',
+		'mid-level light produces an intermediate dark cuticle');
+	BRAIN.stimulate.lightLevel = 0;
+	assertEqual(getFlyLightingFilter(), 'brightness(0.44) saturate(0.72)',
+		'dark setting dims and desaturates the cuticle further');
 }
 
 function test_fear_exponential_decay() {
@@ -610,13 +1966,19 @@ function test_food_seek_uses_facingDir_not_targetDir() {
 
 	var facingDirVal2 = -Math.PI / 2;
 	var result2 = computeFoodSeekDir(flyX, flyY, foodX, foodY, 0.8, facingDirVal2);
-	// angleDiff2 = normalizeAngle(PI/4 - (-PI/2)) = normalizeAngle(3*PI/4) = 3*PI/4
-	// targetDir = -PI/2 + (3*PI/4) * 0.8
-	var expected2 = -Math.PI / 2 + (3 * Math.PI / 4) * 0.8;
+	// The large target offset is capped to a smooth 0.75 radian turn per brain tick.
+	var expected2 = -Math.PI / 2 + FOOD_SEEK_MAX_TURN;
 	assertClose(result2.targetDir, expected2, 0.001,
-		'targetDir differs with different facingDir');
+		'targetDir differs with different facingDir while limiting a sudden reversal');
+	assertClose(result2.turn, FOOD_SEEK_MAX_TURN, 0.001,
+		'food seeking exposes its bounded turn command for speed easing');
 	assertTrue(result2.targetDir !== result.targetDir,
 		'different facingDir produces different result');
+
+	var rearTargetA = computeFoodSeekDir(400, 300, 380, 300, 1, 0, 0);
+	var rearTargetB = computeFoodSeekDir(400, 300, 380, 299.9, 1, 0, rearTargetA.turnSign);
+	assertTrue(rearTargetA.turnSign !== 0 && rearTargetB.angleDiff > 0 && rearTargetB.turn < 0,
+		'the fly keeps its chosen turning side when a rear food target crosses the angle seam');
 }
 
 function test_food_seek_strength_scales_with_hunger() {
@@ -628,6 +1990,799 @@ function test_food_seek_strength_scales_with_hunger() {
 
 	var r3 = computeFoodSeekDir(400, 300, 500, 200, 1.5, 0);
 	assertClose(r3.seekStrength, 1.0, 0.001, 'seekStrength clamped to 1.0 at hunger 1.5');
+}
+
+function test_food_seek_bounds_reversals_and_slows_while_turning_sharply() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalFood = food;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalFoodNearby = BRAIN.stimulate.foodNearby;
+	var originalHunger = BRAIN.drives.hunger;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'explore';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0;
+		food = [{ x: fly.x - 20, y: fly.y, radius: 10 }];
+		BRAIN.stimulate.foodNearby = true;
+		BRAIN.drives.hunger = 0.9;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		BRAIN.accumWalkLeft = 10;
+		BRAIN.accumWalkRight = 10;
+		BRAIN.accumHead = 0;
+		globalThis.speed = 0;
+
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		var firstTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertClose(Math.abs(firstTurn), FOOD_SEEK_MAX_TURN, 0.000001,
+			'a food target behind the fly is approached with a bounded turn, not a 180-degree snap');
+		assertTrue(globalThis.targetSpeed < 0.1,
+			'the fly eases its speed down while making a sharp food-seeking turn');
+
+		var turnSign = Math.sign(firstTurn);
+		for (var turnTick = 0; turnTick < 3; turnTick++) {
+			facingDir = globalThis.targetDir;
+			withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+			assertTrue(normalizeAngle(globalThis.targetDir - facingDir) * turnSign > 0,
+				'the target bearing keeps guiding the fly through the turn instead of making it reverse');
+		}
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		food = originalFood;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		BRAIN.stimulate.foodNearby = originalFoodNearby;
+		BRAIN.drives.hunger = originalHunger;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_motor_turn_offset_ignores_balanced_worker_noise() {
+	assertEqual(computeMotorTurnOffset(10.4, 9.6), 0,
+		'four-percent left/right jitter is below the steering dead zone');
+	assertEqual(computeMotorTurnOffset(10, 10), 0,
+		'balanced motor output does not rotate the fly');
+	assertTrue(computeMotorTurnOffset(15, 5) > 0,
+		'a clear left-side motor excess can still steer');
+	assertTrue(computeMotorTurnOffset(5, 15) < 0,
+		'a clear right-side motor excess can still steer in the opposite direction');
+}
+
+function test_walk_heading_settles_under_sustained_motor_bias() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'walk';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0.7;
+		globalThis.speed = 0;
+		BRAIN.accumleft = 10.4;
+		BRAIN.accumright = 9.6;
+		BRAIN.accumWalkLeft = 10.4;
+		BRAIN.accumWalkRight = 9.6;
+		BRAIN.accumHead = 0;
+		withMockedRandom(0.5, function () {
+			computeMovementForBehavior();
+		});
+		assertClose(normalizeAngle(globalThis.targetDir - facingDir), 0, 0.000001,
+			'balanced motor output has no directional bias');
+
+		BRAIN.accumleft = 15;
+		BRAIN.accumright = 5;
+		BRAIN.accumWalkLeft = 15;
+		BRAIN.accumWalkRight = 5;
+		BRAIN.accumHead = 10;
+		withMockedRandom(0.5, function () {
+			computeMovementForBehavior();
+		});
+		var firstCorrection = normalizeAngle(globalThis.targetDir - facingDir);
+		assertTrue(firstCorrection > 0 && firstCorrection < 0.13,
+			'a real motor asymmetry still makes a small, smooth turn');
+
+		for (var turnTick = 0; turnTick < 30; turnTick++) {
+			facingDir = globalThis.targetDir;
+			withMockedRandom(0.5, function () {
+				computeMovementForBehavior();
+			});
+		}
+		assertTrue(Math.abs(normalizeAngle(facingDir - 0.7)) < 0.5,
+			'a sustained one-sided signal cannot accumulate into a full circle');
+		var settledHeading = facingDir;
+		BRAIN.accumleft = 0;
+		BRAIN.accumright = 0;
+		BRAIN.accumWalkLeft = 0;
+		BRAIN.accumWalkRight = 0;
+		BRAIN.accumHead = 0;
+		withMockedRandom(0.5, function () {
+			computeMovementForBehavior();
+		});
+		assertClose(normalizeAngle(globalThis.targetDir - settledHeading), 0, 0.000001,
+			'when the motor signal clears, the fly holds its new heading instead of snapping back');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_walk_can_make_small_turns_with_balanced_leg_output() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'walk';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = -0.4;
+		globalThis.speed = 0;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		BRAIN.accumWalkLeft = 10;
+		BRAIN.accumWalkRight = 10;
+		BRAIN.accumHead = 0;
+		withMockedRandom(0.75, function () { computeMovementForBehavior(); });
+		assertTrue(normalizeAngle(globalThis.targetDir - facingDir) > 0,
+			'walk mode retains a gentle turn even when synthetic leg motors are symmetric');
+		facingDir = globalThis.targetDir;
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		withMockedRandom(0.25, function () { computeMovementForBehavior(); });
+		assertTrue(normalizeAngle(globalThis.targetDir - facingDir) < 0,
+			'the small walk turns are unbiased and can change direction naturally');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_explore_uses_small_relative_turns_not_absolute_heading_jumps() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalFoodNearby = BRAIN.stimulate.foodNearby;
+	var originalHunger = BRAIN.drives.hunger;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'explore';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0.5;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		BRAIN.accumWalkLeft = 10;
+		BRAIN.accumWalkRight = 10;
+		BRAIN.accumHead = 0;
+		BRAIN.stimulate.foodNearby = false;
+		BRAIN.drives.hunger = 0;
+		globalThis.speed = 0;
+
+		withMockedRandom(0.75, function () { computeMovementForBehavior(); });
+		var firstTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertTrue(firstTurn > 0 && firstTurn <= 0.08,
+			'exploration asks for a small turn relative to the current heading, not a new absolute direction');
+		for (var turnTick = 0; turnTick < 30; turnTick++) {
+			facingDir = globalThis.targetDir;
+			withMockedRandom(0.75, function () { computeMovementForBehavior(); });
+		}
+		assertTrue(Math.abs(normalizeAngle(facingDir - 0.5)) < 0.5,
+			'a persistent wander bias settles quickly rather than producing repeated spins');
+		assertTrue(Math.abs(normalizeAngle(globalThis.targetDir - facingDir)) < 0.001,
+			'the turn filter settles onto a new heading smoothly');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		BRAIN.stimulate.foodNearby = originalFoodNearby;
+		BRAIN.drives.hunger = originalHunger;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_exploration_turn_noise_is_smoothed_to_avoid_c_shaped_reversals() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalFoodNearby = BRAIN.stimulate.foodNearby;
+	var originalHunger = BRAIN.drives.hunger;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'explore';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		facingDir = 0.7;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		BRAIN.accumWalkLeft = 10;
+		BRAIN.accumWalkRight = 10;
+		BRAIN.accumHead = 0;
+		BRAIN.stimulate.foodNearby = false;
+		BRAIN.drives.hunger = 0;
+		globalThis.speed = 0;
+
+		var maxTurnStep = 0;
+		var totalTurnJitter = 0;
+		for (var turnTick = 0; turnTick < 12; turnTick++) {
+			withMockedRandom(turnTick % 2 === 0 ? 0.95 : 0.05, function () {
+				computeMovementForBehavior();
+			});
+			var turnStep = normalizeAngle(globalThis.targetDir - facingDir);
+			maxTurnStep = Math.max(maxTurnStep, Math.abs(turnStep));
+			totalTurnJitter += Math.abs(turnStep);
+			facingDir = globalThis.targetDir;
+		}
+		assertTrue(maxTurnStep < 0.05,
+			'alternating noisy motor ticks cannot snap the heading left and right');
+		assertTrue(totalTurnJitter < 0.5,
+			'smoothed exploration noise avoids a repeated C-shaped back-and-forth path');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		BRAIN.stimulate.foodNearby = originalFoodNearby;
+		BRAIN.drives.hunger = originalHunger;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_phototaxis_uses_global_light_without_point_target() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalFlyX = fly.x;
+	var originalFlyY = fly.y;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'phototaxis';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		BRAIN.accumleft = 0;
+		BRAIN.accumright = 0;
+		BRAIN.accumWalkLeft = 0;
+		BRAIN.accumWalkRight = 0;
+		BRAIN.accumHead = 0;
+		facingDir = 0.4;
+		fly.x = globalThis.innerWidth / 2;
+		fly.y = globalThis.innerHeight / 2;
+		globalThis.speed = 0;
+
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		var centerTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		var centerSpeed = globalThis.targetSpeed;
+		assertClose(centerTurn, 0, 1e-9,
+			'uniform ambient light does not make the fly steer toward the canvas center');
+		assertTrue(centerSpeed > 0,
+			'a global light response preserves locomotion instead of stopping at an invented source');
+
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		fly.x = globalThis.innerWidth / 2 + 150;
+		fly.y = globalThis.innerHeight / 2 - 80;
+		facingDir = 0.4;
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		assertClose(normalizeAngle(globalThis.targetDir - facingDir), 0, 1e-9,
+			'phototaxis heading is independent of the fly position because the light has no point location');
+		assertClose(globalThis.targetSpeed, centerSpeed, 1e-9,
+			'ambient-light locomotion speed does not depend on distance from the screen center');
+
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0.25;
+		fly.x = globalThis.innerWidth / 2 + 50;
+		fly.y = globalThis.innerHeight / 2;
+		var startX = fly.x;
+		var startY = fly.y;
+		var startRadius = Math.hypot(startX - globalThis.innerWidth / 2, startY - globalThis.innerHeight / 2);
+		facingDir = Math.PI / 2;
+		globalThis.speed = 0.25;
+		globalThis.targetDir = facingDir;
+		globalThis.targetSpeed = 0.25;
+		globalThis.speedChangeInterval = 0;
+		for (var tick = 0; tick < 10; tick++) {
+			withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+			for (var frame = 0; frame < 30; frame++) {
+				globalThis.speed += globalThis.speedChangeInterval;
+				if (globalThis.speed < 0) globalThis.speed = 0;
+				facingDir = normalizeAngle(facingDir + computeHeadingStep(facingDir, globalThis.targetDir, 0.82, 2.2, 1));
+				fly.x += Math.cos(facingDir) * globalThis.speed;
+				fly.y -= Math.sin(facingDir) * globalThis.speed;
+			}
+		}
+		var endRadius = Math.hypot(fly.x - globalThis.innerWidth / 2, fly.y - globalThis.innerHeight / 2);
+		assertClose(fly.x, startX, 1e-9,
+			'a neutral heading stays straight instead of curving around a virtual light source');
+		assertTrue(fly.y < startY && endRadius > startRadius,
+			'uniform photoreceptor activation does not pull the fly toward the screen center');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		facingDir = originalFacing;
+		fly.x = originalFlyX;
+		fly.y = originalFlyY;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_locomotion_speed_is_smoothed_and_capped() {
+	var originalState = behavior.current;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFoodSeekTurnSign = behavior.foodSeekTurnSign;
+	var originalTurnInputFiltered = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalWalkLeft = BRAIN.accumWalkLeft;
+	var originalWalkRight = BRAIN.accumWalkRight;
+	var originalHead = BRAIN.accumHead;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'walk';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		globalThis.speed = 0;
+		BRAIN.accumleft = 1000;
+		BRAIN.accumright = 1000;
+		BRAIN.accumWalkLeft = 1000;
+		BRAIN.accumWalkRight = 1000;
+		BRAIN.accumHead = 0;
+
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		var initialWalkSpeed = globalThis.targetSpeed;
+		assertTrue(initialWalkSpeed > 0 && initialWalkSpeed < 0.85,
+			'a sudden motor-output spike is ramped rather than applied as an instant dash');
+		for (var speedTick = 0; speedTick < 12; speedTick++) {
+			withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		}
+		assertTrue(globalThis.targetSpeed >= initialWalkSpeed && globalThis.targetSpeed <= 0.85,
+			'walking speed approaches its cap smoothly even when neural output is very high');
+		var cruisingSpeed = globalThis.targetSpeed;
+		BRAIN.accumleft = 0;
+		BRAIN.accumright = 0;
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		assertTrue(globalThis.targetSpeed > 0 && globalThis.targetSpeed < cruisingSpeed,
+			'speed also eases down instead of dropping in a single brain tick');
+
+		behavior.current = 'fly';
+		behavior.turnBiasBaseline = 0;
+		behavior.foodSeekTurnSign = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		globalThis.speed = 0;
+		BRAIN.accumleft = 1000;
+		BRAIN.accumright = 1000;
+		withMockedRandom(0.5, function () { computeMovementForBehavior(); });
+		assertTrue(globalThis.targetSpeed > 0 && globalThis.targetSpeed < 1.5,
+			'the takeoff speed is ramped instead of jumping immediately to its flight minimum');
+		assertTrue(globalThis.targetSpeed <= 2.4,
+			'flight speed has a natural upper bound');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.foodSeekTurnSign = originalFoodSeekTurnSign;
+		behavior.turnInputFiltered = originalTurnInputFiltered;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		BRAIN.accumWalkLeft = originalWalkLeft;
+		BRAIN.accumWalkRight = originalWalkRight;
+		BRAIN.accumHead = originalHead;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_flight_heading_ignores_random_noise_but_follows_motor_asymmetry() {
+	var originalState = behavior.current;
+	var originalFacing = facingDir;
+	var originalTurnBias = behavior.turnBiasBaseline;
+	var originalFilteredTurn = behavior.turnInputFiltered;
+	var originalSpeedCommand = behavior.locomotionSpeedCommand;
+	var originalAccumLeft = BRAIN.accumleft;
+	var originalAccumRight = BRAIN.accumright;
+	var originalSpeed = globalThis.speed;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	try {
+		behavior.current = 'fly';
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		behavior.locomotionSpeedCommand = 0;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 10;
+		facingDir = 0.4;
+		globalThis.speed = 1;
+		withMockedRandom(0.95, function () { computeMovementForBehavior(); });
+		var balancedTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertClose(balancedTurn, 0, 0.000001,
+			'balanced wing output holds a steady heading regardless of random samples');
+
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		BRAIN.accumleft = 24;
+		BRAIN.accumright = 10;
+		facingDir = 0.4;
+		withMockedRandom(0.95, function () { computeMovementForBehavior(); });
+		var rightTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertTrue(rightTurn > 0 && rightTurn < 0.05,
+			'positive motor asymmetry makes a small, smooth flight correction');
+
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 24;
+		facingDir = 0.4;
+		withMockedRandom(0.05, function () { computeMovementForBehavior(); });
+		var leftTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertTrue(leftTurn < 0 && leftTurn > -0.05,
+			'negative motor asymmetry steers smoothly in the opposite direction');
+	} finally {
+		behavior.current = originalState;
+		behavior.turnBiasBaseline = originalTurnBias;
+		behavior.turnInputFiltered = originalFilteredTurn;
+		behavior.locomotionSpeedCommand = originalSpeedCommand;
+		BRAIN.accumleft = originalAccumLeft;
+		BRAIN.accumright = originalAccumRight;
+		facingDir = originalFacing;
+		globalThis.speed = originalSpeed;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_flight_bursts_land_and_cool_down_under_persistent_wing_output() {
+	resetBrainState();
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - FLIGHT_MAX_DURATION_MS - 10;
+	behavior.cooldowns = {};
+	BRAIN.accumFlight = 100;
+	BRAIN.accumWalkLeft = 0;
+	BRAIN.accumWalkRight = 0;
+	BRAIN.accumStartle = 0;
+	BRAIN.accumFeed = 0;
+	BRAIN.accumGroom = 0;
+	BRAIN.drives.curiosity = 0;
+	BRAIN.drives.fatigue = 0;
+	BRAIN.stimulate.lightLevel = 0;
+	BRAIN.stimulate.wind = false;
+	BRAIN.stimulate.foodNearby = false;
+
+	updateBehaviorState();
+	assertEqual(behavior.current, 'idle',
+		'a sustained flight accumulator cannot hold the fly in a permanent airborne buzz');
+	assertTrue(behavior.cooldowns.fly > Date.now(), 'landing starts a rest interval before another flight burst');
+
+	updateBehaviorState();
+	assertEqual(behavior.current, 'idle', 'a persistent spike respects the flight cooldown after landing');
+
+	behavior.cooldowns.fly = Date.now() - 1;
+	updateBehaviorState();
+	assertEqual(behavior.current, 'fly', 'a later flight burst remains possible once the cooldown expires');
+}
+
+function test_heading_turn_rate_caps_flight_and_startle_without_angle_seam_jumps() {
+	var flightStep = computeHeadingStep(0, Math.PI, 0.65, 2.6, 1);
+	assertClose(flightStep, 2.6 / 60, 0.000001,
+		'a large flight command is capped to the configured angular speed per 60 Hz frame');
+
+	var startleStep = computeHeadingStep(0, Math.PI, 0.25, 10.5, 1);
+	assertClose(startleStep, 10.5 / 60, 0.000001,
+		'startle may turn faster but still cannot snap the body to its escape heading');
+
+	var smallCorrection = computeHeadingStep(0, 0.05, 0.9, 2.4, 1);
+	assertClose(smallCorrection, 0.005, 0.000001,
+		'small corrections retain a gentle eased response below the angular-rate cap');
+
+	var seamCorrection = computeHeadingStep(Math.PI - 0.05, -Math.PI + 0.05, 0.5, 6, 1);
+	assertClose(seamCorrection, 0.05, 0.000001,
+		'heading interpolation takes the short path across the plus/minus pi seam');
+	assertClose(computeHeadingStep(0, 1, 0.5, 6, 0), 0, 0.000001,
+		'zero elapsed time cannot change the heading');
+}
+
+function test_startle_burst_sprints_then_recovers_without_snapping_heading() {
+	var originalState = behavior.current;
+	var originalPhase = behavior.startlePhase;
+	var originalFreezeEnd = behavior.startleFreezeEnd;
+	var originalBurstEnd = behavior.startleBurstEnd;
+	var originalBurstDir = behavior.burstDir;
+	var originalFacing = facingDir;
+	var originalTargetDir = globalThis.targetDir;
+	var originalTargetSpeed = globalThis.targetSpeed;
+	var originalSpeed = globalThis.speed;
+	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
+	var initialHeading = 0.25;
+	var escapeHeading = normalizeAngle(initialHeading + Math.PI);
+	try {
+		behavior.current = 'startle';
+		behavior.startlePhase = 'freeze';
+		behavior.startleFreezeEnd = 0;
+		behavior.startleBurstEnd = 0;
+		behavior.burstDir = escapeHeading;
+		facingDir = initialHeading;
+		globalThis.targetDir = initialHeading;
+		globalThis.speed = 0.7;
+		withMockedRandom(0.5, function () { applyBehaviorMovement(1); });
+
+		assertEqual(behavior.startlePhase, 'orient', 'the short pause transitions to an in-place escape turn');
+		assertClose(globalThis.speed, 0, 0.000001,
+			'the fly does not translate while its body turns toward the escape vector');
+		assertClose(facingDir, initialHeading, 0.000001,
+			'the escape direction is a target, not a direct rendered-heading assignment');
+		assertClose(normalizeAngle(globalThis.targetDir - escapeHeading), 0, 0.000001,
+			'the orienting phase keeps the selected escape direction');
+
+		var turnFrames = 0;
+		while (behavior.startlePhase === 'orient' && turnFrames < 60) {
+			applyBehaviorMovement(1);
+			if (tryBeginStartleBurst(behavior, facingDir, globalThis.targetDir, Date.now())) {
+				globalThis.speed = 3.0;
+				globalThis.targetSpeed = 3.0;
+				globalThis.speedChangeInterval = 0;
+			} else {
+				assertClose(globalThis.speed, 0, 0.000001,
+					'turning in place prevents the old near-circular escape path');
+			}
+			facingDir = normalizeAngle(facingDir + computeHeadingStep(
+				facingDir, globalThis.targetDir, 0.25, 10.5, 1
+			));
+			turnFrames++;
+		}
+		assertEqual(behavior.startlePhase, 'burst', 'the sprint begins once the body is aligned');
+		assertTrue(turnFrames > 0 && turnFrames < 60, 'the fast, rate-limited turn completes promptly');
+		assertTrue(Math.abs(normalizeAngle(facingDir - escapeHeading)) <= 0.28,
+			'the fly is already facing its escape vector when it starts translating');
+		assertClose(globalThis.speed, 3.0, 0.000001, 'the escape launches at brisk running speed');
+		assertClose(globalThis.targetSpeed, 3.0, 0.000001, 'the short sprint holds its fast target speed');
+		assertClose(globalThis.speedChangeInterval, 0, 0.000001, 'the sprint launch is not immediately damped');
+		assertTrue(behavior.startleBurstEnd > Date.now(), 'the sprint target stays active for a short burst');
+
+		var movementX = Math.cos(facingDir);
+		var movementY = -Math.sin(facingDir);
+		var escapeX = Math.cos(escapeHeading);
+		var escapeY = -Math.sin(escapeHeading);
+		assertTrue(movementX * escapeX + movementY * escapeY > 0.96,
+			'the first fast movement is a direct escape, not an orbit around the fly');
+
+		behavior.startleBurstEnd = Date.now() - 1;
+		globalThis.speed = 3.0;
+		applyBehaviorMovement(1);
+		assertClose(globalThis.targetSpeed, 0.9, 0.000001, 'the sprint eases into a short recovery run');
+		assertTrue(globalThis.speedChangeInterval < 0, 'recovery decelerates gradually rather than cutting the run off');
+	} finally {
+		behavior.current = originalState;
+		behavior.startlePhase = originalPhase;
+		behavior.startleFreezeEnd = originalFreezeEnd;
+		behavior.startleBurstEnd = originalBurstEnd;
+		behavior.burstDir = originalBurstDir;
+		facingDir = originalFacing;
+		globalThis.targetDir = originalTargetDir;
+		globalThis.targetSpeed = originalTargetSpeed;
+		globalThis.speed = originalSpeed;
+		globalThis.speedChangeInterval = originalSpeedChangeInterval;
+	}
+}
+
+function test_startle_orientation_uses_the_final_wall_adjusted_heading() {
+	var state = { current: 'startle', startlePhase: 'orient', startleBurstEnd: 0 };
+	var now = 10000;
+	var facingAwayFromWall = 2.65;
+	var originalEscapeHeading = Math.PI;
+
+	assertTrue(!tryBeginStartleBurst(state, facingAwayFromWall, originalEscapeHeading, now),
+		'the burst cannot launch while the body is misaligned with the original wall-bound vector');
+	assertEqual(state.startlePhase, 'orient', 'a misaligned heading keeps the fly stationary and turning');
+	assertTrue(tryBeginStartleBurst(state, facingAwayFromWall, facingAwayFromWall, now),
+		'the edge-adjusted inward heading can complete orientation instead of deadlocking');
+	assertEqual(state.startlePhase, 'burst', 'an aligned wall-avoidance turn starts the sprint');
+	assertEqual(state.startleBurstEnd, now + STARTLE_BURST_DURATION_MS,
+		'the escape sprint keeps its short, bounded duration');
+}
+
+function test_startle_recovery_keeps_exploring_until_a_real_rest_state() {
+	resetBrainState();
+	behavior.current = 'startle';
+	behavior.enterTime = Date.now() - 1000;
+	behavior.startlePhase = 'burst';
+	behavior.startleRecovery = false;
+	behavior.cooldowns = {};
+	BRAIN.accumStartle = 0;
+	BRAIN.accumFlight = 0;
+	BRAIN.accumWalkLeft = 0;
+	BRAIN.accumWalkRight = 0;
+	BRAIN.accumleft = 0;
+	BRAIN.accumright = 0;
+	BRAIN.drives.curiosity = 0;
+	BRAIN.drives.fatigue = 0;
+	BRAIN.stimulate.lightLevel = 0;
+	BRAIN.stimulate.wind = false;
+
+	updateBehaviorState();
+	assertEqual(behavior.current, 'explore',
+		'after the escape, absent walk spikes do not dump the fly into stationary idle');
+	assertTrue(behavior.startleRecovery && BRAIN._isMoving,
+		'the original-style post-contact recovery keeps a low locomotion program active');
+	computeMovementForBehavior();
+	assertTrue(globalThis.targetSpeed > 0,
+		'the fallback exploration state has a non-zero speed floor even without motor spikes');
+
+	behavior.enterTime = Date.now() - BEHAVIOR_MIN_DURATION.explore - 1;
+	updateBehaviorState();
+	assertEqual(behavior.current, 'explore',
+		'the recovery latch survives later quiet neural ticks instead of freezing at a point');
+
+	BRAIN.drives.fatigue = 0.9;
+	behavior.enterTime = Date.now() - BEHAVIOR_MIN_DURATION.explore - 1;
+	updateBehaviorState();
+	assertEqual(behavior.current, 'rest', 'a genuine fatigue/rest response can still end recovery');
+	assertTrue(!behavior.startleRecovery, 'intentional rest clears the escape recovery latch');
 }
 
 function test_feed_approach_speed_constant() {
@@ -658,7 +2813,7 @@ function test_feed_entry_hunger_bypass_requires_high_hunger() {
 	assertTrue(state !== 'feed', 'no feed entry when hunger <= 0.7 and accumFeed < 8');
 }
 
-function test_feed_entry_neural_pathway_requires_20px() {
+function test_feed_entry_neural_pathway_requires_food_within_50px() {
 	resetBrainState();
 	BRAIN.accumFeed = 10;
 	BRAIN.drives.hunger = 0.3;
@@ -1157,10 +3312,9 @@ var test_bridge_stim_touch_maps_bristle = function () {
 	assertEqual(count, 1, 'touch without location produces 1 MECH_BRISTLE segment');
 };
 
-var test_bridge_stim_touch_head_double = function () {
+var test_bridge_stim_touch_head_and_thorax_double = function () {
 	resetBrainState();
 	BRAIN.stimulate.touch = true;
-	BRAIN.stimulate.touchLocation = 'head';
 	BRAIN.drives.hunger = 0; BRAIN.drives.fear = 0; BRAIN.drives.fatigue = 0;
 	BRAIN.drives.curiosity = 0; BRAIN.drives.groom = 0;
 	BRAIN.stimulate.lightLevel = 0;
@@ -1169,12 +3323,16 @@ var test_bridge_stim_touch_head_double = function () {
 	BRAIN.stimulate.temperature = 0.5;
 	BRAIN._isMoving = false;
 
-	var segs = BRAIN._bridge.collectStimulationSegments();
-	var count = 0;
-	for (var i = 0; i < segs.length; i++) {
-		if (segs[i].name === 'MECH_BRISTLE') count++;
+	var locations = ['head', 'thorax', 'cabeza', 'torax'];
+	for (var l = 0; l < locations.length; l++) {
+		BRAIN.stimulate.touchLocation = locations[l];
+		var segs = BRAIN._bridge.collectStimulationSegments();
+		var count = 0;
+		for (var i = 0; i < segs.length; i++) {
+			if (segs[i].name === 'MECH_BRISTLE') count++;
+		}
+		assertEqual(count, 2, 'touch on ' + locations[l] + ' produces double MECH_BRISTLE');
 	}
-	assertEqual(count, 2, 'touch on head produces double MECH_BRISTLE');
 };
 
 var test_bridge_stim_food_maps_olf = function () {
@@ -1274,6 +3432,27 @@ var test_bridge_stim_noci_intensity_and_clear = function () {
 	var SI = BRAIN._bridge.STIM_INTENSITY;
 	assertClose(nociSeg.intensity, SI * 5, 0.001, 'NOCI intensity is 5x STIM_INTENSITY');
 	assertEqual(BRAIN.stimulate.nociception, false, 'nociception auto-clears after collection');
+};
+
+var test_bridge_empty_noci_uses_tactile_proxy_and_virtual_escape_drive = function () {
+	resetBrainState();
+	var names = ['MECH_BRISTLE', 'NOCI'];
+	BRAIN._bridge._setGroupState(2, 2, new Uint16Array([0, 0]), [2, 0], names);
+	BRAIN._bridge.buildGroupIndices();
+
+	var proxyIndices = BRAIN._bridge.resolveOneShotIndices('NOCI');
+	assertTrue(proxyIndices && proxyIndices.length === 2,
+		'empty NOCI resolves to the two available tactile bristle neurons');
+	assertEqual(proxyIndices[0], 0, 'nociception tactile proxy begins at the real sensory indices');
+	assertEqual(proxyIndices[1], 1, 'nociception tactile proxy includes the complete group');
+
+	BRAIN.drives.fear = 0;
+	BRAIN.stimulate.nociception = true;
+	BRAIN._bridge.sendOneShotStimuli();
+	assertEqual(BRAIN.stimulate.nociception, false,
+		'the one-shot pain event is still consumed exactly once');
+	assertTrue(BRAIN.drives.fear >= 0.85,
+		'an empty labeled NOCI group raises the virtual escape drive instead of dropping pain');
 };
 
 var test_bridge_stim_noci_not_in_sustained = function () {

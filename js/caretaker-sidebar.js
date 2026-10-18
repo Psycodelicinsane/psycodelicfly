@@ -64,7 +64,7 @@
 
   function formatTime(isoString) {
     var d = new Date(isoString);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
   function getColorClass(kind, action, severity) {
@@ -86,23 +86,23 @@
     try {
       p = typeof params === 'string' ? JSON.parse(params) : (params || {});
     } catch (e) {
-      return action;
+      return 'Otra acción';
     }
     switch (action) {
       case 'place_food':
-        return 'Placed food at (' + Math.round(p.x) + ', ' + Math.round(p.y) + ')';
+        return 'Se ha colocado comida en (' + Math.round(p.x) + ', ' + Math.round(p.y) + ').';
       case 'clear_food':
-        return 'Cleared all food';
+        return 'Se ha retirado toda la comida.';
       case 'set_light':
-        return 'Set light to ' + (p.level || 'unknown');
+        return 'La luz se ha ajustado a ' + ({bright:'brillante',dim:'tenue',dark:'oscura'}[p.level] || p.level || 'desconocida') + '.';
       case 'set_temp':
-        return 'Set temp to ' + (p.level || 'unknown');
+        return 'La temperatura se ha ajustado a ' + ({neutral:'neutra',warm:'cálida',cool:'fría'}[p.level] || p.level || 'desconocida') + '.';
       case 'touch':
-        return 'Touched fly at (' + Math.round(p.x || 0) + ', ' + Math.round(p.y || 0) + ')';
+        return 'Se ha tocado la mosca en (' + Math.round(p.x || 0) + ', ' + Math.round(p.y || 0) + ').';
       case 'blow_wind':
-        return 'Blew wind (strength ' + (p.strength || 0.5).toFixed(1) + ')';
+        return 'Se ha soplado aire con una intensidad de ' + (p.strength || 0.5).toLocaleString('es-ES', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + '.';
       default:
-        return action;
+        return 'Otra acción';
     }
   }
 
@@ -161,10 +161,24 @@
     feedList.scrollTop = 0;
   }
 
-  function toggle() {
+  function open() {
     if (sidebar === null) return false;
-    sidebar.classList.toggle('sidebar-open');
-    return sidebar.classList.contains('sidebar-open');
+    sidebar.classList.add('sidebar-open');
+    return true;
+  }
+
+  function close() {
+    if (sidebar === null) return false;
+    sidebar.classList.remove('sidebar-open');
+    return true;
+  }
+
+  function toggle() {
+    if (isOpen()) {
+      close();
+      return false;
+    }
+    return open();
   }
 
   function isOpen() {
@@ -173,7 +187,7 @@
 
   function formatChatTime(isoString) {
     var d = new Date(isoString);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   }
 
   function escapeHtml(str) {
@@ -201,7 +215,7 @@
     chatEnviarBtn.disabled = true;
     var loadingEl = document.createElement('div');
     loadingEl.className = 'chat-loading';
-    loadingEl.textContent = 'Thinking';
+    loadingEl.textContent = 'Pensando';
     chatHistory.appendChild(loadingEl);
     chatHistory.scrollTop = chatHistory.scrollHeight;
     var body = JSON.stringify({ message: msg, context: null });
@@ -210,7 +224,7 @@
       .then(function(data) {
         if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
         if (data.error) {
-          appendChatMessage('assistant', data.error, new Date().toISOString(), true);
+          appendChatMessage('assistant', 'No se pudo procesar la pregunta. Inténtalo de nuevo.', new Date().toISOString(), true);
         } else {
           appendChatMessage('assistant', data.message, data.timestamp, false);
         }
@@ -220,7 +234,7 @@
       })
       .catch(function(err) {
         if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
-        appendChatMessage('assistant', 'Error de conexión: ' + err.message, new Date().toISOString(), true);
+        appendChatMessage('assistant', 'No se pudo conectar con el servicio de asistencia. Revisa la conexión e inténtalo de nuevo.', new Date().toISOString(), true);
         chatLoading = false;
         chatEnviarBtn.disabled = false;
       });
@@ -248,6 +262,8 @@
     onAction: onAction,
     onIncident: onIncident,
     onHistory: onHistory,
+    open: open,
+    close: close,
     toggle: toggle,
     isOpen: isOpen,
     loadChatHistory: loadChatHistory
