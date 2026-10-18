@@ -85,12 +85,13 @@
 	var pendingGroupSpikes = null; // Float32Array[groupCount] accumulated since last brain tick
 	var pendingWorkerTicks = 0;
 	var pendingDriveFrames = 0;  // brain ticks since last updateDrives (for batched catch-up)
+	var virtualNociceptionTicks = 0; // brief synthetic escape drive when FlyWire has no NOCI group
 
 	/* ---- initialization ---- */
 
 	function initBridge() {
-		var metaUrl = 'data/neuron_meta.json';
-		var binUrl = 'data/connectome.bin.gz';
+		var metaUrl = 'data/neuron_meta.json?v=20261018';
+		var binUrl = 'data/connectome.bin.gz?v=20261018';
 		var subtitle = document.getElementById('connectomeSubtitle');
 		if (subtitle) {
 			subtitle.textContent = 'Cargando conectoma...';
@@ -378,6 +379,10 @@
 				BRAIN.updateDrives();
 			}
 			pendingDriveFrames = 0;
+			if (virtualNociceptionTicks > 0) {
+				BRAIN.drives.fear = Math.max(BRAIN.drives.fear || 0, 0.85);
+				virtualNociceptionTicks--;
+			}
 
 			// Send sustained stimulation state to worker
 			sendStimulation();
@@ -425,6 +430,7 @@
 	function collectStimulationSegments() {
 		var segs = [];
 		var d = BRAIN.drives;
+		var visualLightLevel = Number(BRAIN.stimulate.lightLevel) || 0;
 
 		// Drive stimulation
 		if (d.hunger > 0.2) {
@@ -467,9 +473,9 @@
 		if (BRAIN.stimulate.wind) {
 			segs.push({name: 'MECH_JO', intensity: STIM_INTENSITY * BRAIN.stimulate.windStrength});
 		}
-		if (BRAIN.stimulate.lightLevel > 0.2) {
-			segs.push({name: 'VIS_R1R6', intensity: STIM_INTENSITY * BRAIN.stimulate.lightLevel});
-			segs.push({name: 'VIS_R7R8', intensity: STIM_INTENSITY * BRAIN.stimulate.lightLevel * 0.7});
+		if (visualLightLevel > 0.2) {
+			segs.push({name: 'VIS_R1R6', intensity: STIM_INTENSITY * visualLightLevel});
+			segs.push({name: 'VIS_R7R8', intensity: STIM_INTENSITY * visualLightLevel * 0.7});
 		}
 		if (BRAIN.stimulate.temperature > 0.65) {
 			var warmIntensity = (BRAIN.stimulate.temperature - 0.5) * 2;
@@ -481,7 +487,7 @@
 		if (BRAIN._isMoving) {
 			segs.push({name: 'MECH_CHORD', intensity: STIM_INTENSITY});
 		}
-		if (BRAIN.stimulate.lightLevel > 0.1 && BRAIN._isMoving) {
+		if (visualLightLevel > 0.1 && BRAIN._isMoving) {
 			segs.push({name: 'VIS_LPTC', intensity: STIM_INTENSITY * 0.3});
 		}
 
@@ -494,14 +500,42 @@
 		return segs;
 	}
 
+	function resolveOneShotIndices(name) {
+		var gid = groupNameToId[name];
+		var idx = gid === undefined || !groupIndices ? null : groupIndices[gid];
+		if (idx && idx.length > 0) return idx;
+
+		// The FlyWire labels supplied here do not identify a nociceptor class,
+		// leaving NOCI empty. Preserve a real sensory input by proxying the pulse
+		// through tactile bristle neurons; the escape drive is synthesized below.
+		if (name === 'NOCI') {
+			var tactileId = groupNameToId.MECH_BRISTLE;
+			var tactileIndices = tactileId === undefined || !groupIndices
+				? null : groupIndices[tactileId];
+			if (tactileIndices && tactileIndices.length > 0) return tactileIndices;
+		}
+		return null;
+	}
+
 	function sendOneShotStimuli() {
 		var segs = collectOneShotSegments();
-		if (!worker || segs.length === 0) return;
+		if (segs.length === 0) return;
+
 		for (var s = 0; s < segs.length; s++) {
-			var gid = groupNameToId[segs[s].name];
-			if (gid === undefined) continue;
-			var idx = groupIndices[gid];
-			if (!idx || idx.length === 0) continue;
+			var nociId = groupNameToId.NOCI;
+			var nociIndices = nociId === undefined || !groupIndices ? null : groupIndices[nociId];
+			if (segs[s].name === 'NOCI' && (!nociIndices || nociIndices.length === 0)) {
+				// This short-lived virtual pathway is needed because NOCI has no
+				// labeled FlyWire neurons in the current classification.
+				BRAIN.drives.fear = Math.max(BRAIN.drives.fear || 0, 0.85);
+				if (worker) virtualNociceptionTicks = Math.max(virtualNociceptionTicks, 4);
+			}
+		}
+		if (!worker) return;
+
+		for (var s = 0; s < segs.length; s++) {
+			var idx = resolveOneShotIndices(segs[s].name);
+			if (!idx) continue;
 			var intensities = new Float32Array(idx.length);
 			for (var k = 0; k < idx.length; k++) {
 				intensities[k] = segs[s].intensity;
@@ -619,6 +653,8 @@
 			buildGroupIndices: buildGroupIndices,
 			collectStimulationSegments: collectStimulationSegments,
 			collectOneShotSegments: collectOneShotSegments,
+			resolveOneShotIndices: resolveOneShotIndices,
+			sendOneShotStimuli: sendOneShotStimuli,
 			workerUpdate: workerUpdate,
 			FIRE_STATE_SCALE: FIRE_STATE_SCALE,
 			MOTOR_SCALE: MOTOR_SCALE,

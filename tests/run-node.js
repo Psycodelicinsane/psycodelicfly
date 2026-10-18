@@ -47,6 +47,8 @@ var behaviorConstantsStart = mainSource.indexOf('// Minimum time (ms) the fly mu
 var behaviorConstantsEnd = mainSource.indexOf('// The behavior state object', behaviorConstantsStart);
 var behaviorStateStart = mainSource.indexOf('function updateBehaviorState() {');
 var behaviorStateEnd = mainSource.indexOf('\nfunction filterPersistentTurn', behaviorStateStart);
+var canvasMouseStart = mainSource.indexOf('function handleCanvasMousedown(event) {');
+var canvasMouseEnd = mainSource.indexOf('\nfunction handleCanvasMousemove', canvasMouseStart);
 var touchStart = mainSource.indexOf('function applyTouchTool(cx, cy) {');
 var touchEnd = mainSource.indexOf('\n/**\n * Returns the nearest food item', touchStart);
 var mouthRangeStart = mainSource.indexOf('function getFoodProboscisCoordinates(item) {');
@@ -82,7 +84,7 @@ var foodRendererEnd = mainSource.indexOf('\n/**\n * Draws expanding ripple effec
 var lightingStart = mainSource.indexOf('function getFlyLightingFilter()');
 var lightingEnd = mainSource.indexOf('/**\n * Draws the complete fly body', lightingStart);
 if (behaviorConstantsStart < 0 || behaviorConstantsEnd < 0 || behaviorStateStart < 0 || behaviorStateEnd < 0 ||
-	touchStart < 0 || touchEnd < 0 || mouthRangeStart < 0 || mouthRangeEnd < 0 ||
+	canvasMouseStart < 0 || canvasMouseEnd < 0 || touchStart < 0 || touchEnd < 0 || mouthRangeStart < 0 || mouthRangeEnd < 0 ||
 	animBehaviorStart < 0 || animBehaviorEnd < 0 || movementBehaviorStart < 0 || movementBehaviorEnd < 0 ||
 	cameraStart < 0 || cameraEnd < 0 ||
 	wingPoseStart < 0 || wingPoseEnd < 0 || behaviorDescriptionStart < 0 || behaviorDescriptionEnd < 0 ||
@@ -101,8 +103,29 @@ global.zoomLevel = 1;
 global.panX = 0;
 global.panY = 0;
 global.getLayoutBounds = function () { return { top: 44, bottom: 550, left: 0, right: 800 }; };
+global.screenToWorld = function (x, y) { return { x: x, y: y }; };
+var activeToolMatch = mainSource.match(/\bvar\s+activeTool\s*=\s*['"]([^'"]+)['"]/);
+if (!activeToolMatch) throw new Error('Could not find the default active tool in main.js');
+global.activeTool = activeToolMatch[1];
+var indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+var itemsMenuMatch = indexSource.match(/<div class="toolbar-dropdown-menu" role="group" aria-label="Herramientas de interacción">([\s\S]*?)<\/div>/);
+var activeItemsButtonMatch = itemsMenuMatch && itemsMenuMatch[1].match(/<button\b(?=[^>]*\bclass="[^"]*\bactive\b[^"]*")([^>]*)>([\s\S]*?)<\/button>/);
+var activeItemsToolMatch = activeItemsButtonMatch && activeItemsButtonMatch[1].match(/\bdata-tool="([^"]+)"/);
+var itemsLabelMatch = indexSource.match(/<span id="itemsActiveLabel"[^>]*>([^<]+)<\/span>/);
+if (!activeItemsToolMatch || !itemsLabelMatch) throw new Error('Could not find the default Items selection in index.html');
+global.__toolbarDefaultTool = activeItemsToolMatch[1];
+global.__toolbarDefaultLabel = itemsLabelMatch[1].trim();
+global.dragStart = { x: 0, y: 0 };
+global.isDragging = false;
+global.dragToolOrigin = null;
+global.windResetTime = 0;
 global.touchResetTime = 0;
 global.touchTimestamps = [];
+global.ripples = [];
+global.speed = 0;
+global.targetSpeed = 0;
+global.targetDir = 0;
+global.speedChangeInterval = 0;
 global.BODY = {
 	legCoxaLength: 2.1, legTrochanterLength: 0.9, legFemurLength: 5.0,
 	legTarsomereLengths: [1.35, 1.2, 1.05, 0.95, 0.75], legPretarsusLength: 0.7,
@@ -146,6 +169,7 @@ global.ctx = new Proxy({}, {
 	set: function () { return true; },
 });
 vm.runInThisContext(mainSource.slice(touchStart, touchEnd), { filename: 'js/main.js#applyTouchTool' });
+vm.runInThisContext(mainSource.slice(canvasMouseStart, canvasMouseEnd), { filename: 'js/main.js#canvasInteraction' });
 vm.runInThisContext(mainSource.slice(mouthRangeStart, mouthRangeEnd), { filename: 'js/main.js#foodContactDistance' });
 vm.runInThisContext(mainSource.slice(animBehaviorStart, animBehaviorEnd), { filename: 'js/main.js#behaviorAnimation' });
 vm.runInThisContext(mainSource.slice(movementBehaviorStart, movementBehaviorEnd), { filename: 'js/main.js#behaviorMovement' });

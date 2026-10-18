@@ -14,6 +14,18 @@ function normalizeAngle(a) {
 	return a;
 }
 
+var FLY_TOUCH_HIT_RADIUS = 50;
+var AIRBORNE_TOUCH_HIT_RADIUS = 64;
+
+/** Include the expanded wings in the direct-touch target while airborne. */
+function isFlyTouchHit(x, y, flyX, flyY, state) {
+	x = Number(x); y = Number(y); flyX = Number(flyX); flyY = Number(flyY);
+	if (!isFinite(x) || !isFinite(y) || !isFinite(flyX) || !isFinite(flyY)) return false;
+	var radius = state === 'fly' || state === 'startle'
+		? AIRBORNE_TOUCH_HIT_RADIUS : FLY_TOUCH_HIT_RADIUS;
+	return Math.hypot(x - flyX, y - flyY) <= radius;
+}
+
 /**
  * Advance the fly's heading toward a target without exceeding a physical
  * angular rate. `dtScale` is measured in 60 Hz frames, so the cap is stable
@@ -36,6 +48,22 @@ function computeHeadingStep(currentDir, targetDir, turnRetention, maxTurnRate, d
 	var easedStep = angleDiff * (1 - Math.pow(turnRetention, dtScale));
 	var maxStep = maxTurnRate * dtScale / 60;
 	return Math.max(-maxStep, Math.min(maxStep, easedStep));
+}
+
+var STARTLE_ALIGN_TOLERANCE = 0.28;
+var STARTLE_BURST_DURATION_MS = 420;
+
+/** Start the escape only after the body faces the steering target actually used this frame. */
+function tryBeginStartleBurst(behaviorState, currentDir, steeringDir, now) {
+	if (!behaviorState || behaviorState.current !== 'startle' || behaviorState.startlePhase !== 'orient') {
+		return false;
+	}
+	var headingError = Math.abs(normalizeAngle(Number(steeringDir) - Number(currentDir)));
+	if (!isFinite(headingError) || headingError > STARTLE_ALIGN_TOLERANCE) return false;
+	var startTime = typeof now === 'number' && isFinite(now) ? now : Date.now();
+	behaviorState.startlePhase = 'burst';
+	behaviorState.startleBurstEnd = startTime + STARTLE_BURST_DURATION_MS;
+	return true;
 }
 
 // Accumulator thresholds for entering each behavior state
@@ -75,14 +103,15 @@ function hasNearbyFood() {
  * Priority order (highest first): startle, fly, feed, groom, brace, rest, phototaxis, explore, walk, idle.
  * Requires globals `BRAIN`, `behavior`, `food`, `fly`.
  */
-function evaluateBehaviorEntry() {
+function evaluateBehaviorEntry(options) {
 	var now = Date.now();
 	var totalWalk = BRAIN.accumWalkLeft + BRAIN.accumWalkRight;
+	var ignoreFlight = options && options.ignoreFlight === true;
 
 	if (BRAIN.accumStartle > BEHAVIOR_THRESHOLDS.startle && !isCoolingDown('startle', now)) {
 		return 'startle';
 	}
-	if (BRAIN.accumFlight > BEHAVIOR_THRESHOLDS.fly && !isCoolingDown('fly', now)) {
+	if (!ignoreFlight && BRAIN.accumFlight > BEHAVIOR_THRESHOLDS.fly && !isCoolingDown('fly', now)) {
 		return 'fly';
 	}
 	var feedReady = BRAIN.accumFeed > BEHAVIOR_THRESHOLDS.feed ||
@@ -101,7 +130,8 @@ function evaluateBehaviorEntry() {
 	if (BRAIN.drives.fatigue > restThreshold) {
 		return 'rest';
 	}
-	if (BRAIN.stimulate.lightLevel > BEHAVIOR_THRESHOLDS.phototaxisLight &&
+	var perceivedLight = Number(BRAIN.stimulate.lightLevel) || 0;
+	if (perceivedLight > BEHAVIOR_THRESHOLDS.phototaxisLight &&
 		BRAIN.drives.curiosity > 0.2 && totalWalk > 3) {
 		return 'phototaxis';
 	}

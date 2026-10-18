@@ -143,11 +143,15 @@ var BEHAVIOR_MIN_DURATION = {
 // Cooldown (ms) after exiting a state before it can be re-entered
 var BEHAVIOR_COOLDOWN = {
 	startle: 2000,
-	fly: 1000,
+	fly: 2500,
 	groom: 3000,
 	feed: 1000,
 	brace: 1000,
 };
+
+// Keep flight as a short, controlled burst so persistent wing activity cannot
+// hold the fly in an erratic airborne state indefinitely.
+var FLIGHT_MAX_DURATION_MS = 1500;
 
 // The behavior state object
 var behavior = {
@@ -157,7 +161,10 @@ var behavior = {
 	startlePhase: 'none',
 	startleFreezeEnd: 0,
 	startleBurstEnd: 0,
+	startleRecovery: false,
 	touchEscapePending: false,
+	touchGroomPending: false,
+	touchEscapeDir: null,
 	groomLocation: null,
 	burstDir: 0,
 	turnBiasBaseline: 0,
@@ -180,12 +187,14 @@ function describeFlyBehavior(state, groomLocation) {
 		}[groomLocation] || 'el tórax';
 		return 'Se limpia ' + bodyPart + '.';
 	}
+	if (state === 'phototaxis') {
+		return 'Responde a la iluminación ambiental uniforme.';
+	}
 	return {
 		idle: 'Permanece quieta.',
 		feed: 'Se alimenta.',
 		walk: 'Camina.',
 		explore: 'Explora el entorno.',
-		phototaxis: 'Responde a la iluminación ambiental.',
 		rest: 'Descansa.',
 		startle: 'Se sobresalta y huye.',
 		fly: 'Vuela.',
@@ -230,7 +239,7 @@ function recordFlyBehavior(state) {
 recordFlyActivity('La mosca está lista para explorar.', 'system');
 
 // --- Tool state ---
-var activeTool = 'feed';
+var activeTool = 'touch';
 var isDragging = false;
 var dragStart = { x: 0, y: 0 };
 var canvasTouchActive = false;
@@ -491,25 +500,88 @@ document.getElementById('nodeHolder').addEventListener('mouseout', function (e) 
 	}
 });
 
-// --- Tool button handlers ---
+// --- Tool menus and button handlers ---
 var toolButtons = document.querySelectorAll('.tool-btn[data-tool]');
+var toolbarDropdowns = document.querySelectorAll('.toolbar-dropdown');
+var itemsDropdown = document.getElementById('itemsDropdown');
+var itemsActiveLabel = document.getElementById('itemsActiveLabel');
+if (itemsDropdown) itemsDropdown.setAttribute('data-selected', 'true');
+
+function closeToolbarDropdown(dropdown) {
+	if (dropdown && dropdown.open) dropdown.open = false;
+}
+
+function positionToolbarDropdown(dropdown) {
+	if (!dropdown || !dropdown.open) return;
+	var trigger = dropdown.querySelector('.toolbar-dropdown-trigger');
+	var menu = dropdown.querySelector('.toolbar-dropdown-menu');
+	if (!trigger || !menu) return;
+	var rect = trigger.getBoundingClientRect();
+	var menuRect = menu.getBoundingClientRect();
+	var menuWidth = menuRect.width || 180;
+	var menuHeight = menuRect.height || 100;
+	var margin = 8;
+	menu.style.left = Math.max(margin, Math.min(rect.left, window.innerWidth - menuWidth - margin)) + 'px';
+	menu.style.top = Math.max(margin, Math.min(rect.bottom + 6, window.innerHeight - menuHeight - margin)) + 'px';
+}
+
+for (var d = 0; d < toolbarDropdowns.length; d++) {
+	(function (dropdown) {
+		dropdown.addEventListener('toggle', function () {
+			if (dropdown.open) positionToolbarDropdown(dropdown);
+		});
+	})(toolbarDropdowns[d]);
+}
+
+document.addEventListener('click', function (event) {
+	var clickedDropdown = event.target && event.target.closest
+		? event.target.closest('.toolbar-dropdown') : null;
+	for (var d = 0; d < toolbarDropdowns.length; d++) {
+		if (toolbarDropdowns[d] !== clickedDropdown) {
+			closeToolbarDropdown(toolbarDropdowns[d]);
+		}
+	}
+});
+
+document.addEventListener('keydown', function (event) {
+	if (event.key !== 'Escape') return;
+	for (var d = 0; d < toolbarDropdowns.length; d++) {
+		if (toolbarDropdowns[d].open) {
+			var trigger = toolbarDropdowns[d].querySelector('.toolbar-dropdown-trigger');
+			closeToolbarDropdown(toolbarDropdowns[d]);
+			if (trigger) trigger.focus();
+		}
+	}
+});
+
+window.addEventListener('resize', function () {
+	for (var d = 0; d < toolbarDropdowns.length; d++) positionToolbarDropdown(toolbarDropdowns[d]);
+});
+
 for (var i = 0; i < toolButtons.length; i++) {
 	(function (btn) {
 		var tool = btn.getAttribute('data-tool');
 		if (tool === 'light') {
-			btn.addEventListener('click', cycleLightLevel);
+			btn.addEventListener('click', function () {
+				cycleLightLevel();
+				closeToolbarDropdown(btn.closest('.toolbar-dropdown'));
+			});
 		} else if (tool === 'temp') {
-			btn.addEventListener('click', cycleTempLevel);
+			btn.addEventListener('click', function () {
+				cycleTempLevel();
+				closeToolbarDropdown(btn.closest('.toolbar-dropdown'));
+			});
 		} else {
 			btn.addEventListener('click', function () {
 				activeTool = tool;
 				for (var j = 0; j < toolButtons.length; j++) {
 					var t = toolButtons[j].getAttribute('data-tool');
-					if (t !== 'light' && t !== 'temp') {
-						toolButtons[j].classList.remove('active');
-					}
+					if (t !== 'light' && t !== 'temp') toolButtons[j].classList.remove('active');
 				}
 				btn.classList.add('active');
+				if (itemsActiveLabel) itemsActiveLabel.textContent = btn.textContent.trim();
+				if (itemsDropdown) itemsDropdown.setAttribute('data-selected', 'true');
+				closeToolbarDropdown(btn.closest('.toolbar-dropdown'));
 			});
 		}
 	})(toolButtons[i]);
@@ -907,6 +979,8 @@ document.addEventListener('visibilitychange', function () {
 		behavior.startlePhase = 'none';
 		behavior.startleBurstEnd = 0;
 		behavior.touchEscapePending = false;
+		behavior.touchGroomPending = false;
+		behavior.startleRecovery = false;
 		behavior.enterTime = Date.now();
 		behavior.cooldowns = {};
 		behavior.burstDir = 0;
@@ -994,13 +1068,22 @@ function handleCanvasMousedown(event) {
 	var cy = world.y;
 
 	if (activeTool === 'feed') {
+		// Clicking directly on the fly is a tactile interaction even when the
+		// default Comida tool is selected; place food only on the open scene.
+		if (isFlyTouchHit(cx, cy, fly.x, fly.y, behavior.current)) {
+			applyTouchTool(cx, cy);
+			ripples.push({ x: cx, y: cy, startTime: Date.now() });
+			return;
+		}
 		var foodMinY = getLayoutBounds().top;
 		var foodMaxY = window.innerHeight;
 		cy = Math.max(foodMinY, Math.min(foodMaxY, cy));
 		food.push({ x: cx, y: cy, radius: 10, feedStart: 0, feedDuration: 0, eaten: 0 });
 	} else if (activeTool === 'touch') {
-		applyTouchTool(cx, cy);
-		ripples.push({ x: cx, y: cy, startTime: Date.now() });
+		if (isFlyTouchHit(cx, cy, fly.x, fly.y, behavior.current)) {
+			applyTouchTool(cx, cy);
+			ripples.push({ x: cx, y: cy, startTime: Date.now() });
+		}
 	} else if (activeTool === 'air') {
 		isDragging = true;
 		dragToolOrigin = 'air';
@@ -1050,7 +1133,7 @@ function handleCanvasMouseup(event) {
 
 function applyTouchTool(cx, cy) {
 	var distToFly = Math.hypot(cx - fly.x, cy - fly.y);
-	if (distToFly > 50) return; // click not on fly
+	if (!isFlyTouchHit(cx, cy, fly.x, fly.y, behavior.current)) return; // click not on fly
 
 	// Transform click to fly-local coordinates
 	var dx = cx - fly.x;
@@ -1092,28 +1175,36 @@ function applyTouchTool(cx, cy) {
 		BRAIN.stimulate.nociception = true;
 		touchTimestamps.length = 0;
 		behavior.touchEscapePending = true;
+		behavior.touchGroomPending = false;
+		var awayX = fly.x - cx;
+		var awayY = fly.y - cy;
+		behavior.touchEscapeDir = distToFly > 2
+			? normalizeAngle(Math.atan2(-awayY, awayX))
+			: normalizeAngle(facingDir);
 	}
 
-	if (rapidTouchEscape || behavior.current === 'startle') {
-		// Stop the repeated touch feedback from masking the escape run with a
-		// lingering leg-washing pose.
+	if (rapidTouchEscape) {
+		// A repeated-touch escape stays dominant over the single-touch cleaning cue.
 		anim.groomFeedbackUntil = 0;
 		anim.groomFeedbackLocation = null;
 		anim.groomPoseLocation = null;
 		anim.groomBlend = 0;
-		if (rapidTouchEscape && typeof updateBehaviorState === 'function') {
-			updateBehaviorState();
-		}
+		if (typeof updateBehaviorState === 'function') updateBehaviorState();
 	} else {
-		// A single tap still gives a short, targeted cleaning response.
+		// A single tap gives a targeted cleaning response. Interrupt airborne/escape
+		// motion immediately so the leg stroke is not hidden in a tucked pose.
 		anim.groomPhase = 0;
-		anim.groomFeedbackUntil = now + 1100;
+		anim.groomFeedbackUntil = now + 1500;
 		anim.groomFeedbackLocation = location;
 		anim.groomPoseLocation = location;
 		recordFlyActivity(
 			describeFlyBehavior('groom', location).replace(/\.$/, '') + ' tras el contacto.',
 			'grooming'
 		);
+			if (behavior.current === 'fly' || behavior.current === 'startle') {
+				behavior.touchGroomPending = true;
+				if (typeof updateBehaviorState === 'function') updateBehaviorState();
+			}
 	}
 }
 
@@ -1173,23 +1264,42 @@ function updateBehaviorState() {
 	var now = Date.now();
 	var elapsed = now - behavior.enterTime;
 	var minDur = BEHAVIOR_MIN_DURATION[behavior.current] || 0;
+	var flightTimedOut = behavior.current === 'fly' && elapsed >= FLIGHT_MAX_DURATION_MS;
 
 	var forceTouchEscape = behavior.touchEscapePending === true;
 	if (forceTouchEscape) {
 		behavior.touchEscapePending = false;
-		if (behavior.current === 'startle' || isCoolingDown('startle', now)) {
-			forceTouchEscape = false;
-		}
+		// Three deliberate taps are an explicit pain response. Do not let the
+		// cooldown for spontaneous neural startles swallow this direct escape.
+		// If a startle is already active, it is already carrying out the escape.
+		if (behavior.current === 'startle') forceTouchEscape = false;
+	}
+	var forceTouchGroom = behavior.touchGroomPending === true;
+	if (forceTouchGroom) {
+		behavior.touchGroomPending = false;
+		var airborneState = behavior.current === 'fly' || behavior.current === 'startle';
+		if (!airborneState || forceTouchEscape) forceTouchGroom = false;
 	}
 
-	// Urgent pain/escape responses bypass a long grooming/feed minimum state.
-	if (elapsed < minDur && !forceTouchEscape) {
+	// Direct contact can interrupt flight for a cleaning stroke; a real escape
+	// impulse remains dominant, and flight itself is bounded by its burst timer.
+	if (elapsed < minDur && !forceTouchEscape && !forceTouchGroom && !flightTimedOut) {
 		// Update BRAIN flags based on current state (for drive computation)
 		syncBrainFlags();
 		return;
 	}
 
-	var newState = forceTouchEscape ? 'startle' : evaluateBehaviorEntry();
+	var previousState = behavior.current;
+	var newState = forceTouchEscape ? 'startle' :
+		(forceTouchGroom ? 'groom' : evaluateBehaviorEntry({ ignoreFlight: flightTimedOut }));
+	// worm-sim keeps its motor rhythm running after touching an obstacle. Mirror
+	// that recovery here: if no higher-priority behavior takes over, keep exploring
+	// instead of dropping directly into a stationary idle state after a startle.
+	if (!forceTouchEscape && newState === 'idle' &&
+		(behavior.startleRecovery || previousState === 'startle')) {
+		newState = 'explore';
+		behavior.startleRecovery = true;
+	}
 
 	if (newState !== behavior.current) {
 		// Set cooldown for the state being exited
@@ -1208,11 +1318,27 @@ function updateBehaviorState() {
 		}
 		behavior.current = newState;
 		behavior.enterTime = now;
+		if (newState === 'startle') {
+			behavior.startleRecovery = false;
+		} else if (newState === 'rest' || newState === 'groom' ||
+			newState === 'feed' || newState === 'brace') {
+			behavior.startleRecovery = false;
+		} else if (previousState === 'startle') {
+			behavior.startleRecovery = true;
+		}
 		// Startle: initialize freeze phase and drain DN_STARTLE
 		if (newState === 'startle') {
 			behavior.startlePhase = 'freeze';
 			behavior.startleFreezeEnd = now + 100;
 			behavior.startleBurstEnd = 0;
+			// Escape away from the contact point. When no point source exists,
+			// keep the current heading rather than making an arbitrary 180° pivot.
+			behavior.burstDir = behavior.touchEscapeDir !== null &&
+				isFinite(behavior.touchEscapeDir)
+				? normalizeAngle(behavior.touchEscapeDir)
+				: normalizeAngle(facingDir);
+			behavior.touchEscapeDir = null;
+			targetDir = behavior.burstDir;
 			// Escape takes priority over any lingering single-touch grooming pose.
 			anim.groomBlend = 0;
 			anim.groomFeedbackUntil = 0;
@@ -1316,8 +1442,8 @@ function computeMovementForBehavior() {
 	var rawMotorSpeed = (Math.abs(BRAIN.accumleft) + Math.abs(BRAIN.accumright)) / (scalingFactor * 5);
 
 	if (state === 'walk' || state === 'explore' || state === 'phototaxis') {
-		// Motor asymmetry steers relative to the current heading. Brightness is
-		// global in this top-down scene, so there is no point source to navigate to.
+		// Motor asymmetry steers relative to the current heading; uniform ambient
+		// light has no position and therefore cannot pull the fly toward a fake target.
 		// A slow bias filter prevents persistent output/noisy samples from
 		// becoming a perpetual clockwise or counter-clockwise spin.
 		var motorTurn = computeMotorTurnOffset(BRAIN.accumleft, BRAIN.accumright);
@@ -1354,14 +1480,15 @@ function computeMovementForBehavior() {
 				behavior.foodSeekTurnSign = 0;
 			}
 		}
+
 		targetSpeed = smoothLocomotionSpeed(desiredWalkSpeed, 0.85, 0.35);
 		// The neural bridge updates every 500 ms; a slower acceleration constant
 		// keeps individual worker spikes from appearing as fast footstep-like darts.
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 2.5);
 	} else if (state === 'fly') {
-		// In flight, neural asymmetry should make small steering corrections;
-		// per-tick randomness is deliberately much weaker than the walk wander.
-		var flightTurn = computeMotorTurnOffset(BRAIN.accumleft, BRAIN.accumright) + (Math.random() - 0.5) * 0.05;
+		// Flight follows actual left/right motor asymmetry only. Random per-tick
+		// steering made the fly buzz around even when both wings drove equally.
+		var flightTurn = computeMotorTurnOffset(BRAIN.accumleft, BRAIN.accumright);
 		targetDir = facingDir + filterPersistentTurn(flightTurn);
 		var desiredFlightSpeed = Math.max(rawMotorSpeed * 2.5, 1.5);
 		targetSpeed = smoothLocomotionSpeed(desiredFlightSpeed, 2.4, 0.45);
@@ -1371,12 +1498,13 @@ function computeMovementForBehavior() {
 	} else if (state === 'startle') {
 		behavior.locomotionSpeedCommand = 0;
 		behavior.turnBiasBaseline = 0;
-		if (behavior.startlePhase === 'freeze') {
+		if (behavior.startlePhase === 'freeze' || behavior.startlePhase === 'orient') {
+			targetDir = behavior.burstDir;
 			targetSpeed = 0;
-			speedChangeInterval = -speed * 0.5;
+			speedChangeInterval = 0;
 		} else {
-			// A short, fast sprint makes a repeated touch read as an escape, then
-			// eases into a slower run instead of tapering off immediately.
+			// Once the body is already facing away from the contact point, launch
+			// the brisk sprint and ease into a slower run instead of orbiting while turning.
 			targetDir = behavior.burstDir;
 			var sprinting = Date.now() < behavior.startleBurstEnd;
 			targetSpeed = sprinting ? 3.0 : 0.9;
@@ -1435,19 +1563,20 @@ function applyBehaviorMovement(dtScale) {
 		if (behavior.startlePhase === 'freeze') {
 			speed = 0;
 			speedChangeInterval = 0;
+			targetDir = behavior.burstDir;
 			if (now >= behavior.startleFreezeEnd) {
-				behavior.startlePhase = 'burst';
-				behavior.startleBurstEnd = now + 420;
-				// Launch at the reference's brisk escape speed; keep heading changes
-				// smooth, but finish the turn quickly enough to read as a real dash.
-				speed = 3.0;
-				behavior.burstDir = normalizeAngle(facingDir + Math.PI + (Math.random() - 0.5) * 0.35);
-				targetDir = behavior.burstDir;
-				targetSpeed = 3.0;
-				speedChangeInterval = 0;
+				behavior.startlePhase = 'orient';
 			}
 		}
+		if (behavior.startlePhase === 'orient') {
+			// Turn in place toward the escape vector. Burst launch is checked only
+			// after edge avoidance adjusts this frame's final steering target.
+			speed = 0;
+			speedChangeInterval = 0;
+			targetDir = behavior.burstDir;
+		}
 		if (behavior.startlePhase === 'burst') {
+			targetDir = behavior.burstDir;
 			var sprinting = now < behavior.startleBurstEnd;
 			targetSpeed = sprinting ? 3.0 : 0.9;
 			speedChangeInterval = (targetSpeed - speed) / (sprinting ? 5 : 18);
@@ -1457,6 +1586,10 @@ function applyBehaviorMovement(dtScale) {
 	if (behavior.current === 'groom' ||
 		behavior.current === 'rest' || behavior.current === 'idle' ||
 		behavior.current === 'brace') {
+		targetSpeed = 0;
+		// Clear a stale flight acceleration on the very first frame after a
+		// touch-triggered state change; the existing exponential brake is smooth.
+		speedChangeInterval = 0;
 		if (speed > 0.05) {
 			speed *= Math.pow(0.92, dtScale);
 		} else {
@@ -1876,15 +2009,20 @@ function getFlyLightingFilter() {
 function drawFlyBody(dtScale) {
 	var t = Date.now() / 1000;
 	var state = behavior.current;
+	var groomingLegsOnTop = state !== 'startle' &&
+		(state === 'groom' || anim.groomFeedbackUntil > Date.now() ||
+			(Number(anim.groomBlend) || 0) > 0.01);
 
-	// --- Legs and the complete proboscis are underneath the photoreal shell ---
-	drawLegs(state, dtScale);
+	// Keep normal legs tucked under the photoreal shell. While cleaning, render
+	// the contacting legs in the foreground so the tarsi visibly reach the body.
+	if (!groomingLegsOnTop) drawLegs(state, dtScale);
 	if (anim.proboscisExtend > 0.01) {
 		drawProboscis(anim.proboscisExtend);
 	}
 
 	// The opaque shell masks the tube root; only its front tip can protrude.
 	drawPhotorealBody();
+	if (groomingLegsOnTop) drawLegs(state, dtScale);
 	if (anim.proboscisExtend > 0.01) {
 		// Reopen the tiny oral slit above the shell so feeding visibly starts at
 		// the face rather than looking as if the fly eats through its abdomen.
@@ -2748,7 +2886,17 @@ function update(dt) {
 		var angleDiffEdge = awayAngle - targetDir;
 		// Normalize to [-PI, PI]
 		angleDiffEdge = normalizeAngle(angleDiffEdge);
-		targetDir += angleDiffEdge * awayStrength * 0.3 * dtScale;
+		var edgeBlend = 1 - Math.pow(1 - awayStrength * 0.3, dtScale);
+		targetDir += angleDiffEdge * edgeBlend;
+	}
+
+	// Compare against the final edge-adjusted steering target. Checking the raw
+	// escape angle here can deadlock orientation beside a wall, where edge
+	// avoidance intentionally bends the heading away from that angle.
+	if (tryBeginStartleBurst(behavior, facingDir, targetDir, Date.now())) {
+		speed = 3.0;
+		targetSpeed = 3.0;
+		speedChangeInterval = 0;
 	}
 
 	// Ease toward targetDir along the shortest arc, but cap angular velocity.
@@ -2756,7 +2904,9 @@ function update(dt) {
 	// event from snapping the entire body (which reads as a head-bob/jolt).
 	var turnRetention;
 	var maxTurnRate;
-	if (behavior.current === 'startle' && behavior.startlePhase === 'burst') {
+	if (behavior.current === 'startle') {
+		// Turning is deliberately fast but happens while stationary; the burst
+		// starts only after the body is aligned, eliminating the old tight orbit.
 		turnRetention = 0.25;
 		maxTurnRate = 10.5;
 	} else if (behavior.current === 'fly') {
@@ -2782,24 +2932,36 @@ function update(dt) {
 	var barrierMargin = 12;
 	var bounds = getLayoutBounds();
 
-	// Screen bounds (clamped to visible area: toolbar=44px top, panel=90px bottom)
+	// Clamp to the inside of the world, not onto/outside the screen edge. A
+	// startle that reaches a wall turns inward, like the reference worm's
+	// nose-touch reversal, instead of repeatedly steering into a hard boundary.
+	var wallPushX = 0;
+	var wallPushY = 0;
 	if (fly.x < barrierMargin) {
-		fly.x = 0;
+		fly.x = barrierMargin;
+		wallPushX = 1;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	} else if (fly.x > window.innerWidth - barrierMargin) {
-		fly.x = window.innerWidth;
+		fly.x = window.innerWidth - barrierMargin;
+		wallPushX = -1;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	}
 	if (fly.y < bounds.top + barrierMargin) {
-		fly.y = 44;
+		fly.y = bounds.top + barrierMargin;
+		wallPushY = 1;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
 	} else if (fly.y > bounds.bottom - barrierMargin) {
-		fly.y = window.innerHeight;
+		fly.y = bounds.bottom - barrierMargin;
+		wallPushY = -1;
 		BRAIN.stimulate.touch = true;
 		touchResetTime = Math.max(touchResetTime, Date.now() + 2000);
+	}
+	if (behavior.current === 'startle' && (wallPushX !== 0 || wallPushY !== 0)) {
+		behavior.burstDir = normalizeAngle(Math.atan2(-wallPushY, wallPushX));
+		targetDir = behavior.burstDir;
 	}
 
 	// Food proximity
@@ -3006,9 +3168,10 @@ function draw() {
 		food[i].x = Math.max(0, Math.min(food[i].x, window.innerWidth));
 		food[i].y = Math.max(getLayoutBounds().top, Math.min(food[i].y, window.innerHeight));
 	}
-	// Also re-clamp the fly position to the new bounds
-	fly.x = Math.max(0, Math.min(fly.x, window.innerWidth));
-	fly.y = Math.max(getLayoutBounds().top, Math.min(fly.y, window.innerHeight));
+	// Re-clamp to the interior collision margin after a viewport resize.
+	var bounds = getLayoutBounds();
+	fly.x = Math.max(12, Math.min(fly.x, window.innerWidth - 12));
+	fly.y = Math.max(bounds.top + 12, Math.min(fly.y, bounds.bottom - 12));
 	window.addEventListener('resize', resize);
 })();
 

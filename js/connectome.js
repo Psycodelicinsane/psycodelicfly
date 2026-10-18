@@ -140,8 +140,8 @@ BRAIN.stimulate = {
 	wind: false,
 	windStrength: 0,       // 0-1
 	windDirection: 0,      // radians, wind travel direction (drag vector; 0=right, PI/2=up). Wind SOURCE = windDirection + PI.
-	lightLevel: 1,         // 0-1 (0=dark, 1=bright)
-	nociception: false,   // pain response (triggered by rapid repeated touch)
+	lightLevel: 1,         // 0-1 (0=dark, 1=bright; uniform ambient level)
+	nociception: false,   // pain response (triggered by repeated contact)
 	temperature: 0.5,      // 0-1 (0=cold, 1=hot), 0.5 = preferred
 };
 
@@ -336,7 +336,7 @@ BRAIN.update = function () {
 		BRAIN.dendriteAccumulateScaled('MECH_JO', windScale);
 	}
 
-	// Light -- photoreceptor activation scales with light level
+	// Uniform ambient illumination is sensory input, not a world-space target.
 	if (BRAIN.stimulate.lightLevel > 0.2) {
 		BRAIN.dendriteAccumulateScaled('VIS_R1R6', BRAIN.stimulate.lightLevel);
 		BRAIN.dendriteAccumulateScaled('VIS_R7R8', BRAIN.stimulate.lightLevel * 0.7);
@@ -364,7 +364,7 @@ BRAIN.update = function () {
 		BRAIN.dendriteAccumulate('MECH_CHORD');
 	}
 
-	// Baseline visual input (ambient, unless dark)
+	// Uniform ambient light has no spatial target, but can still support optic flow.
 	if (BRAIN.stimulate.lightLevel > 0.1) {
 		// Subtle background optic flow when moving
 		if (BRAIN._isMoving) {

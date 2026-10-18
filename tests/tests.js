@@ -42,8 +42,8 @@ function withMockedRandom(mockValue, fn) {
 // functions in fly-logic.js: evaluateBehaviorEntry, isCoolingDown, hasNearbyFood)
 var behavior = {
 	current: 'idle', enterTime: 0, cooldowns: {},
-	startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0,
-	touchEscapePending: false, groomLocation: null, burstDir: 0,
+	startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0, startleRecovery: false,
+	touchEscapePending: false, touchGroomPending: false, touchEscapeDir: null, groomLocation: null, burstDir: 0,
 	turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
 	locomotionSpeedCommand: 0
 };
@@ -88,8 +88,8 @@ function resetBrainState() {
 	};
 	behavior = {
 		current: 'idle', enterTime: 0, cooldowns: {},
-		startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0,
-		touchEscapePending: false, groomLocation: null, burstDir: 0,
+		startlePhase: 'none', startleFreezeEnd: 0, startleBurstEnd: 0, startleRecovery: false,
+		touchEscapePending: false, touchGroomPending: false, touchEscapeDir: null, groomLocation: null, burstDir: 0,
 		turnBiasBaseline: 0, turnInputFiltered: 0, foodSeekTurnSign: 0,
 		locomotionSpeedCommand: 0
 	};
@@ -246,6 +246,153 @@ function test_touch_starts_visible_cleaning_feedback_for_head_and_abdomen() {
 	assertEqual(anim.groomFeedbackLocation, 'abdomen', 'abdomen cleaning selects the rear leg pair');
 }
 
+function test_single_touch_interrupts_flight_for_visible_targeted_grooming() {
+	resetBrainState();
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - 100;
+	behavior.cooldowns = {};
+	globalThis.speed = 2.0;
+	globalThis.speedChangeInterval = 0.12;
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+	anim.groomBlend = 0;
+	anim.groomFeedbackUntil = 0;
+	anim.groomFeedbackLocation = null;
+
+	try {
+		applyTouchTool(fly.x, fly.y - 25);
+		assertEqual(behavior.current, 'groom',
+			'a deliberate single touch interrupts airborne locomotion instead of waiting for the brain tick');
+		assertEqual(behavior.groomLocation, 'head', 'the immediate grooming state keeps the touched body part');
+		assertTrue(BRAIN._isGrooming, 'the behavior flags enter targeted grooming immediately');
+		assertTrue(anim.groomFeedbackUntil > Date.now(), 'the visible cleaning stroke starts on contact');
+		assertTrue(behavior.cooldowns.fly > Date.now(), 'the same neural flight spike cannot instantly restart flight');
+
+		applyBehaviorMovement(1);
+		assertEqual(globalThis.targetSpeed, 0, 'the first post-touch frame clears the stale flight target');
+		assertClose(globalThis.speedChangeInterval, 0, 0.000001,
+			'the first post-touch frame removes stale flight acceleration');
+		assertTrue(globalThis.speed < 2.0, 'the fly begins braking smoothly while it cleans');
+	} finally {
+		resetBrainState();
+		globalThis.speed = 0;
+		globalThis.speedChangeInterval = 0;
+	}
+}
+
+function test_clicking_fly_with_food_tool_triggers_cleaning_not_food_placement() {
+	resetBrainState();
+	var originalTool = globalThis.activeTool;
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - 100;
+	behavior.cooldowns = {};
+	globalThis.activeTool = 'feed';
+	touchTimestamps.length = 0;
+	var foodBefore = food.length;
+	var ripplesBefore = ripples.length;
+
+	try {
+		handleCanvasMousedown({ clientX: fly.x, clientY: fly.y });
+		assertEqual(behavior.current, 'groom',
+			'a direct click on the fly cleans it even if Comida is selected');
+		assertEqual(food.length, foodBefore, 'clicking the fly does not place food inside its body');
+		assertEqual(ripples.length, ripplesBefore + 1, 'the touch still gets the usual contact ripple');
+	} finally {
+		globalThis.activeTool = originalTool;
+		resetBrainState();
+	}
+}
+
+function test_default_toolbar_tool_is_touch() {
+	assertEqual(activeTool, 'touch', 'the JavaScript tool state defaults to Tocar');
+	assertEqual(globalThis.__toolbarDefaultTool, 'touch', 'the Items menu marks Tocar as active in the HTML');
+	assertEqual(globalThis.__toolbarDefaultLabel, 'Tocar', 'the Items trigger shows Tocar on load');
+}
+
+function test_canvas_touch_tool_contacts_the_fly() {
+	resetBrainState();
+	var originalTool = activeTool;
+	var originalFacing = facingDir;
+	var ripplesBefore = ripples.length;
+	activeTool = 'touch';
+	behavior.current = 'walk';
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+	try {
+		handleCanvasMousedown({ clientX: fly.x, clientY: fly.y - 25 });
+		assertTrue(BRAIN.stimulate.touch, 'the selected Tocar tool sends contact to the brain');
+		assertEqual(BRAIN.stimulate.touchLocation, 'head', 'the canvas event retains the touched body location');
+		assertEqual(ripples.length, ripplesBefore + 1, 'a real contact gets a ripple');
+	} finally {
+		activeTool = originalTool;
+		facingDir = originalFacing;
+		touchTimestamps.length = 0;
+		resetBrainState();
+	}
+}
+
+function test_touch_tool_ignores_empty_scene_clicks() {
+	resetBrainState();
+	var originalTool = activeTool;
+	var ripplesBefore = ripples.length;
+	var foodBefore = food.length;
+	activeTool = 'touch';
+	try {
+		handleCanvasMousedown({ clientX: fly.x + 100, clientY: fly.y });
+		assertEqual(BRAIN.stimulate.touch, false, 'touching the empty scene does not stimulate the fly');
+		assertEqual(ripples.length, ripplesBefore, 'an empty-scene click does not show a false contact ripple');
+		assertEqual(food.length, foodBefore, 'the Tocar tool does not place food on the empty scene');
+	} finally {
+		activeTool = originalTool;
+		while (ripples.length > ripplesBefore) ripples.pop();
+		resetBrainState();
+	}
+}
+
+function test_tapping_a_spread_wing_during_flight_counts_as_touch() {
+	resetBrainState();
+	var originalFacing = facingDir;
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - 100;
+	behavior.cooldowns = {};
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+
+	applyTouchTool(fly.x + 58, fly.y);
+	assertTrue(BRAIN.stimulate.touch, 'a tap on the visible spread wing is accepted as contact');
+	assertEqual(behavior.current, 'groom', 'wing contact during flight initiates the normal cleaning action');
+	assertEqual(behavior.groomLocation, 'leg', 'the touched wing-side appendage is mapped to a leg-cleaning cue');
+	resetBrainState();
+	facingDir = originalFacing;
+}
+
+function test_single_touch_interrupts_startle_burst_and_returns_to_grooming() {
+	resetBrainState();
+	var originalFacing = facingDir;
+	behavior.current = 'startle';
+	behavior.enterTime = Date.now() - 100;
+	behavior.startlePhase = 'burst';
+	behavior.startleBurstEnd = Date.now() + 300;
+	behavior.cooldowns = {};
+	facingDir = Math.PI / 2;
+	touchTimestamps.length = 0;
+	anim.groomBlend = 0;
+	anim.groomFeedbackUntil = 0;
+	anim.groomFeedbackLocation = null;
+
+	try {
+		applyTouchTool(fly.x, fly.y - 25);
+		assertEqual(behavior.current, 'groom',
+			'a deliberate single touch can stop a flight-like escape burst and resume cleaning');
+		assertEqual(behavior.startlePhase, 'none', 'the old escape burst is cancelled by the cleaning touch');
+		assertEqual(behavior.groomLocation, 'head', 'the head touch still selects the front-leg cleaning pose');
+		assertTrue(anim.groomFeedbackUntil > Date.now(), 'the cleaning animation remains active immediately');
+	} finally {
+		facingDir = originalFacing;
+		resetBrainState();
+	}
+}
+
 function test_repeated_touch_forces_fast_escape_out_of_grooming() {
 	resetBrainState();
 	var now = Date.now();
@@ -262,9 +409,13 @@ function test_repeated_touch_forces_fast_escape_out_of_grooming() {
 	touchTimestamps.length = 0;
 	touchResetTime = 0;
 
-	applyTouchTool(fly.x, fly.y);
-	applyTouchTool(fly.x, fly.y);
-	applyTouchTool(fly.x, fly.y);
+	var originalFacing = facingDir;
+	facingDir = Math.PI / 2;
+	var contactX = fly.x;
+	var contactY = fly.y - 25;
+	applyTouchTool(contactX, contactY);
+	applyTouchTool(contactX, contactY);
+	applyTouchTool(contactX, contactY);
 
 	assertTrue(BRAIN.stimulate.nociception, 'three quick taps still send the pain stimulus to the connectome');
 	assertEqual(behavior.current, 'startle', 'rapid taps interrupt the long grooming minimum immediately');
@@ -276,6 +427,60 @@ function test_repeated_touch_forces_fast_escape_out_of_grooming() {
 	assertEqual(anim.groomFeedbackLocation, null, 'the escape no longer targets a cleaning pose');
 	assertEqual(anim.groomBlend, 0, 'the legs leave the grooming pose for the escape');
 	assertEqual(touchTimestamps.length, 0, 'the rapid-tap window resets after triggering escape');
+	assertClose(normalizeAngle(behavior.burstDir - (-Math.PI / 2)), 0, 0.000001,
+		'the fly chooses a direction away from the tapped head instead of an arbitrary full spin');
+	facingDir = originalFacing;
+}
+
+function test_three_taps_force_escape_even_during_startle_cooldown() {
+	resetBrainState();
+	var now = Date.now();
+	var originalFacing = facingDir;
+	var originalTool = activeTool;
+	behavior.current = 'groom';
+	behavior.enterTime = now - 100;
+	behavior.cooldowns = { startle: now + 5000 };
+	behavior.startlePhase = 'none';
+	behavior.startleBurstEnd = 0;
+	behavior.touchEscapePending = false;
+	touchTimestamps.length = 0;
+	facingDir = Math.PI / 2;
+	activeTool = 'feed';
+
+	var contactX = fly.x;
+	var contactY = fly.y - 25;
+	var foodBefore = food.length;
+	try {
+		handleCanvasMousedown({ clientX: contactX, clientY: contactY });
+		handleCanvasMousedown({ clientX: contactX, clientY: contactY });
+		handleCanvasMousedown({ clientX: contactX, clientY: contactY });
+
+		assertEqual(behavior.current, 'startle',
+			'three real canvas taps cause pain escape even during the neural startle cooldown');
+		assertEqual(behavior.startlePhase, 'freeze', 'the forced response enters the normal escape sequence');
+		assertEqual(behavior.touchEscapePending, false, 'the touch-triggered escape request is consumed');
+		assertEqual(food.length, foodBefore, 'touching the fly with Comida selected does not place food');
+		assertClose(normalizeAngle(behavior.burstDir - (-Math.PI / 2)), 0, 0.000001,
+			'the cooldown-bypassing escape still points away from the touch');
+
+		behavior.startleFreezeEnd = Date.now() - 1;
+		applyBehaviorMovement(1);
+		assertEqual(behavior.startlePhase, 'orient', 'the pain escape leaves its brief freeze promptly');
+		facingDir = behavior.burstDir;
+		targetDir = behavior.burstDir;
+		assertTrue(tryBeginStartleBurst(behavior, facingDir, targetDir, Date.now()),
+			'the aligned escape starts its burst');
+		speed = 0;
+		applyBehaviorMovement(1);
+		assertEqual(behavior.startlePhase, 'burst', 'the escape reaches the moving burst phase');
+		assertEqual(targetSpeed, 3, 'the escape burst commands a brisk run');
+		assertTrue(speedChangeInterval > 0, 'the escape burst accelerates the fly away');
+	} finally {
+		activeTool = originalTool;
+		facingDir = originalFacing;
+		touchTimestamps.length = 0;
+		resetBrainState();
+	}
 }
 
 function captureGroomingLegs(state, location, phase, touchFeedback) {
@@ -1177,7 +1382,7 @@ function test_photoreal_wings_use_asset_on_both_sides() {
 	}
 }
 
-function test_fly_render_layers_keep_tube_under_shell_and_expose_front_mouth() {
+function test_fly_render_layers_keep_body_anatomy_and_expose_touch_grooming() {
 	var originalDrawLegs = globalThis.drawLegs;
 	var originalDrawBody = globalThis.drawPhotorealBody;
 	var originalDrawAntennae = globalThis.drawAntennae;
@@ -1186,11 +1391,19 @@ function test_fly_render_layers_keep_tube_under_shell_and_expose_front_mouth() {
 	var originalDrawWing = globalThis.drawWing;
 	var originalState = behavior.current;
 	var originalProboscis = anim.proboscisExtend;
+	var originalFeedbackUntil = anim.groomFeedbackUntil;
+	var originalFeedbackLocation = anim.groomFeedbackLocation;
+	var originalGroomBlend = anim.groomBlend;
+	var originalGroomPoseLocation = anim.groomPoseLocation;
 	var order = [];
 
 	try {
 		behavior.current = 'feed';
 		anim.proboscisExtend = 1;
+		anim.groomFeedbackUntil = 0;
+		anim.groomFeedbackLocation = null;
+		anim.groomBlend = 0;
+		anim.groomPoseLocation = null;
 		globalThis.drawLegs = function () { order.push('legs'); };
 		globalThis.drawPhotorealBody = function () { order.push('body'); };
 		globalThis.drawAntennae = function () { order.push('antennae'); };
@@ -1200,7 +1413,17 @@ function test_fly_render_layers_keep_tube_under_shell_and_expose_front_mouth() {
 
 		drawFlyBody(1);
 		assertEqual(order.join(','), 'legs,proboscis-under-shell,body,front-mouth,antennae,wing-left,wing-right',
-			'the tube stays masked by the shell while a tiny feeding mouth is exposed at the face');
+			'normal and feeding poses keep the tube and resting legs beneath the photo shell');
+
+		order.length = 0;
+		behavior.current = 'fly';
+		anim.groomFeedbackUntil = Date.now() + 500;
+		anim.groomFeedbackLocation = 'head';
+		anim.groomPoseLocation = 'head';
+		anim.groomBlend = 0.5;
+		drawFlyBody(1);
+		assertEqual(order.join(','), 'proboscis-under-shell,body,legs,front-mouth,antennae,wing-left,wing-right',
+			'touch-triggered grooming legs render over the shell so their contact stroke remains visible in flight');
 	} finally {
 		globalThis.drawLegs = originalDrawLegs;
 		globalThis.drawPhotorealBody = originalDrawBody;
@@ -1210,6 +1433,10 @@ function test_fly_render_layers_keep_tube_under_shell_and_expose_front_mouth() {
 		globalThis.drawWing = originalDrawWing;
 		behavior.current = originalState;
 		anim.proboscisExtend = originalProboscis;
+		anim.groomFeedbackUntil = originalFeedbackUntil;
+		anim.groomFeedbackLocation = originalFeedbackLocation;
+		anim.groomBlend = originalGroomBlend;
+		anim.groomPoseLocation = originalGroomPoseLocation;
 	}
 }
 
@@ -1285,6 +1512,8 @@ function test_center_camera_preserves_zoom_while_centering_fly() {
 }
 
 function test_behavior_register_phrases_are_clear_spanish() {
+	assertEqual(describeFlyBehavior('phototaxis'), 'Responde a la iluminación ambiental uniforme.',
+		'uniform ambient illumination is not described as a positioned light target');
 	assertEqual(describeFlyBehavior('groom', 'head'), 'Se limpia la cara.', 'face wash gets a Spanish log entry');
 	assertEqual(describeFlyBehavior('groom', 'abdomen'), 'Se limpia el abdomen.', 'abdomen grooming is recorded explicitly');
 	assertEqual(describeFlyBehavior('feed'), 'Se alimenta.', 'feeding is logged in Spanish');
@@ -2308,7 +2537,7 @@ function test_locomotion_speed_is_smoothed_and_capped() {
 	}
 }
 
-function test_flight_turn_noise_stays_small_and_can_steer_both_ways() {
+function test_flight_heading_ignores_random_noise_but_follows_motor_asymmetry() {
 	var originalState = behavior.current;
 	var originalFacing = facingDir;
 	var originalTurnBias = behavior.turnBiasBaseline;
@@ -2330,17 +2559,29 @@ function test_flight_turn_noise_stays_small_and_can_steer_both_ways() {
 		facingDir = 0.4;
 		globalThis.speed = 1;
 		withMockedRandom(0.95, function () { computeMovementForBehavior(); });
-		var rightTurn = normalizeAngle(globalThis.targetDir - facingDir);
-		assertTrue(rightTurn > 0 && rightTurn < 0.01,
-			'positive flight noise becomes only a fine correction, not a visible heading jump');
+		var balancedTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertClose(balancedTurn, 0, 0.000001,
+			'balanced wing output holds a steady heading regardless of random samples');
 
 		behavior.turnBiasBaseline = 0;
 		behavior.turnInputFiltered = 0;
+		BRAIN.accumleft = 24;
+		BRAIN.accumright = 10;
+		facingDir = 0.4;
+		withMockedRandom(0.95, function () { computeMovementForBehavior(); });
+		var rightTurn = normalizeAngle(globalThis.targetDir - facingDir);
+		assertTrue(rightTurn > 0 && rightTurn < 0.05,
+			'positive motor asymmetry makes a small, smooth flight correction');
+
+		behavior.turnBiasBaseline = 0;
+		behavior.turnInputFiltered = 0;
+		BRAIN.accumleft = 10;
+		BRAIN.accumright = 24;
 		facingDir = 0.4;
 		withMockedRandom(0.05, function () { computeMovementForBehavior(); });
 		var leftTurn = normalizeAngle(globalThis.targetDir - facingDir);
-		assertTrue(leftTurn < 0 && leftTurn > -0.01,
-			'negative flight noise remains gentle and preserves steering in the opposite direction');
+		assertTrue(leftTurn < 0 && leftTurn > -0.05,
+			'negative motor asymmetry steers smoothly in the opposite direction');
 	} finally {
 		behavior.current = originalState;
 		behavior.turnBiasBaseline = originalTurnBias;
@@ -2354,6 +2595,36 @@ function test_flight_turn_noise_stays_small_and_can_steer_both_ways() {
 		globalThis.targetSpeed = originalTargetSpeed;
 		globalThis.speedChangeInterval = originalSpeedChangeInterval;
 	}
+}
+
+function test_flight_bursts_land_and_cool_down_under_persistent_wing_output() {
+	resetBrainState();
+	behavior.current = 'fly';
+	behavior.enterTime = Date.now() - FLIGHT_MAX_DURATION_MS - 10;
+	behavior.cooldowns = {};
+	BRAIN.accumFlight = 100;
+	BRAIN.accumWalkLeft = 0;
+	BRAIN.accumWalkRight = 0;
+	BRAIN.accumStartle = 0;
+	BRAIN.accumFeed = 0;
+	BRAIN.accumGroom = 0;
+	BRAIN.drives.curiosity = 0;
+	BRAIN.drives.fatigue = 0;
+	BRAIN.stimulate.lightLevel = 0;
+	BRAIN.stimulate.wind = false;
+	BRAIN.stimulate.foodNearby = false;
+
+	updateBehaviorState();
+	assertEqual(behavior.current, 'idle',
+		'a sustained flight accumulator cannot hold the fly in a permanent airborne buzz');
+	assertTrue(behavior.cooldowns.fly > Date.now(), 'landing starts a rest interval before another flight burst');
+
+	updateBehaviorState();
+	assertEqual(behavior.current, 'idle', 'a persistent spike respects the flight cooldown after landing');
+
+	behavior.cooldowns.fly = Date.now() - 1;
+	updateBehaviorState();
+	assertEqual(behavior.current, 'fly', 'a later flight burst remains possible once the cooldown expires');
 }
 
 function test_heading_turn_rate_caps_flight_and_startle_without_angle_seam_jumps() {
@@ -2388,25 +2659,57 @@ function test_startle_burst_sprints_then_recovers_without_snapping_heading() {
 	var originalSpeed = globalThis.speed;
 	var originalSpeedChangeInterval = globalThis.speedChangeInterval;
 	var initialHeading = 0.25;
+	var escapeHeading = normalizeAngle(initialHeading + Math.PI);
 	try {
 		behavior.current = 'startle';
 		behavior.startlePhase = 'freeze';
 		behavior.startleFreezeEnd = 0;
 		behavior.startleBurstEnd = 0;
+		behavior.burstDir = escapeHeading;
 		facingDir = initialHeading;
 		globalThis.targetDir = initialHeading;
 		globalThis.speed = 0.7;
 		withMockedRandom(0.5, function () { applyBehaviorMovement(1); });
 
-		assertEqual(behavior.startlePhase, 'burst', 'the brief freeze transitions into an escape sprint');
+		assertEqual(behavior.startlePhase, 'orient', 'the short pause transitions to an in-place escape turn');
+		assertClose(globalThis.speed, 0, 0.000001,
+			'the fly does not translate while its body turns toward the escape vector');
 		assertClose(facingDir, initialHeading, 0.000001,
-			'the escape direction is not assigned directly to the rendered body heading');
-		assertClose(normalizeAngle(globalThis.targetDir - (initialHeading + Math.PI)), 0, 0.000001,
-			'the burst direction remains a target for a fast, rate-limited turn');
+			'the escape direction is a target, not a direct rendered-heading assignment');
+		assertClose(normalizeAngle(globalThis.targetDir - escapeHeading), 0, 0.000001,
+			'the orienting phase keeps the selected escape direction');
+
+		var turnFrames = 0;
+		while (behavior.startlePhase === 'orient' && turnFrames < 60) {
+			applyBehaviorMovement(1);
+			if (tryBeginStartleBurst(behavior, facingDir, globalThis.targetDir, Date.now())) {
+				globalThis.speed = 3.0;
+				globalThis.targetSpeed = 3.0;
+				globalThis.speedChangeInterval = 0;
+			} else {
+				assertClose(globalThis.speed, 0, 0.000001,
+					'turning in place prevents the old near-circular escape path');
+			}
+			facingDir = normalizeAngle(facingDir + computeHeadingStep(
+				facingDir, globalThis.targetDir, 0.25, 10.5, 1
+			));
+			turnFrames++;
+		}
+		assertEqual(behavior.startlePhase, 'burst', 'the sprint begins once the body is aligned');
+		assertTrue(turnFrames > 0 && turnFrames < 60, 'the fast, rate-limited turn completes promptly');
+		assertTrue(Math.abs(normalizeAngle(facingDir - escapeHeading)) <= 0.28,
+			'the fly is already facing its escape vector when it starts translating');
 		assertClose(globalThis.speed, 3.0, 0.000001, 'the escape launches at brisk running speed');
 		assertClose(globalThis.targetSpeed, 3.0, 0.000001, 'the short sprint holds its fast target speed');
 		assertClose(globalThis.speedChangeInterval, 0, 0.000001, 'the sprint launch is not immediately damped');
 		assertTrue(behavior.startleBurstEnd > Date.now(), 'the sprint target stays active for a short burst');
+
+		var movementX = Math.cos(facingDir);
+		var movementY = -Math.sin(facingDir);
+		var escapeX = Math.cos(escapeHeading);
+		var escapeY = -Math.sin(escapeHeading);
+		assertTrue(movementX * escapeX + movementY * escapeY > 0.96,
+			'the first fast movement is a direct escape, not an orbit around the fly');
 
 		behavior.startleBurstEnd = Date.now() - 1;
 		globalThis.speed = 3.0;
@@ -2425,6 +2728,61 @@ function test_startle_burst_sprints_then_recovers_without_snapping_heading() {
 		globalThis.speed = originalSpeed;
 		globalThis.speedChangeInterval = originalSpeedChangeInterval;
 	}
+}
+
+function test_startle_orientation_uses_the_final_wall_adjusted_heading() {
+	var state = { current: 'startle', startlePhase: 'orient', startleBurstEnd: 0 };
+	var now = 10000;
+	var facingAwayFromWall = 2.65;
+	var originalEscapeHeading = Math.PI;
+
+	assertTrue(!tryBeginStartleBurst(state, facingAwayFromWall, originalEscapeHeading, now),
+		'the burst cannot launch while the body is misaligned with the original wall-bound vector');
+	assertEqual(state.startlePhase, 'orient', 'a misaligned heading keeps the fly stationary and turning');
+	assertTrue(tryBeginStartleBurst(state, facingAwayFromWall, facingAwayFromWall, now),
+		'the edge-adjusted inward heading can complete orientation instead of deadlocking');
+	assertEqual(state.startlePhase, 'burst', 'an aligned wall-avoidance turn starts the sprint');
+	assertEqual(state.startleBurstEnd, now + STARTLE_BURST_DURATION_MS,
+		'the escape sprint keeps its short, bounded duration');
+}
+
+function test_startle_recovery_keeps_exploring_until_a_real_rest_state() {
+	resetBrainState();
+	behavior.current = 'startle';
+	behavior.enterTime = Date.now() - 1000;
+	behavior.startlePhase = 'burst';
+	behavior.startleRecovery = false;
+	behavior.cooldowns = {};
+	BRAIN.accumStartle = 0;
+	BRAIN.accumFlight = 0;
+	BRAIN.accumWalkLeft = 0;
+	BRAIN.accumWalkRight = 0;
+	BRAIN.accumleft = 0;
+	BRAIN.accumright = 0;
+	BRAIN.drives.curiosity = 0;
+	BRAIN.drives.fatigue = 0;
+	BRAIN.stimulate.lightLevel = 0;
+	BRAIN.stimulate.wind = false;
+
+	updateBehaviorState();
+	assertEqual(behavior.current, 'explore',
+		'after the escape, absent walk spikes do not dump the fly into stationary idle');
+	assertTrue(behavior.startleRecovery && BRAIN._isMoving,
+		'the original-style post-contact recovery keeps a low locomotion program active');
+	computeMovementForBehavior();
+	assertTrue(globalThis.targetSpeed > 0,
+		'the fallback exploration state has a non-zero speed floor even without motor spikes');
+
+	behavior.enterTime = Date.now() - BEHAVIOR_MIN_DURATION.explore - 1;
+	updateBehaviorState();
+	assertEqual(behavior.current, 'explore',
+		'the recovery latch survives later quiet neural ticks instead of freezing at a point');
+
+	BRAIN.drives.fatigue = 0.9;
+	behavior.enterTime = Date.now() - BEHAVIOR_MIN_DURATION.explore - 1;
+	updateBehaviorState();
+	assertEqual(behavior.current, 'rest', 'a genuine fatigue/rest response can still end recovery');
+	assertTrue(!behavior.startleRecovery, 'intentional rest clears the escape recovery latch');
 }
 
 function test_feed_approach_speed_constant() {
@@ -3074,6 +3432,27 @@ var test_bridge_stim_noci_intensity_and_clear = function () {
 	var SI = BRAIN._bridge.STIM_INTENSITY;
 	assertClose(nociSeg.intensity, SI * 5, 0.001, 'NOCI intensity is 5x STIM_INTENSITY');
 	assertEqual(BRAIN.stimulate.nociception, false, 'nociception auto-clears after collection');
+};
+
+var test_bridge_empty_noci_uses_tactile_proxy_and_virtual_escape_drive = function () {
+	resetBrainState();
+	var names = ['MECH_BRISTLE', 'NOCI'];
+	BRAIN._bridge._setGroupState(2, 2, new Uint16Array([0, 0]), [2, 0], names);
+	BRAIN._bridge.buildGroupIndices();
+
+	var proxyIndices = BRAIN._bridge.resolveOneShotIndices('NOCI');
+	assertTrue(proxyIndices && proxyIndices.length === 2,
+		'empty NOCI resolves to the two available tactile bristle neurons');
+	assertEqual(proxyIndices[0], 0, 'nociception tactile proxy begins at the real sensory indices');
+	assertEqual(proxyIndices[1], 1, 'nociception tactile proxy includes the complete group');
+
+	BRAIN.drives.fear = 0;
+	BRAIN.stimulate.nociception = true;
+	BRAIN._bridge.sendOneShotStimuli();
+	assertEqual(BRAIN.stimulate.nociception, false,
+		'the one-shot pain event is still consumed exactly once');
+	assertTrue(BRAIN.drives.fear >= 0.85,
+		'an empty labeled NOCI group raises the virtual escape drive instead of dropping pain');
 };
 
 var test_bridge_stim_noci_not_in_sustained = function () {

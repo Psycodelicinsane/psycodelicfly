@@ -150,6 +150,18 @@ def determine_group(flow: str, super_class: str, cls: str, sub_class: str, regio
     Tuned to actual FlyWire FAFB v783 field values (abbreviations like cx, dan, mbon,
     sub_class values like photo_receptor, eye_bristle, wind_gravity, etc.).
     """
+    # --- Named central cell types that can be identified across FlyWire classes ---
+    # Some descending neurons are annotated only by sub_class while their
+    # super_class is the broad "central" category. Classify these before the
+    # visual rules: LNv cells can also carry super_class=visual_projection,
+    # but are ventral lateral clock neurons rather than visual projection cells.
+    if "clock" in cls or "circadian" in cls or sub_class == "lnv":
+        return "CLOCK_DN"
+    if sub_class == "dn1p":
+        return "DN_STARTLE"
+    if sub_class == "dn3":
+        return "DN_WALK"
+
     # --- Visual system ---
     # FlyWire: super_class=optic (class=optic_lobe_intrinsic), super_class=visual_projection,
     #          super_class=visual_centrifugal, class=visual (afferent photoreceptors)
@@ -161,6 +173,10 @@ def determine_group(flow: str, super_class: str, cls: str, sub_class: str, regio
             return "VIS_R1R6"
         if "ocellar" in sub_class or "ocellar" in cls:
             return "VIS_R1R6"
+        # T4/T5 are direction-selective motion pathways feeding lobula-plate
+        # optic-flow circuits; keep them with the motion-sensitive visual group.
+        if "t4_neuron" in sub_class or "t5_neuron" in sub_class:
+            return "VIS_LPTC"
         if "lptc" in sub_class or "tangential" in sub_class:
             return "VIS_LPTC"
         if "lc" in sub_class or "loom" in sub_class or "lobula_columnar" in sub_class:
@@ -325,10 +341,6 @@ def determine_group(flow: str, super_class: str, cls: str, sub_class: str, regio
         if "eye" in sub_class or "antenna" in sub_class:
             return "MN_HEAD"
         return "VNC_CPG"
-
-    # --- Clock neurons ---
-    if "clock" in cls or "circadian" in cls:
-        return "CLOCK_DN"
 
     # --- Endocrine / neurosecretory ---
     # FlyWire: super_class=endocrine, class=pars_intercerebralis or pars_lateralis
