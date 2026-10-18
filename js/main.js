@@ -1309,7 +1309,7 @@ function computeMovementForBehavior() {
 	var foodSeeking = (state === 'walk' || state === 'explore') &&
 		BRAIN.stimulate.foodNearby && BRAIN.drives.hunger > 0.3;
 	if (state !== 'feed' && !foodSeeking) behavior.foodSeekTurnSign = 0;
-	if (state !== 'walk' && state !== 'explore' && state !== 'phototaxis' && state !== 'fly') {
+	if (state !== 'walk' && state !== 'explore' && state !== 'fly') {
 		behavior.turnBiasBaseline = 0;
 		behavior.turnInputFiltered = 0;
 	}
@@ -1362,21 +1362,15 @@ function computeMovementForBehavior() {
 		var dx = window.innerWidth / 2 - fly.x;
 		var dy = -(window.innerHeight / 2 - fly.y);
 		var lightDistance = Math.hypot(dx, dy);
-		var arrivalStrength = Math.max(0, Math.min(1, lightDistance / 40));
+		var arrivalRadius = 10;
 		var lightAngle = Math.atan2(dy, dx);
 		var angleDiffToLight = normalizeAngle(lightAngle - facingDir);
-		var millingTurn = 0;
-		if (arrivalStrength < 1) {
-			// Fade into a quiet mill near the light instead of snapping at its center.
-			millingTurn = filterPersistentTurn((Math.random() - 0.5) * 0.4);
-		} else {
-			behavior.turnBiasBaseline = 0;
-			behavior.turnInputFiltered = 0;
-		}
-		var photoTurn = angleDiffToLight * arrivalStrength + millingTurn * (1 - arrivalStrength);
-		photoTurn = Math.max(-0.75, Math.min(0.75, photoTurn));
+		// Follow the true bearing while approaching; inside the arrival radius,
+		// hold heading and brake instead of milling around the light.
+		var photoTurn = lightDistance <= arrivalRadius ? 0 :
+			Math.max(-0.75, Math.min(0.75, angleDiffToLight));
 		targetDir = facingDir + photoTurn;
-		var photoSpeedScale = Math.max(0.5, Math.min(1, lightDistance / 80));
+		var photoSpeedScale = Math.max(0, Math.min(1, (lightDistance - arrivalRadius) / 80));
 		var desiredPhotoSpeed = Math.max(rawMotorSpeed, 0.3) * photoSpeedScale;
 		targetSpeed = smoothLocomotionSpeed(desiredPhotoSpeed, 0.85, 0.35);
 		speedChangeInterval = (targetSpeed - speed) / (scalingFactor * 2.5);

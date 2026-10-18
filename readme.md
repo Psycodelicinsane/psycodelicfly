@@ -11,7 +11,7 @@ From the repository root, serve the app over HTTP (for example, run `python3 -m 
 - **Feed** -- click to place food. The fly seeks and eats it when hungry.
 - **Touch** -- click on the fly. Head, thorax, abdomen, and legs trigger different responses.
 - **Air** -- click and drag near the fly to blow wind.
-- **Light** -- cycle through Bright, Dim, Dark. The fly exhibits phototaxis.
+- **Light** -- cycle through Bright, Dim, Dark. The fly exhibits phototaxis, slows as it reaches the light, and settles there instead of milling in a loop.
 - **Temp** -- cycle through Neutral, Warm, Cool.
 
 The bottom panel shows all 139K neurons firing in real time (WebGL), grouped by region: Sensory, Central, Drives, Motor.
