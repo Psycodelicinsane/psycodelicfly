@@ -7340,10 +7340,16 @@ var BODY = {
 		{ x: 9, y: -10 },  // middle
 		{ x: 8, y: -3 },   // rear
 	],
-	// Leg segment lengths
-	legSeg1: 8,
-	legSeg2: 10,
-	legSeg3: 6,
+	// Real Drosophila leg sequence: coxa, trochanter, femur, tibia,
+	// five tarsomeres and a short pretarsus. Macro totals retain the old rig length.
+	legCoxaLength: 2.1,
+	legTrochanterLength: 0.9,
+	legFemurLength: 5.0,
+	legTarsomereLengths: [1.35, 1.2, 1.05, 0.95, 0.75],
+	legPretarsusLength: 0.7,
+	legSeg1: 8,  // coxa + trochanter + femur
+	legSeg2: 10, // tibia
+	legSeg3: 6,  // five tarsomeres + pretarsus
 	// Resting leg angles (radians from body axis, pointing outward)
 	legRestAngles: [
 		{ hip: -0.7, knee: -0.3 },  // front: angled forward
@@ -7352,8 +7358,8 @@ var BODY = {
 	],
 };
 
-// The body texture replaces only the painted body shell. All appendages remain
-// attached to the existing local-coordinate rig and keep their original motion.
+// The body texture replaces only the painted shell. Appendages keep the same
+// local-coordinate rig while exposing each anatomical leg joint.
 var flyBodyAsset = new Image();
 var flyBodyAssetReady = false;
 flyBodyAsset.onload = function () { flyBodyAssetReady = true; };
@@ -8009,6 +8015,44 @@ function drawProboscisMouth() {
 	ctx.restore();
 }
 
+/** Draw one dark, tapered cuticle segment without changing the leg's joint layout. */
+function drawLegSegment(startX, startY, endX, endY, width) {
+	ctx.beginPath();
+	ctx.moveTo(startX, startY);
+	ctx.lineTo(endX, endY);
+	ctx.strokeStyle = COLORS.leg;
+	ctx.lineWidth = width;
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	ctx.stroke();
+}
+
+/** Use low-contrast cuticle shading for articulations, never bright dot markers. */
+function drawLegJoint(x, y, radius) {
+	ctx.beginPath();
+	ctx.arc(x, y, radius, 0, Math.PI * 2);
+	ctx.fillStyle = COLORS.legJoint;
+	ctx.fill();
+}
+
+/** Tiny paired claws at the pretarsus; kept short so the feet remain understated. */
+function drawLegClaws(x, y, angle) {
+	var clawLength = 0.42;
+	var clawSpread = 0.32;
+	ctx.beginPath();
+	ctx.moveTo(x, y);
+	ctx.lineTo(x + Math.cos(angle - clawSpread) * clawLength,
+		y + Math.sin(angle - clawSpread) * clawLength);
+	ctx.moveTo(x, y);
+	ctx.lineTo(x + Math.cos(angle + clawSpread) * clawLength,
+		y + Math.sin(angle + clawSpread) * clawLength);
+	ctx.strokeStyle = COLORS.leg;
+	ctx.lineWidth = 0.18;
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	ctx.stroke();
+}
+
 /**
  * Draws all 6 legs with behavior-specific animation.
  * State-dependent modes: tripod gait (walk/explore/phototaxis),
@@ -8066,6 +8110,8 @@ function drawLegs(state, dtScale) {
 		var kneeMod = restAngles.knee;
 		var walkOffset = 0;
 		var jitter = 0;
+		var coxaBendOffset = 0;
+		var trochanterBendOffset = 0;
 		var tarsusBendOffset = 0.3;
 
 		if (isWalking && !groomingPoseActive) {
@@ -8073,9 +8119,14 @@ function drawLegs(state, dtScale) {
 			var inGroupA = groupA.indexOf(legIdx) !== -1;
 			var legPhase = anim.walkPhase + (inGroupA ? 0 : Math.PI);
 			walkOffset = Math.sin(legPhase) * 0.35;
+			coxaBendOffset = Math.sin(legPhase + 0.4) * 0.045;
+			trochanterBendOffset = -coxaBendOffset * 0.5;
+			tarsusBendOffset = 0.24 + Math.sin(legPhase + 0.9) * 0.08;
 		} else if (groomingPoseActive) {
 			var groomLoc = groomingLocation || 'thorax';
 			var strokePhase = anim.groomPhase + (side > 0 ? Math.PI : 0);
+			coxaBendOffset = Math.sin(strokePhase * 0.7) * 0.035 * groomBlend;
+			trochanterBendOffset = -coxaBendOffset * 0.4;
 			if (groomLoc === 'head' && pairIdx === 0) {
 				// Lift the foreleg outward, then fold the tibia sharply at the knee
 				// so the fine tarsus reaches the forehead/eye edge to rub the face.
@@ -8087,12 +8138,12 @@ function drawLegs(state, dtScale) {
 				// the tarsi inward along the belly edge in alternating strokes.
 				hipMod = 0.55 + Math.sin(strokePhase) * 0.1;
 				kneeMod = 0.9 + Math.sin(strokePhase * 1.3 + 0.6) * 0.16;
-			} else if (groomLoc === 'thorax' && pairIdx === 1) {
-				// Middle legs sweep the wing bases and thorax edge; their tarsi curl
-				// back onto the shell in alternating, visible brushing strokes.
+			} else if (groomLoc === 'thorax' && pairIdx === 2) {
+				// Hind legs perform the thoracic sweep; the tibia folds around the
+				// shell and the five-part tarsus brushes the thorax edge in alternation.
 				var thoraxStroke = Math.sin(strokePhase * 1.3 + 0.3);
-				hipMod = -1.0 + Math.sin(strokePhase) * 0.08;
-				kneeMod = 1.75 + thoraxStroke * 0.1;
+				hipMod = 0.12 + Math.sin(strokePhase) * 0.08;
+				kneeMod = -3.4 + thoraxStroke * 0.1;
 				var targetTarsusBend = 2.35 + thoraxStroke * 0.1;
 				tarsusBendOffset = 0.3 + (targetTarsusBend - 0.3) * groomBlend;
 			} else if (groomLoc === 'leg') {
@@ -8130,57 +8181,67 @@ function drawLegs(state, dtScale) {
 			jitter = anim.legJitter[legIdx] * (BRAIN.stimulate.lightLevel === 0 ? 0.5 : 1.0);
 		}
 
-		// Compute hip and knee angles
+		// Compute hip and knee angles; small proximal motions keep the shorter
+		// coxa/trochanter links articulated without changing the grooming targets.
 		var hipAngle = (hipMod + walkOffset + jitter) * side;
 		var kneeAngle = kneeMod * side;
-
-		// Attachment point on body
 		var ax = attach.x * side;
 		var ay = attach.y;
-
-		// First segment (coxa/femur)
 		var baseAngle = (side === -1 ? Math.PI : 0) + hipAngle;
-		var seg1EndX = ax + Math.cos(baseAngle) * BODY.legSeg1;
-		var seg1EndY = ay + Math.sin(baseAngle) * BODY.legSeg1;
 
-		// Second segment (tibia) -- bends at knee
-		var kneeAngleAbs = baseAngle + kneeAngle + side * 0.5;
+		// Coxa and trochanter sit between the thorax and the enlarged femur.
+		var coxaAngle = baseAngle + side * coxaBendOffset;
+		var coxaEndX = ax + Math.cos(coxaAngle) * BODY.legCoxaLength;
+		var coxaEndY = ay + Math.sin(coxaAngle) * BODY.legCoxaLength;
+		drawLegSegment(ax, ay, coxaEndX, coxaEndY, 0.88);
+		drawLegJoint(coxaEndX, coxaEndY, 0.27);
+
+		var trochanterAngle = baseAngle + side * (coxaBendOffset + trochanterBendOffset);
+		var trochanterEndX = coxaEndX + Math.cos(trochanterAngle) * BODY.legTrochanterLength;
+		var trochanterEndY = coxaEndY + Math.sin(trochanterAngle) * BODY.legTrochanterLength;
+		drawLegSegment(coxaEndX, coxaEndY, trochanterEndX, trochanterEndY, 0.72);
+		drawLegJoint(trochanterEndX, trochanterEndY, 0.22);
+
+		var femurAngle = baseAngle + side * (coxaBendOffset + trochanterBendOffset);
+		var seg1EndX = trochanterEndX + Math.cos(femurAngle) * BODY.legFemurLength;
+		var seg1EndY = trochanterEndY + Math.sin(femurAngle) * BODY.legFemurLength;
+		drawLegSegment(trochanterEndX, trochanterEndY, seg1EndX, seg1EndY, 1.05);
+		drawLegJoint(seg1EndX, seg1EndY, 0.46);
+
+		// The long tibia articulates at the visible knee.
+		var kneeAngleAbs = femurAngle + kneeAngle + side * 0.5;
 		var seg2EndX = seg1EndX + Math.cos(kneeAngleAbs) * BODY.legSeg2;
 		var seg2EndY = seg1EndY + Math.sin(kneeAngleAbs) * BODY.legSeg2;
+		drawLegSegment(seg1EndX, seg1EndY, seg2EndX, seg2EndY, 0.76);
+		drawLegJoint(seg2EndX, seg2EndY, 0.32);
 
-		// The tarsus keeps its small resting hook, but curls back toward the shell
-		// during thorax washing to make the brushing contact visible.
+		// Drosophila's tarsus has five short tarsomeres, followed by a pretarsus.
+		// A tiny progressive curl makes the foot flexible but keeps its reach stable.
+		var tarsomereLengths = BODY.legTarsomereLengths;
+		var tarsomereWidths = [0.62, 0.58, 0.53, 0.47, 0.41];
+		var tarsusX = seg2EndX;
+		var tarsusY = seg2EndY;
 		var tarsusAngle = kneeAngleAbs + side * tarsusBendOffset;
-		var seg3EndX = seg2EndX + Math.cos(tarsusAngle) * BODY.legSeg3;
-		var seg3EndY = seg2EndY + Math.sin(tarsusAngle) * BODY.legSeg3;
-
-		// Taper the original three rigid segments from femur to fine tarsus.
-		var segmentStartsX = [ax, seg1EndX, seg2EndX];
-		var segmentStartsY = [ay, seg1EndY, seg2EndY];
-		var segmentEndsX = [seg1EndX, seg2EndX, seg3EndX];
-		var segmentEndsY = [seg1EndY, seg2EndY, seg3EndY];
-		var segmentWidths = [1.05, 0.78, 0.54];
-		ctx.strokeStyle = COLORS.leg;
-		ctx.lineCap = 'round';
-		ctx.lineJoin = 'round';
-		for (var segmentIdx = 0; segmentIdx < 3; segmentIdx++) {
-			ctx.beginPath();
-			ctx.moveTo(segmentStartsX[segmentIdx], segmentStartsY[segmentIdx]);
-			ctx.lineTo(segmentEndsX[segmentIdx], segmentEndsY[segmentIdx]);
-			ctx.lineWidth = segmentWidths[segmentIdx];
-			ctx.stroke();
+		var lastTarsomereAngle = tarsusAngle;
+		for (var tarsomereIdx = 0; tarsomereIdx < tarsomereLengths.length; tarsomereIdx++) {
+			var tarsomereAngle = tarsusAngle + side * 0.12 *
+				(tarsomereIdx / Math.max(1, tarsomereLengths.length - 1));
+			var nextTarsusX = tarsusX + Math.cos(tarsomereAngle) * tarsomereLengths[tarsomereIdx];
+			var nextTarsusY = tarsusY + Math.sin(tarsomereAngle) * tarsomereLengths[tarsomereIdx];
+			drawLegSegment(tarsusX, tarsusY, nextTarsusX, nextTarsusY,
+				tarsomereWidths[tarsomereIdx] || 0.41);
+			drawLegJoint(nextTarsusX, nextTarsusY, 0.13 - tarsomereIdx * 0.012);
+			tarsusX = nextTarsusX;
+			tarsusY = nextTarsusY;
+			lastTarsomereAngle = tarsomereAngle;
 		}
 
-		// Small, dark joints blend with the cuticle instead of looking like dots.
-		ctx.beginPath();
-		ctx.arc(seg1EndX, seg1EndY, 0.52, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.legJoint;
-		ctx.fill();
+		var pretarsusAngle = lastTarsomereAngle + side * 0.04;
+		var seg3EndX = tarsusX + Math.cos(pretarsusAngle) * BODY.legPretarsusLength;
+		var seg3EndY = tarsusY + Math.sin(pretarsusAngle) * BODY.legPretarsusLength;
+		drawLegSegment(tarsusX, tarsusY, seg3EndX, seg3EndY, 0.30);
+		drawLegClaws(seg3EndX, seg3EndY, pretarsusAngle);
 
-		ctx.beginPath();
-		ctx.arc(seg2EndX, seg2EndY, 0.38, 0, Math.PI * 2);
-		ctx.fillStyle = COLORS.legJoint;
-		ctx.fill();
 	}
 }
 
@@ -8501,6 +8562,7 @@ function loop(timestamp) {
 	requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
 // === js/caretaker-renderer.js ===
 (function() {
   var cursorImg = null;

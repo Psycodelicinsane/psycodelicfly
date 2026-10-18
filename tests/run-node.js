@@ -41,7 +41,7 @@ for (var i = 0; i < moreFiles.length; i++) {
 }
 
 // Load DOM-independent touch and renderer helpers from main.js so tests can
-// verify under-shell grooming, feeding and the original articulated leg rig.
+// verify under-shell grooming, feeding and the articulated Drosophila leg rig.
 var mainSource = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8');
 var touchStart = mainSource.indexOf('function applyTouchTool(cx, cy) {');
 var touchEnd = mainSource.indexOf('\n/**\n * Returns the nearest food item', touchStart);
@@ -59,7 +59,7 @@ var behaviorDescriptionStart = mainSource.indexOf('function describeFlyBehavior(
 var behaviorDescriptionEnd = mainSource.indexOf('\nfunction recordFlyActivity', behaviorDescriptionStart);
 var colorsStart = mainSource.indexOf('var COLORS = {');
 var colorsEnd = mainSource.indexOf('\n};', colorsStart) + 3;
-var drawStart = mainSource.indexOf('/**\n * Draws all 6 legs with behavior-specific animation.');
+var drawStart = mainSource.indexOf('function drawLegSegment(');
 var drawEnd = mainSource.indexOf('// --- Movement update (same interface as worm-sim) ---', drawStart);
 var flyOrderStart = mainSource.indexOf('function drawFlyBody(dtScale) {');
 var flyOrderEnd = mainSource.indexOf('/**\n * Draw the generated Drosophila body cutout', flyOrderStart);
@@ -99,6 +99,8 @@ global.getLayoutBounds = function () { return { top: 44, bottom: 550, left: 0, r
 global.touchResetTime = 0;
 global.touchTimestamps = [];
 global.BODY = {
+	legCoxaLength: 2.1, legTrochanterLength: 0.9, legFemurLength: 5.0,
+	legTarsomereLengths: [1.35, 1.2, 1.05, 0.95, 0.75], legPretarsusLength: 0.7,
 	legSeg1: 8, legSeg2: 10, legSeg3: 6,
 	legAttach: [{x: 7, y: -16}, {x: 9, y: -10}, {x: 8, y: -3}],
 	legRestAngles: [{hip: -0.7, knee: -0.3}, {hip: 0, knee: 0.2}, {hip: 0.7, knee: 0.3}],

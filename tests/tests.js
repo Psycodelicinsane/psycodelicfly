@@ -246,7 +246,7 @@ function captureGroomingLegs(state, location, phase, touchFeedback) {
 	var originalCtx = globalThis.ctx;
 	var originalGroomBlend = anim.groomBlend;
 	var originalGroomPoseLocation = anim.groomPoseLocation;
-	var calls = [];
+	var rawCalls = [];
 	var path = [];
 	var styles = {};
 	var nowSeconds = Date.now() / 1000;
@@ -275,7 +275,7 @@ function captureGroomingLegs(state, location, phase, touchFeedback) {
 			if (name === 'stroke') {
 				return function () {
 					if (path.length > 1) {
-						calls.push({ path: path.slice(), strokeStyle: styles.strokeStyle, lineWidth: styles.lineWidth });
+						rawCalls.push({ path: path.slice(), strokeStyle: styles.strokeStyle, lineWidth: styles.lineWidth });
 					}
 				};
 			}
@@ -290,24 +290,55 @@ function captureGroomingLegs(state, location, phase, touchFeedback) {
 		anim.groomBlend = originalGroomBlend;
 		anim.groomPoseLocation = originalGroomPoseLocation;
 	}
-	return calls;
+	var macroCalls = [];
+	for (var legIdx = 0; legIdx < 6; legIdx++) {
+		var legCalls = rawCalls.slice(legIdx * 11, (legIdx + 1) * 11);
+		macroCalls.push({
+			path: [legCalls[0].path[0], legCalls[2].path[1]],
+			strokeStyle: legCalls[2].strokeStyle,
+			lineWidth: legCalls[2].lineWidth
+		});
+		macroCalls.push(legCalls[3]);
+		macroCalls.push({
+			path: [legCalls[4].path[0], legCalls[9].path[1]],
+			strokeStyle: legCalls[4].strokeStyle,
+			lineWidth: legCalls[4].lineWidth
+		});
+	}
+	macroCalls.rawCalls = rawCalls;
+	return macroCalls;
 }
 
-function assertOriginalLegSegmentLengths(calls, description) {
-	assertEqual(calls.length, 18, description + ': all three articulated segments of six legs are drawn');
-	var lengths = [BODY.legSeg1, BODY.legSeg2, BODY.legSeg3];
-	var widths = [1.05, 0.78, 0.54];
+function assertAnatomicalLegSegments(calls, description) {
+	assertEqual(calls.length, 18, description + ': all six legs retain their three macro pose endpoints');
+	var rawCalls = calls.rawCalls;
+	assertEqual(rawCalls.length, 66, description + ': each leg draws ten anatomical segments and paired claws');
+	var lengths = [BODY.legCoxaLength, BODY.legTrochanterLength, BODY.legFemurLength, BODY.legSeg2]
+		.concat(BODY.legTarsomereLengths, [BODY.legPretarsusLength]);
+	var widths = [0.88, 0.72, 1.05, 0.76, 0.62, 0.58, 0.53, 0.47, 0.41, 0.30];
+	assertClose(BODY.legCoxaLength + BODY.legTrochanterLength + BODY.legFemurLength,
+		BODY.legSeg1, 0.000001, description + ': the proximal chain keeps the former eight-pixel reach');
+	assertClose(BODY.legTarsomereLengths.reduce(function (sum, length) { return sum + length; }, 0) +
+		BODY.legPretarsusLength, BODY.legSeg3, 0.000001,
+		description + ': the five tarsomeres and pretarsus keep the former six-pixel reach');
 	for (var legIdx = 0; legIdx < 6; legIdx++) {
-		for (var segmentIdx = 0; segmentIdx < 3; segmentIdx++) {
-			var segment = calls[legIdx * 3 + segmentIdx];
-			assertEqual(segment.path.length, 2, description + ': each tapered segment has a clean articulated endpoint');
+		for (var segmentIdx = 0; segmentIdx < lengths.length; segmentIdx++) {
+			var segment = rawCalls[legIdx * 11 + segmentIdx];
+			assertEqual(segment.path.length, 2, description + ': each cuticle link has a clean endpoint');
 			assertClose(Math.hypot(segment.path[1][0] - segment.path[0][0], segment.path[1][1] - segment.path[0][1]),
-				lengths[segmentIdx], 0.000001, description + ': original segment length is unchanged');
+				lengths[segmentIdx], 0.000001, description + ': articulated link preserves its measured length');
 			assertEqual(segment.strokeStyle, '#3d2e1a', description + ': leg segments keep their dark chitin color');
 			assertClose(segment.lineWidth, widths[segmentIdx], 0.000001,
-				description + ': femur, tibia and tarsus use a realistic taper');
+				description + ': femur-to-foot cuticle tapers progressively');
 		}
+		var claws = rawCalls[legIdx * 11 + 10];
+		assertEqual(claws.path.length, 4, description + ': pretarsus terminates in two short claws');
+		assertEqual(claws.strokeStyle, '#3d2e1a', description + ': claws keep the same natural cuticle color');
+		assertClose(claws.lineWidth, 0.18, 0.000001, description + ': terminal claws stay finer than the tarsus');
 	}
+	assertEqual(BODY.legTarsomereLengths.length, 5, description + ': the tarsus is divided into five tarsomeres');
+	assertTrue(BODY.legTarsomereLengths[0] > BODY.legTarsomereLengths[4],
+		description + ': distal tarsomeres taper toward the pretarsus');
 }
 
 function test_original_leg_colors_are_dark_chitin() {
@@ -319,7 +350,7 @@ function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
 	resetBrainState();
 	// Touch-triggered cleaning can run while the connectome is still in startle.
 	var faceA = captureGroomingLegs('startle', 'head', 0.35, true);
-	assertOriginalLegSegmentLengths(faceA, 'face washing');
+	assertAnatomicalLegSegments(faceA, 'face washing');
 
 	var faceB = captureGroomingLegs('startle', 'head', 1.1, true);
 	assertTrue(Math.hypot(faceB[2].path[1][0] - faceA[2].path[1][0],
@@ -347,7 +378,7 @@ function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
 	}
 
 	var abdomenA = captureGroomingLegs('startle', 'abdomen', 0.35, true);
-	assertOriginalLegSegmentLengths(abdomenA, 'abdomen cleaning');
+	assertAnatomicalLegSegments(abdomenA, 'abdomen cleaning');
 	var rearFemur = abdomenA[15];
 	var rearTibia = abdomenA[16];
 	var rearTarsus = abdomenA[17];
@@ -367,14 +398,15 @@ function test_face_and_abdomen_grooming_use_original_legs_under_the_shell() {
 		'the original rear legs keep their abdomen-grooming motion');
 }
 
-function test_thorax_grooming_middle_tarsi_brush_the_shell_in_alternating_strokes() {
+function test_thorax_grooming_hind_tarsi_brush_the_shell_in_alternating_strokes() {
 	var thoraxA = captureGroomingLegs('startle', 'thorax', 0.35, true);
-	var leftFemur = thoraxA[6];
-	var leftTibia = thoraxA[7];
-	var leftTarsus = thoraxA[8];
-	var rightFemur = thoraxA[9];
-	var rightTibia = thoraxA[10];
-	var rightTarsus = thoraxA[11];
+	assertAnatomicalLegSegments(thoraxA, 'thorax cleaning');
+	var leftFemur = thoraxA[12];
+	var leftTibia = thoraxA[13];
+	var leftTarsus = thoraxA[14];
+	var rightFemur = thoraxA[15];
+	var rightTibia = thoraxA[16];
+	var rightTarsus = thoraxA[17];
 	var leftFemurAngle = Math.atan2(leftFemur.path[1][1] - leftFemur.path[0][1],
 		leftFemur.path[1][0] - leftFemur.path[0][0]);
 	var leftTibiaAngle = Math.atan2(leftTibia.path[1][1] - leftTibia.path[0][1],
@@ -387,7 +419,7 @@ function test_thorax_grooming_middle_tarsi_brush_the_shell_in_alternating_stroke
 		rightTibia.path[1][0] - rightTibia.path[0][0]);
 	assertTrue(Math.abs(normalizeAngle(leftTibiaAngle - leftFemurAngle)) > 1.0 &&
 		Math.abs(normalizeAngle(rightTibiaAngle - rightFemurAngle)) > 1.0,
-		'thorax cleaning visibly folds both middle legs at their knees');
+		'thorax cleaning visibly folds both hind legs at their knees');
 	assertTrue(Math.abs(normalizeAngle(leftTarsusAngle - leftTibiaAngle)) > 2.0,
 		'the fine tarsus curls back toward the thorax instead of pointing away from it');
 	assertTrue(leftTarsus.path[1][0] < -10 && leftTarsus.path[1][0] > -14 &&
@@ -398,13 +430,13 @@ function test_thorax_grooming_middle_tarsi_brush_the_shell_in_alternating_stroke
 		'the right tarsus mirrors the contact pose on the opposite thorax edge');
 
 	var thoraxB = captureGroomingLegs('startle', 'thorax', 2.7, true);
-	var leftStrokeDx = thoraxB[8].path[1][0] - leftTarsus.path[1][0];
-	var leftStrokeDy = thoraxB[8].path[1][1] - leftTarsus.path[1][1];
-	var rightStrokeDx = thoraxB[11].path[1][0] - rightTarsus.path[1][0];
-	var rightStrokeDy = thoraxB[11].path[1][1] - rightTarsus.path[1][1];
+	var leftStrokeDx = thoraxB[14].path[1][0] - leftTarsus.path[1][0];
+	var leftStrokeDy = thoraxB[14].path[1][1] - leftTarsus.path[1][1];
+	var rightStrokeDx = thoraxB[17].path[1][0] - rightTarsus.path[1][0];
+	var rightStrokeDy = thoraxB[17].path[1][1] - rightTarsus.path[1][1];
 	assertTrue(Math.hypot(leftStrokeDx, leftStrokeDy) > 0.5 &&
 		Math.hypot(rightStrokeDx, rightStrokeDy) > 0.5,
-		'the middle legs sweep back and forth over the thorax instead of holding a static pose');
+		'the hind legs sweep back and forth over the thorax instead of holding a static pose');
 	assertTrue(leftStrokeDx * -rightStrokeDx + leftStrokeDy * rightStrokeDy < 0,
 		'the left and right thorax strokes alternate instead of sweeping in sync');
 }
